@@ -89,35 +89,6 @@ end
 // Trying to write a word
 initial
 begin
-    @ (posedge ARESETN);
-    AWVALID <= 1'b0;
-    AWADDR  <= 1'b0;
-    AWID    <= 1'b0;
-    AWLOCK  <= 1'b0;
-    AWCACHE <= 1'b0;
-    AWPROT  <= 1'b0;
-    AWLEN   <= 1'b0;
-    AWSIZE  <= 1'b0;
-    AWBURST <= 1'b0;
-    repeat (10) 
-        @ (posedge ACLK);
-    AWVALID <= 1'b1;
-    AWADDR  <= 32'h4;
-    AWID    <= 1'b0;
-    AWLOCK  <= 1'b0;
-    AWCACHE <= 1'b0;
-    AWPROT  <= 1'b0;
-    AWLEN   <= 1'b0;
-    AWSIZE  <= 1'b10;
-    AWBURST <= 1'b0;
-    
-
-end
-
-// Trying to read a word
-initial
-begin
-    @ (posedge ARESETN);
     ARVALID <= 1'b0;
     ARADDR  <= 1'b0;
     ARID    <= 1'b0;
@@ -128,9 +99,52 @@ begin
     ARSIZE  <= 1'b0;
     ARBURST <= 1'b0;
     RREADY  <= 1'b0;
+    AWVALID <= 1'b0;
+    AWADDR  <= 1'b0;
+    AWID    <= 1'b0;
+    AWLOCK  <= 1'b0;
+    AWCACHE <= 1'b0;
+    AWPROT  <= 1'b0;
+    AWLEN   <= 1'b0;
+    AWSIZE  <= 1'b0;
+    AWBURST <= 1'b0;
+    WVALID  <= 1'b0;
+    WID     <= 1'b0;
+    WSTRB   <= 1'b0;
+    #220;
     repeat (10) 
         @ (posedge ACLK);
-    ARADDR  <= 1'b0;
+    AWVALID <= 1'b1;
+    AWADDR  <= 32'h4;
+    AWID    <= 1'b0;
+    AWLOCK  <= 1'b0;
+    AWCACHE <= 1'b0;
+    AWPROT  <= 1'b0;
+    AWLEN   <= 1'b0;
+    AWSIZE  <= 2'b10;
+    AWBURST <= 1'b0;
+    if (AWREADY == 1'b0)
+        @ (posedge AWREADY);
+    @ (posedge ACLK);
+    AWVALID <= 1'b0;
+    WDATA   <= 32'hdeadbeef;
+    WVALID  <= 1'b1;
+    WSTRB   <= 4'b1011;
+    WID     <= 12'h123;
+    if (WREADY == 1'b0)
+        @ (posedge WREADY);
+    @ (posedge ACLK);
+    WVALID  <= 1'b0;
+    
+
+    repeat (10) 
+        @ (posedge ACLK);
+
+// Trying to read a word
+    #170;
+    repeat (10) 
+        @ (posedge ACLK);
+    ARADDR  <= 32'h4;
     ARVALID <= 1'b1;
     ARID    <= 1'b0;
     ARLOCK  <= 1'b0;
@@ -139,12 +153,16 @@ begin
     ARLEN   <= 1'b0;
     ARSIZE  <= 1'b0;
     ARBURST <= 1'b0;
-    repeat (2) 
-        @ (posedge ACLK);
+    if (ARREADY == 1'b0)
+        @ (posedge ARREADY);
+    @ (posedge ACLK);
     ARVALID <= 1'b0;
-    repeat (5) 
-        @ (posedge ACLK);
     RREADY  <= 1'b1;
+    if (RVALID == 1'b0)
+        @ (posedge RVALID);
+    @ (posedge ACLK);
+    RREADY  <= 1'b0;
+
     
 
 end

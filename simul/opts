@@ -1,0 +1,5 @@
+-y ${SATA_PATH}/x393/util_modules 
++incdir+${SATA_PATH}/tb/
++incdir+${SATA_PATH}/x393/ 
++incdir+${SATA_PATH}/x393/axi/ 
++incdir+${SATA_PATH}/ 

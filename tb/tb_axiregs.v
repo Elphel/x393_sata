@@ -71,7 +71,62 @@ wire                BVALID;            // AXI PS Master GP1 BVALID, input
 wire                BREADY;            // AXI PS Master GP1 BREADY, output
 wire    [11:0]      BID;               // AXI PS Master GP1 BID[11:0], input
 wire    [1:0]       BRESP;             // AXI PS Master GP1 BRESP[1:0], input
-
+/*
+axibram_write dut(
+	.aclk			(ACLK),
+	.rst			(~ARESETN),
+	.awaddr			(AWADDR),
+	.awvalid		(AWVALID),
+	.awready		(AWREADY),
+	.awid			(AWID),
+	.awlen			(AWLEN),
+	.awsize			(AWSIZE),
+	.awburst		(AWBURST),
+	.wdata			(WDATA),
+	.wvalid			(WVALID),
+	.wready			(WREADY),
+	.wid			(WID),
+	.wlast			(WLAST),
+	.wstb			(WSTRB),
+	.bvalid			(BVALID),
+	.bready			(BREADY),
+	.bid			(BID),
+	.bresp			(BRESP),
+	.pre_awaddr		(),
+	.start_burst	(),
+	.dev_ready		(1'b1),
+	.bram_wclk		(),
+	.bram_waddr		(),
+	.bram_wen		(),
+	.bram_wstb		(),
+	.bram_wdata		()
+);
+axibram_read dut2(
+	.aclk			(ACLK),
+	.rst			(~ARESETN),
+	.araddr			(ARADDR),
+	.arvalid		(ARVALID),
+	.arready		(ARREADY),
+	.arid			(ARID),
+	.arlen			(ARLEN),
+	.arsize			(ARSIZE),
+	.arburst		(ARBURST),
+	.rdata			(RDATA),
+	.rvalid			(RVALID),
+	.rready			(RREADY),
+	.rid			(RID),
+	.rlast			(RLAST),
+	.rresp			(RRESP),
+	.pre_araddr		(),
+	.start_burst	(),
+	.dev_ready		(1'b1),
+	.bram_rclk		(),
+	.bram_raddr		(),
+	.bram_ren		(bram_ren),
+	.bram_regen		(),
+	.bram_rdata		(bram_ren ? 32'hdeadbeef : 0)
+);
+*/
 axi_regs dut(
     .ACLK       (ACLK),
     .ARESETN    (ARESETN),

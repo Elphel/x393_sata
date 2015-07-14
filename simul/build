@@ -5,5 +5,7 @@ if [ "$SATA_PATH" == '' ]
 then
     SATA_PATH=".."
 fi
-iverilog $SATA_PATH/tb/tb_axiregs.v -I$SATA_PATH/ -I$SATA_PATH/tb/ -stb $1 2>&1| tee $LOGFILE_PATH
+iverilog $SATA_PATH/tb/tb_axiregs.v -f opts -stb $1 2>&1| tee $LOGFILE_PATH
+ 
+#-y$SATA_PATH/x393/util_modules -I$SATA_PATH/x393/ -I$SATA_PATH/x393/axi/ $SATA_PATH/tb/tb_axiregs.v -I$SATA_PATH/ -I$SATA_PATH/tb/
 

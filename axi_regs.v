@@ -41,6 +41,8 @@
  *  Wrapping
  *      addr = addr_-1 // size_bytes * size_bytes + size_bytes
  */
+`include "axibram_read.v"
+`include "axibram_write.v"
 module axi_regs(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
@@ -91,8 +93,97 @@ module axi_regs(
 
 // register set
 //reg     [31:0]  mem [3:0];
-reg     [32*4 - 1:0]  mem;
+reg     [32*16 - 1:0]  mem;
+`ifndef MAXI_NEW_IFACE
 
+wire    [31:0]  bram_waddr;
+wire    [31:0]  bram_raddr;
+wire    [31:0]  bram_wdata;
+wire    [31:0]  bram_rdata;
+wire    [3:0]   bram_wstb;
+wire            bram_wen;
+wire            bram_ren;
+
+genvar ii;
+generate
+for (ii = 0; ii < 16; ii = ii + 1)
+begin: write_to_mem
+    always @ (posedge ACLK)
+    begin
+        mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
+        mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
+        mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
+        mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
+    end
+end
+endgenerate
+
+reg     [3:0]   bram_raddr_r;
+always @ (posedge ACLK)
+    bram_raddr_r <= bram_ren ? bram_raddr[3:0] : bram_raddr_r;
+assign  bram_rdata = mem[32*bram_raddr_r + 31-:32];
+
+axibram_write #(
+    .ADDRESS_BITS(32)
+)
+axibram_write(
+    .aclk           (ACLK),
+    .rst            (~ARESETN),
+    .awaddr         (AWADDR),
+    .awvalid        (AWVALID),
+    .awready        (AWREADY),
+    .awid           (AWID),
+    .awlen          (AWLEN),
+    .awsize         (AWSIZE),
+    .awburst        (AWBURST),
+    .wdata          (WDATA),
+    .wvalid         (WVALID),
+    .wready         (WREADY),
+    .wid            (WID),
+    .wlast          (WLAST),
+    .wstb           (WSTRB),
+    .bvalid         (BVALID),
+    .bready         (BREADY),
+    .bid            (BID),
+    .bresp          (BRESP),
+    .pre_awaddr     (),
+    .start_burst    (),
+    .dev_ready      (1'b1),
+    .bram_wclk      (),
+    .bram_waddr     (bram_waddr),
+    .bram_wen       (bram_wen),
+    .bram_wstb      (bram_wstb),
+    .bram_wdata     (bram_wdata)
+);
+axibram_read #(
+    .ADDRESS_BITS(32)
+)
+axibram_read(
+    .aclk           (ACLK),
+    .rst            (~ARESETN),
+    .araddr         ({1'b0,ARADDR}),
+    .arvalid        (ARVALID),
+    .arready        (ARREADY),
+    .arid           (ARID),
+    .arlen          (ARLEN),
+    .arsize         (ARSIZE),
+    .arburst        (ARBURST),
+    .rdata          (RDATA),
+    .rvalid         (RVALID),
+    .rready         (RREADY),
+    .rid            (RID),
+    .rlast          (RLAST),
+    .rresp          (RRESP),
+    .pre_araddr     (),
+    .start_burst    (),
+    .dev_ready      (1'b1),
+    .bram_rclk      (),
+    .bram_raddr     (bram_raddr),
+    .bram_ren       (bram_ren),
+    .bram_regen     (),
+    .bram_rdata     (bram_rdata)
+);
+`else
 // read
 // simple consecutive non-conveyor
 reg             raval;
@@ -121,14 +212,14 @@ assign  RLAST   = burst_cnt == rlen;
 assign  RRESP   = 2'b00;
 
 // recieve controls
-always @ (posedge ACLK)
+always @ *//(posedge ACLK)
 begin
-    raddr   <= ARVALID ? ARADDR : raddr;
-    raval   <= ARVALID;
-    rlen    <= ARLEN;
-    rsize   <= ARSIZE;
-    rburst  <= ARBURST;
-    rid_in  <= RID;
+    raddr   = ARVALID ? ARADDR : raddr;
+    raval   = ARVALID;
+    rlen    = ARLEN;
+    rsize   = ARSIZE;
+    rburst  = ARBURST;
+    rid_in  = RID;
 end
 
 // determine successful address detection and data delivery
@@ -193,19 +284,19 @@ assign  WREADY = wready;
 assign  AWREADY = ~waunready & ~wait_resp;
 
 // latching inputs
-always @ (posedge ACLK)
+always @ *//(posedge ACLK)
 begin
-    waddr   <= AWVALID ? AWADDR : waddr;
-    waval   <= AWVALID;
-    wid_in  <= AWID;
-    wlen    <= AWLEN;
-    wsize   <= AWSIZE;
-    wburst  <= AWBURST;
-    wdata   <= WDATA;
-    wlast   <= WLAST;
-    wid     <= WID;
-    wstrb   <= AWVALID ? WSTRB : wstrb;
-    wval    <= WVALID;
+    waddr   = AWVALID ? AWADDR : waddr;
+    waval   = AWVALID;
+    wid_in  = AWID;
+    wlen    = AWLEN;
+    wsize   = AWSIZE;
+    wburst  = AWBURST;
+    wdata   = WDATA;
+    wlast   = WLAST;
+    wid     = WID;
+    wstrb   = AWVALID ? WSTRB : wstrb;
+    wval    = WVALID;
 end
 
 // determine start and end of 'transmit data' phase
@@ -259,7 +350,7 @@ assign  BREADY = bready;
 assign  wresp_clr = BREADY & BVALID;
 
 
-
+`endif
 
 
 endmodule
