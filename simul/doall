@@ -1,0 +1,17 @@
+#!/bin/bash
+if [ ! -z "$1" ]
+then
+    SAV_FILE=$1
+else
+    SAV_FILE="save.gtkw"
+fi
+./build #-pfileline=1
+./simul
+if [ $? != 0 ] 
+then
+    echo "BUILD FAILED"
+    exit
+fi
+gtkwave test.vcd $SAV_FILE &> waves.log & 
+echo all done
+

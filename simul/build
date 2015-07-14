@@ -1,0 +1,9 @@
+#!/bin/bash
+LOGFILE_PATH="bld.log"
+rm a.out
+if [ "$SATA_PATH" == '' ]
+then
+    SATA_PATH=".."
+fi
+iverilog $SATA_PATH/tb/tb_axiregs.v -I$SATA_PATH/ -I$SATA_PATH/tb/ -stb $1 2>&1| tee $LOGFILE_PATH
+
