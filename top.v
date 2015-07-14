@@ -18,7 +18,114 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-module top(
+/*
+ * all signals' and modules' names and interconnections are taken from x393.v
+ * to make the final integration easier - just to make an instance of 
+ * what is called now 'axi_regs' and connect it
+ */
+`include "system_defines.vh" 
+`include "axi_regs.v"
+module top #(
+`include "includes/x393_parameters.vh"
+)
+(
+);
+
+wire    [3:0]   fclk;
+wire    [3:0]   frst;
+wire            axi_aclk;
+wire            axi_rst;
+wire            comb_rst;
+wire    [31:0]  ARADDR;
+wire            ARVALID;
+wire            ARREADY;
+wire    [11:0]  ARID;
+wire    [1:0]   ARLOCK;
+wire    [3:0]   ARCACHE;
+wire    [2:0]   ARPROT;
+wire    [3:0]   ARLEN;
+wire    [1:0]   ARSIZE;
+wire    [1:0]   ARBURST;
+wire    [3:0]   ARQOS;
+wire    [31:0]  RDATA;
+wire            RVALID;
+wire            RREADY;
+wire    [11:0]  RID;
+wire            RLAST;
+wire    [1:0]   RRESP;
+wire    [31:0]  AWADDR;
+wire            AWVALID;
+wire            AWREADY;
+wire    [11:0]  AWID;
+wire    [1:0]   AWLOCK;
+wire    [3:0]   AWCACHE;
+wire    [2:0]   AWPROT;
+wire    [3:0]   AWLEN;
+wire    [1:0]   AWSIZE;
+wire    [1:0]   AWBURST;
+wire    [3:0]   AWQOS;
+wire    [31:0]  WDATA;
+wire            WVALID;
+wire            WREADY;
+wire    [11:0]  WID;
+wire            WLAST;
+wire    [3:0]   WSTRB;
+wire            BVALID;
+wire            BREADY;
+wire    [11:0]  BID;
+wire    [1:0]   BRESP;
+reg             axi_rst_pre;
+
+assign comb_rst=~frst[0] | frst[1];
+always @(posedge comb_rst or posedge axi_aclk) begin
+    if (comb_rst) axi_rst_pre <= 1'b1;
+    else          axi_rst_pre <= 1'b0;
+end
+
+BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(fclk[0]));
+BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
+
+axi_regs axi_regs(
+    .ACLK       (axi_aclk),
+    .ARESETN    (axi_rst),
+    .ARADDR     (ARADDR),
+    .ARVALID    (ARVALID),
+    .ARREADY    (ARREADY),
+    .ARID       (ARID),
+    .ARLOCK     (ARLOCK),
+    .ARCACHE    (ARCACHE),
+    .ARPROT     (ARPROT),
+    .ARLEN      (ARLEN),
+    .ARSIZE     (ARSIZE),
+    .ARBURST    (ARBURST),
+    .ARQOS      (ARQOS),
+    .RDATA      (RDATA),
+    .RVALID     (RVALID),
+    .RREADY     (RREADY),
+    .RID        (RID),
+    .RLAST      (RLAST),
+    .RRESP      (RRESP),
+    .AWADDR     (AWADDR),
+    .AWVALID    (AWVALID),
+    .AWREADY    (AWREADY),
+    .AWID       (AWID),
+    .AWLOCK     (AWLOCK),
+    .AWCACHE    (AWCACHE),
+    .AWPROT     (AWPROT),
+    .AWLEN      (AWLEN),
+    .AWSIZE     (AWSIZE),
+    .AWBURST    (AWBURST),
+    .AWQOS      (AWQOS),
+    .WDATA      (WDATA),
+    .WVALID     (WVALID),
+    .WREADY     (WREADY),
+    .WID        (WID),
+    .WLAST      (WLAST),
+    .WSTRB      (WSTRB),
+    .BVALID     (BVALID),
+    .BREADY     (BREADY),
+    .BID        (BID),
+    .BRESP      (BRESP)
 );
 
 PS7 ps7_i (
@@ -93,7 +200,7 @@ PS7 ps7_i (
     .EMIOENET1MDIOI(),           // MDIO 1 MD data input, input
   // EMIO GPIO
     .EMIOGPIOO(),                // EMIO GPIO Data out[63:0], output
-    .EMIOGPIOI(gpio_in[63:0]),   // EMIO GPIO Data in[63:0], input
+    .EMIOGPIOI(/*gpio_in[63:0]*/),   // EMIO GPIO Data in[63:0], input
     .EMIOGPIOTN(),               // EMIO GPIO OutputEnable[63:0], output
   // EMIO I2C 0  
     .EMIOI2C0SCLO(),             // I2C 0 SCL OUT, output // manual says input
@@ -332,51 +439,51 @@ PS7 ps7_i (
 
 // AXI PS Master GP1    
 // AXI PS Master GP1: Clock, Reset
-    .MAXIGP1ACLK(),              // AXI PS Master GP1 Clock , input
-    .MAXIGP1ARESETN(),           // AXI PS Master GP1 Reset, output
+    .MAXIGP1ACLK    (axi_aclk),         // AXI PS Master GP1 Clock , input
+    .MAXIGP1ARESETN (axi_rst),          // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
-    .MAXIGP1ARADDR(),            // AXI PS Master GP1 ARADDR[31:0], output  
-    .MAXIGP1ARVALID(),           // AXI PS Master GP1 ARVALID, output
-    .MAXIGP1ARREADY(),           // AXI PS Master GP1 ARREADY, input
-    .MAXIGP1ARID(),              // AXI PS Master GP1 ARID[11:0], output
-    .MAXIGP1ARLOCK(),            // AXI PS Master GP1 ARLOCK[1:0], output
-    .MAXIGP1ARCACHE(),           // AXI PS Master GP1 ARCACHE[3:0], output
-    .MAXIGP1ARPROT(),            // AXI PS Master GP1 ARPROT[2:0], output
-    .MAXIGP1ARLEN(),             // AXI PS Master GP1 ARLEN[3:0], output
-    .MAXIGP1ARSIZE(),            // AXI PS Master GP1 ARSIZE[1:0], output
-    .MAXIGP1ARBURST(),           // AXI PS Master GP1 ARBURST[1:0], output
-    .MAXIGP1ARQOS(),             // AXI PS Master GP1 ARQOS[3:0], output
+    .MAXIGP1ARADDR  (ARADDR),           // AXI PS Master GP1 ARADDR[31:0], output  
+    .MAXIGP1ARVALID (ARVALID),          // AXI PS Master GP1 ARVALID, output
+    .MAXIGP1ARREADY (ARREADY),          // AXI PS Master GP1 ARREADY, input
+    .MAXIGP1ARID    (ARID),             // AXI PS Master GP1 ARID[11:0], output
+    .MAXIGP1ARLOCK  (ARLOCK),           // AXI PS Master GP1 ARLOCK[1:0], output
+    .MAXIGP1ARCACHE (ARCACHE),          // AXI PS Master GP1 ARCACHE[3:0], output
+    .MAXIGP1ARPROT  (ARPROT),           // AXI PS Master GP1 ARPROT[2:0], output
+    .MAXIGP1ARLEN   (ARLEN),            // AXI PS Master GP1 ARLEN[3:0], output
+    .MAXIGP1ARSIZE  (ARSIZE),           // AXI PS Master GP1 ARSIZE[1:0], output
+    .MAXIGP1ARBURST (ARBURST),          // AXI PS Master GP1 ARBURST[1:0], output
+    .MAXIGP1ARQOS   (ARQOS),            // AXI PS Master GP1 ARQOS[3:0], output
 // AXI PS Master GP1: Read Data
-    .MAXIGP1RDATA(),             // AXI PS Master GP1 RDATA[31:0], input
-    .MAXIGP1RVALID(),            // AXI PS Master GP1 RVALID, input
-    .MAXIGP1RREADY(),            // AXI PS Master GP1 RREADY, output
-    .MAXIGP1RID(),               // AXI PS Master GP1 RID[11:0], input
-    .MAXIGP1RLAST(),             // AXI PS Master GP1 RLAST, input
-    .MAXIGP1RRESP(),             // AXI PS Master GP1 RRESP[1:0], input
+    .MAXIGP1RDATA   (RDATA),            // AXI PS Master GP1 RDATA[31:0], input
+    .MAXIGP1RVALID  (RVALID),           // AXI PS Master GP1 RVALID, input
+    .MAXIGP1RREADY  (RREADY),           // AXI PS Master GP1 RREADY, output
+    .MAXIGP1RID     (RID),              // AXI PS Master GP1 RID[11:0], input
+    .MAXIGP1RLAST   (RLAST),            // AXI PS Master GP1 RLAST, input
+    .MAXIGP1RRESP   (RRESP),            // AXI PS Master GP1 RRESP[1:0], input
 // AXI PS Master GP1: Write Address    
-    .MAXIGP1AWADDR(),            // AXI PS Master GP1 AWADDR[31:0], output
-    .MAXIGP1AWVALID(),           // AXI PS Master GP1 AWVALID, output
-    .MAXIGP1AWREADY(),           // AXI PS Master GP1 AWREADY, input
-    .MAXIGP1AWID(),              // AXI PS Master GP1 AWID[11:0], output
-    .MAXIGP1AWLOCK(),            // AXI PS Master GP1 AWLOCK[1:0], output
-    .MAXIGP1AWCACHE(),           // AXI PS Master GP1 AWCACHE[3:0], output
-    .MAXIGP1AWPROT(),            // AXI PS Master GP1 AWPROT[2:0], output
-    .MAXIGP1AWLEN(),             // AXI PS Master GP1 AWLEN[3:0], output
-    .MAXIGP1AWSIZE(),            // AXI PS Master GP1 AWSIZE[1:0], output
-    .MAXIGP1AWBURST(),           // AXI PS Master GP1 AWBURST[1:0], output
-    .MAXIGP1AWQOS(),             // AXI PS Master GP1 AWQOS[3:0], output
+    .MAXIGP1AWADDR  (AWADDR),           // AXI PS Master GP1 AWADDR[31:0], output
+    .MAXIGP1AWVALID (AWVALID),          // AXI PS Master GP1 AWVALID, output
+    .MAXIGP1AWREADY (AWREADY),          // AXI PS Master GP1 AWREADY, input
+    .MAXIGP1AWID    (AWID),             // AXI PS Master GP1 AWID[11:0], output
+    .MAXIGP1AWLOCK  (AWLOCK),           // AXI PS Master GP1 AWLOCK[1:0], output
+    .MAXIGP1AWCACHE (AWCACHE),          // AXI PS Master GP1 AWCACHE[3:0], output
+    .MAXIGP1AWPROT  (AWPROT),           // AXI PS Master GP1 AWPROT[2:0], output
+    .MAXIGP1AWLEN   (AWLEN),            // AXI PS Master GP1 AWLEN[3:0], output
+    .MAXIGP1AWSIZE  (AWSIZE),           // AXI PS Master GP1 AWSIZE[1:0], output
+    .MAXIGP1AWBURST (AWBURST),          // AXI PS Master GP1 AWBURST[1:0], output
+    .MAXIGP1AWQOS   (AWQOS),            // AXI PS Master GP1 AWQOS[3:0], output
 // AXI PS Master GP1: Write Data
-    .MAXIGP1WDATA(),             // AXI PS Master GP1 WDATA[31:0], output
-    .MAXIGP1WVALID(),            // AXI PS Master GP1 WVALID, output
-    .MAXIGP1WREADY(),            // AXI PS Master GP1 WREADY, input
-    .MAXIGP1WID(),               // AXI PS Master GP1 WID[11:0], output
-    .MAXIGP1WLAST(),             // AXI PS Master GP1 WLAST, output
-    .MAXIGP1WSTRB(),             // AXI PS Master GP1 WSTRB[3:0], output
+    .MAXIGP1WDATA   (WDATA),            // AXI PS Master GP1 WDATA[31:0], output
+    .MAXIGP1WVALID  (WVALID),           // AXI PS Master GP1 WVALID, output
+    .MAXIGP1WREADY  (WREADY),           // AXI PS Master GP1 WREADY, input
+    .MAXIGP1WID     (WID),              // AXI PS Master GP1 WID[11:0], output
+    .MAXIGP1WLAST   (WLAST),            // AXI PS Master GP1 WLAST, output
+    .MAXIGP1WSTRB   (WSTRB),            // AXI PS Master GP1 WSTRB[3:0], output
 // AXI PS Master GP1: Write Responce
-    .MAXIGP1BVALID(),            // AXI PS Master GP1 BVALID, input
-    .MAXIGP1BREADY(),            // AXI PS Master GP1 BREADY, output
-    .MAXIGP1BID(),               // AXI PS Master GP1 BID[11:0], input
-    .MAXIGP1BRESP(),             // AXI PS Master GP1 BRESP[1:0], input
+    .MAXIGP1BVALID  (BVALID),           // AXI PS Master GP1 BVALID, input
+    .MAXIGP1BREADY  (BREADY),           // AXI PS Master GP1 BREADY, output
+    .MAXIGP1BID     (BID),              // AXI PS Master GP1 BID[11:0], input
+    .MAXIGP1BRESP   (BRESP),            // AXI PS Master GP1 BRESP[1:0], input
 
 // AXI PS Slave GP0    
 // AXI PS Slave GP0: Clock, Reset

@@ -1,3 +1,6 @@
+-v ${SATA_PATH}/x393/simulation_modules/simul_axi_fifo_out.v
+-y ${SATA_PATH}/x393/simulation_modules 
+-y ${UNISIMS_PATH}/
 -y ${SATA_PATH}/x393/util_modules 
 +incdir+${SATA_PATH}/tb/
 +incdir+${SATA_PATH}/x393/ 

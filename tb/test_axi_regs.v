@@ -115,7 +115,7 @@ begin
     repeat (10) 
         @ (posedge ACLK);
     AWVALID <= 1'b1;
-    AWADDR  <= 32'h4;
+    AWADDR  <= 32'h5;
     AWID    <= 1'b0;
     AWLOCK  <= 1'b0;
     AWCACHE <= 1'b0;
@@ -144,7 +144,7 @@ begin
     #170;
     repeat (10) 
         @ (posedge ACLK);
-    ARADDR  <= 32'h4;
+    ARADDR  <= 32'h5;
     ARVALID <= 1'b1;
     ARID    <= 1'b0;
     ARLOCK  <= 1'b0;
@@ -166,6 +166,125 @@ begin
     
 
 end
+*/
+// Simulation modules    
+simul_axi_master_rdaddr
+#(
+  .ID_WIDTH(12),
+  .ADDRESS_WIDTH(32),
+  .LATENCY(AXI_RDADDR_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH(8),            // maximal number of commands in FIFO
+  .DATA_DELAY(3.5),
+  .VALID_DELAY(4.0)
+) simul_axi_master_rdaddr_i (
+    .clk(CLK),
+    .reset(RST),
+    .arid_in(ARID_IN[11:0]),
+    .araddr_in(ARADDR_IN[31:0]),
+    .arlen_in(ARLEN_IN[3:0]),
+    .arsize_in(ARSIZE_IN[2:0]),
+    .arburst_in(ARBURST_IN[1:0]),
+    .arcache_in(4'b0),
+    .arprot_in(3'b0), //     .arprot_in(2'b0),
+    .arid(arid[11:0]),
+    .araddr(araddr[31:0]),
+    .arlen(arlen[3:0]),
+    .arsize(arsize[2:0]),
+    .arburst(arburst[1:0]),
+    .arcache(arcache[3:0]),
+    .arprot(arprot[2:0]),
+    .arvalid(arvalid),
+    .arready(arready),
+    .set_cmd(AR_SET_CMD),  // latch all other input data at posedge of clock
+    .ready(AR_READY)     // command/data FIFO can accept command
+);
+
+simul_axi_master_wraddr
+#(
+  .ID_WIDTH(12),
+  .ADDRESS_WIDTH(32),
+  .LATENCY(AXI_WRADDR_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH(8),            // maximal number of commands in FIFO
+  .DATA_DELAY(3.5),
+  .VALID_DELAY(4.0)
+) simul_axi_master_wraddr_i (
+    .clk(CLK),
+    .reset(RST),
+    .awid_in(AWID_IN[11:0]),
+    .awaddr_in(AWADDR_IN[31:0]),
+    .awlen_in(AWLEN_IN[3:0]),
+    .awsize_in(AWSIZE_IN[2:0]),
+    .awburst_in(AWBURST_IN[1:0]),
+    .awcache_in(4'b0),
+    .awprot_in(3'b0), //.awprot_in(2'b0),
+    .awid(awid[11:0]),
+    .awaddr(awaddr[31:0]),
+    .awlen(awlen[3:0]),
+    .awsize(awsize[2:0]),
+    .awburst(awburst[1:0]),
+    .awcache(awcache[3:0]),
+    .awprot(awprot[2:0]),
+    .awvalid(awvalid),
+    .awready(awready),
+    .set_cmd(AW_SET_CMD),  // latch all other input data at posedge of clock
+    .ready(AW_READY)     // command/data FIFO can accept command
+);
+
+simul_axi_master_wdata
+#(
+  .ID_WIDTH(12),
+  .DATA_WIDTH(32),
+  .WSTB_WIDTH(4),
+  .LATENCY(AXI_WRDATA_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH(8),            // maximal number of commands in FIFO
+  .DATA_DELAY(3.2),
+  .VALID_DELAY(3.6)
+) simul_axi_master_wdata_i (
+    .clk(CLK),
+    .reset(RST),
+    .wid_in(WID_IN[11:0]),
+    .wdata_in(WDATA_IN[31:0]),
+    .wstrb_in(WSTRB_IN[3:0]),
+    .wlast_in(WLAST_IN),
+    .wid(wid[11:0]),
+    .wdata(wdata[31:0]),
+    .wstrb(wstrb[3:0]),
+    .wlast(wlast),
+    .wvalid(wvalid),
+    .wready(wready),
+    .set_cmd(W_SET_CMD),  // latch all other input data at posedge of clock
+    .ready(W_READY)        // command/data FIFO can accept command
+);
+
+simul_axi_slow_ready simul_axi_slow_ready_read_i(
+    .clk(CLK),
+    .reset(RST), //input         reset,
+    .delay(RD_LAG), //input  [3:0]  delay,
+    .valid(rvalid), // input         valid,
+    .ready(rready)  //output        ready
+    );
+
+simul_axi_slow_ready simul_axi_slow_ready_write_resp_i(
+    .clk(CLK),
+    .reset(RST), //input         reset,
+    .delay(B_LAG), //input  [3:0]  delay,
+    .valid(bvalid), // input       ADDRESS_NUMBER+2:0  valid,
+    .ready(bready)  //output        ready
+    );
+
+simul_axi_read #(
+    .ADDRESS_WIDTH(SIMUL_AXI_READ_WIDTH)
+  ) simul_axi_read_i(
+  .clk(CLK),
+  .reset(RST),
+  .last(rlast),
+  .data_stb(rstb),
+  .raddr(ARADDR_IN[SIMUL_AXI_READ_WIDTH+1:2]), 
+  .rlen(ARLEN_IN),
+  .rcmd(AR_SET_CMD),
+  .addr_out(SIMUL_AXI_ADDR_W[SIMUL_AXI_READ_WIDTH-1:0]),
+  .burst(),     // burst in progress - just debug
+  .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
 
 

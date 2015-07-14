@@ -95,7 +95,9 @@ module axi_regs(
 //reg     [31:0]  mem [3:0];
 reg     [32*16 - 1:0]  mem;
 `ifndef MAXI_NEW_IFACE
-
+/*
+ * Converntional MAXI interface from x393 project, uses fifos, writes to/reads from memory
+ */
 wire    [31:0]  bram_waddr;
 wire    [31:0]  bram_raddr;
 wire    [31:0]  bram_wdata;
@@ -103,7 +105,11 @@ wire    [31:0]  bram_rdata;
 wire    [3:0]   bram_wstb;
 wire            bram_wen;
 wire            bram_ren;
+wire            bram_regen;
 
+// 'write into memory' 
+// for testing purposes the 'memory' is a set of registers for now
+// later on will try to use them as an application level registers
 genvar ii;
 generate
 for (ii = 0; ii < 16; ii = ii + 1)
@@ -118,17 +124,19 @@ begin: write_to_mem
 end
 endgenerate
 
+// read from memory. Interface's protocol assumes returning data to delay
 reg     [3:0]   bram_raddr_r;
 always @ (posedge ACLK)
-    bram_raddr_r <= bram_ren ? bram_raddr[3:0] : bram_raddr_r;
+    bram_raddr_r <= bram_regen ? bram_raddr[3:0] : bram_raddr_r;
 assign  bram_rdata = mem[32*bram_raddr_r + 31-:32];
 
+// Interface's instantiation
 axibram_write #(
     .ADDRESS_BITS(32)
 )
 axibram_write(
     .aclk           (ACLK),
-    .rst            (~ARESETN),
+    .rst            (ARESETN),
     .awaddr         (AWADDR),
     .awvalid        (AWVALID),
     .awready        (AWREADY),
@@ -160,8 +168,8 @@ axibram_read #(
 )
 axibram_read(
     .aclk           (ACLK),
-    .rst            (~ARESETN),
-    .araddr         ({1'b0,ARADDR}),
+    .rst            (ARESETN),
+    .araddr         (ARADDR),
     .arvalid        (ARVALID),
     .arready        (ARREADY),
     .arid           (ARID),
@@ -180,7 +188,7 @@ axibram_read(
     .bram_rclk      (),
     .bram_raddr     (bram_raddr),
     .bram_ren       (bram_ren),
-    .bram_regen     (),
+    .bram_regen     (bram_regen),
     .bram_rdata     (bram_rdata)
 );
 `else
