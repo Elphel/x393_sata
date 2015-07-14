@@ -35,9 +35,20 @@ begin
     RST = 1'b1;
     NUM_WORDS_EXPECTED =0;
 //    #99000; // same as glbl
-    #9000; // same as glbl
+    #900; // same as glbl
     repeat (20) @(posedge CLK) ;
     RST =1'b0;
+
+    repeat (20) 
+        @ (posedge CLK);
+    axi_set_rd_lag(0);
+
+    axi_write_single(32'h4, 32'hdeadbeef);
+    axi_read_addr(12'h777, 32'h4, 4'h3, 2'b01);
+    repeat (7) 
+        @ (posedge CLK);
+    axi_write_single(32'h8, 32'hd34db33f);
+    axi_read_addr(12'h555, 32'h0, 4'h3, 2'b01);
 end
 
 initial

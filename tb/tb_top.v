@@ -163,28 +163,28 @@ always #(CLKIN_PERIOD/2) CLK = ~CLK;
 assign dut.ps7_i.FCLKCLK=        {4{CLK}};
 assign dut.ps7_i.FCLKRESETN=     {RST,~RST,RST,~RST};
 // Read address
-assign dut.ps7_i.MAXIGP0ARADDR=  araddr;
-assign dut.ps7_i.MAXIGP0ARVALID= arvalid;
-assign arready=                            dut.ps7_i.MAXIGP0ARREADY;
-assign dut.ps7_i.MAXIGP0ARID=    arid; 
-assign dut.ps7_i.MAXIGP0ARLEN=   arlen;
-assign dut.ps7_i.MAXIGP0ARSIZE=  arsize[1:0]; // arsize[2] is not used
-assign dut.ps7_i.MAXIGP0ARBURST= arburst;
+assign dut.ps7_i.MAXIGP1ARADDR=  araddr;
+assign dut.ps7_i.MAXIGP1ARVALID= arvalid;
+assign arready=                            dut.ps7_i.MAXIGP1ARREADY;
+assign dut.ps7_i.MAXIGP1ARID=    arid; 
+assign dut.ps7_i.MAXIGP1ARLEN=   arlen;
+assign dut.ps7_i.MAXIGP1ARSIZE=  arsize[1:0]; // arsize[2] is not used
+assign dut.ps7_i.MAXIGP1ARBURST= arburst;
 // Read data
-assign rdata=                              dut.ps7_i.MAXIGP0RDATA; 
-assign rvalid=                             dut.ps7_i.MAXIGP0RVALID;
-assign dut.ps7_i.MAXIGP0RREADY=  rready;
-assign rid=                                dut.ps7_i.MAXIGP0RID;
-assign rlast=                              dut.ps7_i.MAXIGP0RLAST;
-assign rresp=                              dut.ps7_i.MAXIGP0RRESP;
+assign rdata=                              dut.ps7_i.MAXIGP1RDATA; 
+assign rvalid=                             dut.ps7_i.MAXIGP1RVALID;
+assign dut.ps7_i.MAXIGP1RREADY=  rready;
+assign rid=                                dut.ps7_i.MAXIGP1RID;
+assign rlast=                              dut.ps7_i.MAXIGP1RLAST;
+assign rresp=                              dut.ps7_i.MAXIGP1RRESP;
 // Write address
-assign dut.ps7_i.MAXIGP0AWADDR=  awaddr;
-assign dut.ps7_i.MAXIGP0AWVALID= awvalid;
+assign dut.ps7_i.MAXIGP1AWADDR=  awaddr;
+assign dut.ps7_i.MAXIGP1AWVALID= awvalid;
 
-assign awready=                            dut.ps7_i.MAXIGP0AWREADY;
+assign awready=                            dut.ps7_i.MAXIGP1AWREADY;
 
 //assign awready= AWREADY_AAAA;
-assign dut.ps7_i.MAXIGP0AWID=awid;
+assign dut.ps7_i.MAXIGP1AWID=awid;
 
       // SuppressWarnings VEditor all
 //  wire [ 1:0] AWLOCK;
@@ -192,23 +192,23 @@ assign dut.ps7_i.MAXIGP0AWID=awid;
 //  wire [ 3:0] AWCACHE;
       // SuppressWarnings VEditor all
 //  wire [ 2:0] AWPROT;
-assign dut.ps7_i.MAXIGP0AWLEN=   awlen;
-assign dut.ps7_i.MAXIGP0AWSIZE=  awsize[1:0]; // awsize[2] is not used
-assign dut.ps7_i.MAXIGP0AWBURST= awburst;
+assign dut.ps7_i.MAXIGP1AWLEN=   awlen;
+assign dut.ps7_i.MAXIGP1AWSIZE=  awsize[1:0]; // awsize[2] is not used
+assign dut.ps7_i.MAXIGP1AWBURST= awburst;
       // SuppressWarnings VEditor all
 //  wire [ 3:0] AWQOS;
 // Write data
-assign dut.ps7_i.MAXIGP0WDATA=   wdata;
-assign dut.ps7_i.MAXIGP0WVALID=  wvalid;
-assign wready=                             dut.ps7_i.MAXIGP0WREADY;
-assign dut.ps7_i.MAXIGP0WID=     wid;
-assign dut.ps7_i.MAXIGP0WLAST=   wlast;
-assign dut.ps7_i.MAXIGP0WSTRB=   wstrb;
+assign dut.ps7_i.MAXIGP1WDATA=   wdata;
+assign dut.ps7_i.MAXIGP1WVALID=  wvalid;
+assign wready=                             dut.ps7_i.MAXIGP1WREADY;
+assign dut.ps7_i.MAXIGP1WID=     wid;
+assign dut.ps7_i.MAXIGP1WLAST=   wlast;
+assign dut.ps7_i.MAXIGP1WSTRB=   wstrb;
 // Write response
-assign bvalid=                             dut.ps7_i.MAXIGP0BVALID;
-assign dut.ps7_i.MAXIGP0BREADY=  bready;
-assign bid=                                dut.ps7_i.MAXIGP0BID;
-assign bresp=                              dut.ps7_i.MAXIGP0BRESP;
+assign bvalid=                             dut.ps7_i.MAXIGP1BVALID;
+assign dut.ps7_i.MAXIGP1BREADY=  bready;
+assign bid=                                dut.ps7_i.MAXIGP1BID;
+assign bresp=                              dut.ps7_i.MAXIGP1BRESP;
 
 
 // Simulation modules    

@@ -126,13 +126,16 @@ endgenerate
 
 // read from memory. Interface's protocol assumes returning data to delay
 reg     [3:0]   bram_raddr_r;
-always @ (posedge ACLK)
-    bram_raddr_r <= bram_regen ? bram_raddr[3:0] : bram_raddr_r;
-assign  bram_rdata = mem[32*bram_raddr_r + 31-:32];
+reg     [31:0]  bram_rdata_r;
+always @ (posedge ACLK) begin
+    bram_raddr_r <= bram_ren   ? bram_raddr[3:0] : bram_raddr_r;
+    bram_rdata_r <= bram_regen ? mem[32*bram_raddr_r + 31-:32] : bram_rdata_r;
+end
+assign  bram_rdata = bram_rdata_r;
 
 // Interface's instantiation
 axibram_write #(
-    .ADDRESS_BITS(32)
+    .ADDRESS_BITS(16)
 )
 axibram_write(
     .aclk           (ACLK),
@@ -164,7 +167,7 @@ axibram_write(
     .bram_wdata     (bram_wdata)
 );
 axibram_read #(
-    .ADDRESS_BITS(32)
+    .ADDRESS_BITS(16)
 )
 axibram_read(
     .aclk           (ACLK),
