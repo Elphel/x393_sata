@@ -30,7 +30,6 @@ module top #(
 )
 (
 );
-
 wire    [3:0]   fclk;
 wire    [3:0]   frst;
 wire            axi_aclk;
@@ -440,7 +439,7 @@ PS7 ps7_i (
 // AXI PS Master GP1    
 // AXI PS Master GP1: Clock, Reset
     .MAXIGP1ACLK    (axi_aclk),         // AXI PS Master GP1 Clock , input
-    .MAXIGP1ARESETN (axi_rst),          // AXI PS Master GP1 Reset, output
+    .MAXIGP1ARESETN (),          // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
     .MAXIGP1ARADDR  (ARADDR),           // AXI PS Master GP1 ARADDR[31:0], output  
     .MAXIGP1ARVALID (ARVALID),          // AXI PS Master GP1 ARVALID, output
