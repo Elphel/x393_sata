@@ -330,11 +330,185 @@ simul_axi_read #(
   .burst(),     // burst in progress - just debug
   .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
-`include "includes/x393_tasks01.vh"
-
 // device-under-test instance
 top dut(
 );
+
+// SAXI HP interface
+
+// axi_hp simulation signals
+  wire HCLK;
+  wire [31:0] afi_sim_rd_address;    // output[31:0] 
+  wire [ 5:0] afi_sim_rid;           // output[5:0]  SuppressThisWarning VEditor - not used - just view
+//  reg         afi_sim_rd_valid;      // input
+  wire        afi_sim_rd_valid;      // input
+  wire        afi_sim_rd_ready;      // output
+//  reg  [63:0] afi_sim_rd_data;       // input[63:0] 
+  wire [63:0] afi_sim_rd_data;       // input[63:0] 
+  wire [ 2:0] afi_sim_rd_cap;        // output[2:0]  SuppressThisWarning VEditor - not used - just view
+  wire [ 3:0] afi_sim_rd_qos;        // output[3:0]  SuppressThisWarning VEditor - not used - just view
+  wire  [ 1:0] afi_sim_rd_resp;       // input[1:0] 
+//  reg  [ 1:0] afi_sim_rd_resp;       // input[1:0] 
+
+  wire [31:0] afi_sim_wr_address;    // output[31:0] SuppressThisWarning VEditor - not used - just view
+  wire [ 5:0] afi_sim_wid;           // output[5:0]  SuppressThisWarning VEditor - not used - just view
+  wire        afi_sim_wr_valid;      // output
+  wire        afi_sim_wr_ready;      // input
+//  reg         afi_sim_wr_ready;      // input
+  wire [63:0] afi_sim_wr_data;       // output[63:0] SuppressThisWarning VEditor - not used - just view
+  wire [ 7:0] afi_sim_wr_stb;        // output[7:0]  SuppressThisWarning VEditor - not used - just view
+  wire [ 3:0] afi_sim_bresp_latency; // input[3:0] 
+//  reg  [ 3:0] afi_sim_bresp_latency; // input[3:0] 
+  wire [ 2:0] afi_sim_wr_cap;        // output[2:0]  SuppressThisWarning VEditor - not used - just view
+  wire [ 3:0] afi_sim_wr_qos;        // output[3:0]  SuppressThisWarning VEditor - not used - just view
+
+  assign HCLK = dut.ps7_i.SAXIHP3ACLK; // shortcut name
+// afi loopback
+  assign #1 afi_sim_rd_data=  afi_sim_rd_ready?{2'h0,afi_sim_rd_address[31:3],1'h1,  2'h0,afi_sim_rd_address[31:3],1'h0}:64'bx;
+  assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
+  assign #1 afi_sim_rd_resp = afi_sim_rd_ready?2'b0:2'bx;
+  assign #1 afi_sim_wr_ready = afi_sim_wr_valid;
+  assign #1 afi_sim_bresp_latency=4'h5; 
+
+// axi_hp register access
+  // PS memory mapped registers to read/write over a separate simulation bus running at HCLK, no waits
+  reg  [31:0] PS_REG_ADDR;
+  reg         PS_REG_WR;
+  reg         PS_REG_RD;
+  reg  [31:0] PS_REG_DIN;
+  wire [31:0] PS_REG_DOUT;
+  reg  [31:0] PS_RDATA;  // SuppressThisWarning VEditor - not used - just view
+/*  
+  reg  [31:0] afi_reg_addr; 
+  reg         afi_reg_wr;
+  reg         afi_reg_rd;
+  reg  [31:0] afi_reg_din;
+  wire [31:0] afi_reg_dout;
+  reg  [31:0] AFI_REG_RD; // SuppressThisWarning VEditor - not used - just view
+*/  
+  initial begin
+    PS_REG_ADDR <= 'bx;
+    PS_REG_WR   <= 0;
+    PS_REG_RD   <= 0;
+    PS_REG_DIN  <= 'bx;
+    PS_RDATA    <= 'bx;
+  end 
+  always @ (posedge HCLK) if (PS_REG_RD) PS_RDATA <= PS_REG_DOUT;
+
+simul_axi_hp_rd #(
+        .HP_PORT(3)
+    ) simul_axi_hp_rd_i (
+        .rst            (RST),                               // input
+        .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
+        .aresetn        (),                                  // output
+        .araddr         (dut.ps7_i.SAXIHP3ARADDR[31:0]),  // input[31:0] 
+        .arvalid        (dut.ps7_i.SAXIHP3ARVALID),       // input
+        .arready        (dut.ps7_i.SAXIHP3ARREADY),       // output
+        .arid           (dut.ps7_i.SAXIHP3ARID),          // input[5:0] 
+        .arlock         (dut.ps7_i.SAXIHP3ARLOCK),        // input[1:0] 
+        .arcache        (dut.ps7_i.SAXIHP3ARCACHE),       // input[3:0] 
+        .arprot         (dut.ps7_i.SAXIHP3ARPROT),        // input[2:0] 
+        .arlen          (dut.ps7_i.SAXIHP3ARLEN),         // input[3:0] 
+        .arsize         (dut.ps7_i.SAXIHP3ARSIZE),        // input[2:0] 
+        .arburst        (dut.ps7_i.SAXIHP3ARBURST),       // input[1:0] 
+        .arqos          (dut.ps7_i.SAXIHP3ARQOS),         // input[3:0] 
+        .rdata          (dut.ps7_i.SAXIHP3RDATA),         // output[63:0] 
+        .rvalid         (dut.ps7_i.SAXIHP3RVALID),        // output
+        .rready         (dut.ps7_i.SAXIHP3RREADY),        // input
+        .rid            (dut.ps7_i.SAXIHP3RID),           // output[5:0] 
+        .rlast          (dut.ps7_i.SAXIHP3RLAST),         // output
+        .rresp          (dut.ps7_i.SAXIHP3RRESP),         // output[1:0] 
+        .rcount         (dut.ps7_i.SAXIHP3RCOUNT),        // output[7:0] 
+        .racount        (dut.ps7_i.SAXIHP3RACOUNT),       // output[2:0] 
+        .rdissuecap1en  (dut.ps7_i.SAXIHP3RDISSUECAP1EN), // input
+        .sim_rd_address (afi_sim_rd_address), // output[31:0] 
+        .sim_rid        (afi_sim_rid), // output[5:0] 
+        .sim_rd_valid   (afi_sim_rd_valid), // input
+        .sim_rd_ready   (afi_sim_rd_ready), // output
+        .sim_rd_data    (afi_sim_rd_data), // input[63:0] 
+        .sim_rd_cap     (afi_sim_rd_cap), // output[2:0] 
+        .sim_rd_qos     (afi_sim_rd_qos), // output[3:0] 
+        .sim_rd_resp    (afi_sim_rd_resp), // input[1:0] 
+        .reg_addr       (PS_REG_ADDR), // input[31:0] 
+        .reg_wr         (PS_REG_WR), // input
+        .reg_rd         (PS_REG_RD), // input
+        .reg_din        (PS_REG_DIN), // input[31:0] 
+        .reg_dout       (PS_REG_DOUT) // output[31:0] 
+    );
+
+simul_axi_hp_wr #(
+        .HP_PORT(3)
+    ) simul_axi_hp_wr_i (
+        .rst            (RST), // input
+        .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
+        .aresetn        (),                                  // output
+        .awaddr         (dut.ps7_i.SAXIHP3AWADDR),        // input[31:0] 
+        .awvalid        (dut.ps7_i.SAXIHP3AWVALID),       // input
+        .awready        (dut.ps7_i.SAXIHP3AWREADY),       // output
+        .awid           (dut.ps7_i.SAXIHP3AWID),          // input[5:0] 
+        .awlock         (dut.ps7_i.SAXIHP3AWLOCK),        // input[1:0] 
+        .awcache        (dut.ps7_i.SAXIHP3AWCACHE),       // input[3:0] 
+        .awprot         (dut.ps7_i.SAXIHP3AWPROT),        // input[2:0] 
+        .awlen          (dut.ps7_i.SAXIHP3AWLEN),         // input[3:0] 
+        .awsize         (dut.ps7_i.SAXIHP3AWSIZE),        // input[2:0] 
+        .awburst        (dut.ps7_i.SAXIHP3AWBURST),       // input[1:0] 
+        .awqos          (dut.ps7_i.SAXIHP3AWQOS),         // input[3:0] 
+        .wdata          (dut.ps7_i.SAXIHP3WDATA),         // input[63:0] 
+        .wvalid         (dut.ps7_i.SAXIHP3WVALID),        // input
+        .wready         (dut.ps7_i.SAXIHP3WREADY),        // output
+        .wid            (dut.ps7_i.SAXIHP3WID),           // input[5:0] 
+        .wlast          (dut.ps7_i.SAXIHP3WLAST),         // input
+        .wstrb          (dut.ps7_i.SAXIHP3WSTRB),         // input[7:0] 
+        .bvalid         (dut.ps7_i.SAXIHP3BVALID),        // output
+        .bready         (dut.ps7_i.SAXIHP3BREADY),        // input
+        .bid            (dut.ps7_i.SAXIHP3BID),           // output[5:0] 
+        .bresp          (dut.ps7_i.SAXIHP3BRESP),         // output[1:0] 
+        .wcount         (dut.ps7_i.SAXIHP3WCOUNT),        // output[7:0] 
+        .wacount        (dut.ps7_i.SAXIHP3WACOUNT),       // output[5:0] 
+        .wrissuecap1en  (dut.ps7_i.SAXIHP3WRISSUECAP1EN), // input
+        .sim_wr_address (afi_sim_wr_address), // output[31:0] 
+        .sim_wid        (afi_sim_wid), // output[5:0] 
+        .sim_wr_valid   (afi_sim_wr_valid), // output
+        .sim_wr_ready   (afi_sim_wr_ready), // input
+        .sim_wr_data    (afi_sim_wr_data), // output[63:0] 
+        .sim_wr_stb     (afi_sim_wr_stb), // output[7:0] 
+        .sim_bresp_latency(afi_sim_bresp_latency), // input[3:0] 
+        .sim_wr_cap     (afi_sim_wr_cap), // output[2:0] 
+        .sim_wr_qos     (afi_sim_wr_qos), // output[3:0] 
+        .reg_addr       (PS_REG_ADDR), // input[31:0] 
+        .reg_wr         (PS_REG_WR), // input
+        .reg_rd         (PS_REG_RD), // input
+        .reg_din        (PS_REG_DIN), // input[31:0] 
+        .reg_dout       (PS_REG_DOUT) // output[31:0] 
+    );
+
+
+
+    
+    //  wire [ 3:0] SIMUL_ADD_ADDR; 
+    always @ (posedge CLK) begin
+        if      (RST) SIMUL_AXI_FULL <=0;
+        else if (rstb) SIMUL_AXI_FULL <=1;
+        
+        if (RST) begin
+              NUM_WORDS_READ <= 0;
+        end else if (rstb) begin
+            NUM_WORDS_READ <= NUM_WORDS_READ + 1; 
+        end    
+        if (rstb) begin
+            SIMUL_AXI_ADDR <= SIMUL_AXI_ADDR_W;
+            SIMUL_AXI_READ <= rdata;
+`ifdef DEBUG_RD_DATA
+        $display (" Read data (addr:data): 0x%x:0x%x @%t",SIMUL_AXI_ADDR_W,rdata,$time);
+`endif  
+            
+        end 
+        
+    end
+
+//tasks
+`include "includes/x393_tasks01.vh"
+`include "includes/x393_tasks_afi.vh"
 
 // testing itself
 `include  "test_top.v"

@@ -43,7 +43,12 @@
  */
 `include "axibram_read.v"
 `include "axibram_write.v"
-module axi_regs(
+`include "membridge.v"
+`include "send_dma.v"
+module axi_regs #(
+    parameter   REGISTERS_CNT = 20
+)
+(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
@@ -88,12 +93,25 @@ module axi_regs(
     output  wire                BVALID,            // AXI PS Master GP1 BVALID, input
     input   wire                BREADY,            // AXI PS Master GP1 BREADY, output
     output  wire    [11:0]      BID,               // AXI PS Master GP1 BID[11:0], input
-    output  wire    [1:0]       BRESP              // AXI PS Master GP1 BRESP[1:0], input
+    output  wire    [1:0]       BRESP,             // AXI PS Master GP1 BRESP[1:0], input
+
+// temporary registers output
+    output  wire    [32*REGISTERS_CNT - 1:0] outmem,
+    output  wire                clrstart
 );
 
 // register set
 //reg     [31:0]  mem [3:0];
-reg     [32*16 - 1:0]  mem;
+/*
+ * DMA write:
+ * 0x10: addr of the buffer
+ * 0x14: size
+ * 0x18: burst len
+ * 0x1c: 
+ * 0x20-0x3c - data
+ */
+reg     [32*REGISTERS_CNT - 1:0]  mem;
+assign  outmem = mem;
 `ifndef MAXI_NEW_IFACE
 /*
  * Converntional MAXI interface from x393 project, uses fifos, writes to/reads from memory
@@ -112,15 +130,24 @@ wire            bram_regen;
 // later on will try to use them as an application level registers
 genvar ii;
 generate
-for (ii = 0; ii < 16; ii = ii + 1)
+for (ii = 0; ii < REGISTERS_CNT; ii = ii + 1)
 begin: write_to_mem
-    always @ (posedge ACLK)
-    begin
-        mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
-        mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
-        mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
-        mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
-    end
+    if (ii == 7) // for some reason expression (clrstart & (ii == 7)) ? is not working
+        always @ (posedge ACLK)
+        begin
+            mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: clrstart ? 8'h0 : mem[32*ii + 31-:8];
+            mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: clrstart ? 8'h0 : mem[32*ii + 23-:8];
+            mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: clrstart ? 8'h0 : mem[32*ii + 15-:8];
+            mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: clrstart ? 8'h0 : mem[32*ii +  7-:8];
+        end
+    else
+        always @ (posedge ACLK)
+        begin
+            mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
+            mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
+            mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
+            mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
+        end
 end
 endgenerate
 
@@ -161,7 +188,7 @@ axibram_write(
     .start_burst    (),
     .dev_ready      (1'b1),
     .bram_wclk      (),
-    .bram_waddr     (bram_waddr),
+    .bram_waddr     (bram_waddr[15:0]),
     .bram_wen       (bram_wen),
     .bram_wstb      (bram_wstb),
     .bram_wdata     (bram_wdata)
@@ -189,7 +216,7 @@ axibram_read(
     .start_burst    (),
     .dev_ready      (1'b1),
     .bram_rclk      (),
-    .bram_raddr     (bram_raddr),
+    .bram_raddr     (bram_raddr[15:0]),
     .bram_ren       (bram_ren),
     .bram_regen     (bram_regen),
     .bram_rdata     (bram_rdata)

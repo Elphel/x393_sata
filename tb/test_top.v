@@ -41,14 +41,25 @@ begin
 
     repeat (20) 
         @ (posedge CLK);
+// test MAXI1 inface
     axi_set_rd_lag(0);
-
     axi_write_single(32'h4, 32'hdeadbeef);
     axi_read_addr(12'h777, 32'h4, 4'h3, 2'b01);
     repeat (7) 
         @ (posedge CLK);
     axi_write_single(32'h8, 32'hd34db33f);
     axi_read_addr(12'h555, 32'h0, 4'h3, 2'b01);
+
+// test SAXI3 iface
+    afi_setup(3);
+    axi_write_single(32'h10, 32'h0add9e55 >> 3); // addr
+    axi_write_single(32'h14, 32'h00000010); // size
+    axi_write_single(32'h18, 32'h00000010); // burst_len
+    axi_write_single(32'h20, 32'hdeadbee0); // data
+    axi_write_single(32'h24, 32'hdeadbee1); // data
+    axi_write_single(32'h28, 32'hdeadbee2); // data
+    axi_write_single(32'h2c, 32'hdeadbee3); // data
+    axi_write_single(32'h1c, 32'hffffffff); // start
 end
 
 initial

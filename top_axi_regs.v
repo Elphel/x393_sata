@@ -30,15 +30,10 @@ module top #(
 )
 (
 );
-parameter   REGISTERS_CNT = 20;
-wire [32*REGISTERS_CNT - 1:0] outmem;
-wire clrstart;
-
 wire    [3:0]   fclk;
 wire    [3:0]   frst;
 wire            axi_aclk;
 wire            axi_rst;
-wire            hclk;
 wire            comb_rst;
 wire    [31:0]  ARADDR;
 wire            ARVALID;
@@ -80,74 +75,6 @@ wire    [11:0]  BID;
 wire    [1:0]   BRESP;
 reg             axi_rst_pre;
 
-// membridge
-wire [31:0] afi0_awaddr;   // output[31:0]
-wire        afi0_awvalid;  // output
-wire        afi0_awready;     // input
-wire [ 5:0] afi0_awid;     // output[5:0] 
-wire [ 1:0] afi0_awlock;     // output[1:0] 
-wire [ 3:0] afi0_awcache;     // output[3:0] 
-wire [ 2:0] afi0_awprot;     // output[2:0] 
-wire [ 3:0] afi0_awlen;     // output[3:0] 
-wire [ 2:0] afi0_awsize;     // output[2:0] 
-wire [ 1:0] afi0_awburst;     // output[1:0] 
-wire [ 3:0] afi0_awqos;     // output[3:0] 
-wire [63:0] afi0_wdata;     // output[63:0] 
-wire        afi0_wvalid;     // output
-wire        afi0_wready;     // input
-wire [ 5:0] afi0_wid;     // output[5:0] 
-wire        afi0_wlast;     // output
-wire [ 7:0] afi0_wstrb;     // output[7:0] 
-wire        afi0_bvalid;     // input
-wire        afi0_bready;     // output
-wire [ 5:0] afi0_bid;     // input[5:0] 
-wire [ 1:0] afi0_bresp;     // input[1:0] 
-wire [ 7:0] afi0_wcount;     // input[7:0] 
-wire [ 5:0] afi0_wacount;     // input[5:0] 
-wire        afi0_wrissuecap1en;     // output
-wire [31:0] afi0_araddr;     // output[31:0] 
-wire        afi0_arvalid;     // output
-wire        afi0_arready;     // input
-wire [ 5:0] afi0_arid;     // output[5:0] 
-wire [ 1:0] afi0_arlock;     // output[1:0] 
-wire [ 3:0] afi0_arcache;     // output[3:0] 
-wire [ 2:0] afi0_arprot;     // output[2:0] 
-wire [ 3:0] afi0_arlen;     // output[3:0] 
-wire [ 2:0] afi0_arsize;     // output[2:0] 
-wire [ 1:0] afi0_arburst;     // output[1:0] 
-wire [ 3:0] afi0_arqos;     // output[3:0] 
-wire [63:0] afi0_rdata;     // input[63:0] 
-wire        afi0_rvalid;     // input
-wire        afi0_rready;     // output
-wire [ 5:0] afi0_rid;     // input[5:0] 
-wire        afi0_rlast;     // input
-wire [ 1:0] afi0_rresp;     // input[2:0] 
-wire [ 7:0] afi0_rcount;     // input[7:0] 
-wire [ 2:0] afi0_racount;     // input[2:0] 
-wire        afi0_rdissuecap1en; // output
-
-// send_dma
-wire    [7:0]   cmd_ad;
-wire            cmd_stb;
-wire    [7:0]   status_ad;
-wire            status_rq;
-wire            status_start;
-wire            frame_start_chn;
-wire            next_page_chn;
-wire            cmd_wrmem;
-wire            page_ready_chn;
-wire            frame_done_chn;
-wire    [15:0]  line_unfinished_chn1;
-wire            suspend_chn1;
-wire            xfer_reset_page_rd;
-wire            buf_wpage_nxt;
-wire            buf_wr;
-wire    [63:0]  buf_wdata;
-wire            xfer_reset_page_wr;
-wire            buf_rpage_nxt;
-wire            buf_rd;
-wire    [63:0]  buf_rdata;
-
 assign comb_rst=~frst[0] | frst[1];
 always @(posedge comb_rst or posedge axi_aclk) begin
     if (comb_rst) axi_rst_pre <= 1'b1;
@@ -156,21 +83,8 @@ end
 
 BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
-axi_hp_clk #(
-    .CLKIN_PERIOD(20),
-    .CLKFBOUT_MULT_AXIHP(18),
-    .CLKFBOUT_DIV_AXIHP(6)
-) axi_hp_clk_i (
-    .rst          (axi_rst), // input
-    .clk_in       (axi_aclk), // input
-    .clk_axihp    (hclk), // output
-    .locked_axihp () // output // not controlled?
-);
 
-axi_regs #(
-    .REGISTERS_CNT (REGISTERS_CNT)
-)
-axi_regs(
+axi_regs axi_regs(
     .ACLK       (axi_aclk),
     .ARESETN    (axi_rst),
     .ARADDR     (ARADDR),
@@ -210,39 +124,7 @@ axi_regs(
     .BVALID     (BVALID),
     .BREADY     (BREADY),
     .BID        (BID),
-    .BRESP      (BRESP),
-    .outmem     (outmem),
-    .clrstart   (clrstart)
-);
-
-dma_adapter #(
-    .REGISTERS_CNT (REGISTERS_CNT)
-)
-dma_adapter(
-    .clk                    (axi_aclk),
-    .rst                    (axi_rst),
-    .mem                    (outmem),
-    .clrstart               (clrstart),
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata)
+    .BRESP      (BRESP)
 );
 
 PS7 ps7_i (
@@ -862,57 +744,57 @@ PS7 ps7_i (
 
 // AXI PS Slave HP3    
 // AXI PS Slave HP3: Clock, Reset
-    .SAXIHP3ACLK            (hclk),                 // AXI PS Slave HP3 Clock , input
+    .SAXIHP3ACLK(),              // AXI PS Slave HP3 Clock , input
     .SAXIHP3ARESETN(),           // AXI PS Slave HP3 Reset, output
 // AXI PS Slave HP3: Read Address    
-    .SAXIHP3ARADDR          (afi0_araddr),            // AXI PS Slave HP3 ARADDR[31:0], input  
-    .SAXIHP3ARVALID         (afi0_arvalid),           // AXI PS Slave HP3 ARVALID, input
-    .SAXIHP3ARREADY         (afi0_arready),           // AXI PS Slave HP3 ARREADY, output
-    .SAXIHP3ARID            (afi0_arid),              // AXI PS Slave HP3 ARID[5:0], input
-    .SAXIHP3ARLOCK          (afi0_arlock),            // AXI PS Slave HP3 ARLOCK[1:0], input
-    .SAXIHP3ARCACHE         (afi0_arcache),           // AXI PS Slave HP3 ARCACHE[3:0], input
-    .SAXIHP3ARPROT          (afi0_arprot),            // AXI PS Slave HP3 ARPROT[2:0], input
-    .SAXIHP3ARLEN           (afi0_arlen),             // AXI PS Slave HP3 ARLEN[3:0], input
-    .SAXIHP3ARSIZE          (afi0_arsize),            // AXI PS Slave HP3 ARSIZE[2:0], input
-    .SAXIHP3ARBURST         (afi0_arburst),           // AXI PS Slave HP3 ARBURST[1:0], input
-    .SAXIHP3ARQOS           (afi0_arqos),             // AXI PS Slave HP3 ARQOS[3:0], input
+    .SAXIHP3ARADDR(),            // AXI PS Slave HP3 ARADDR[31:0], input  
+    .SAXIHP3ARVALID(),           // AXI PS Slave HP3 ARVALID, input
+    .SAXIHP3ARREADY(),           // AXI PS Slave HP3 ARREADY, output
+    .SAXIHP3ARID(),              // AXI PS Slave HP3 ARID[5:0], input
+    .SAXIHP3ARLOCK(),            // AXI PS Slave HP3 ARLOCK[1:0], input
+    .SAXIHP3ARCACHE(),           // AXI PS Slave HP3 ARCACHE[3:0], input
+    .SAXIHP3ARPROT(),            // AXI PS Slave HP3 ARPROT[2:0], input
+    .SAXIHP3ARLEN(),             // AXI PS Slave HP3 ARLEN[3:0], input
+    .SAXIHP3ARSIZE(),            // AXI PS Slave HP3 ARSIZE[2:0], input
+    .SAXIHP3ARBURST(),           // AXI PS Slave HP3 ARBURST[1:0], input
+    .SAXIHP3ARQOS(),             // AXI PS Slave HP3 ARQOS[3:0], input
 // AXI PS Slave HP3: Read Data
-    .SAXIHP3RDATA           (afi0_rdata),             // AXI PS Slave HP3 RDATA[63:0], output
-    .SAXIHP3RVALID          (afi0_rvalid),            // AXI PS Slave HP3 RVALID, output
-    .SAXIHP3RREADY          (afi0_rready),            // AXI PS Slave HP3 RREADY, input
-    .SAXIHP3RID             (afi0_rid),               // AXI PS Slave HP3 RID[5:0], output
-    .SAXIHP3RLAST           (afi0_rlast),             // AXI PS Slave HP3 RLAST, output
-    .SAXIHP3RRESP           (afi0_rresp),             // AXI PS Slave HP3 RRESP[1:0], output
-    .SAXIHP3RCOUNT          (afi0_rcount),            // AXI PS Slave HP3 RCOUNT[7:0], output
-    .SAXIHP3RACOUNT         (afi0_racount),           // AXI PS Slave HP3 RACOUNT[2:0], output
-    .SAXIHP3RDISSUECAP1EN   (afi0_rdissuecap1en),     // AXI PS Slave HP3 RDISSUECAP1EN, input
+    .SAXIHP3RDATA(),             // AXI PS Slave HP3 RDATA[63:0], output
+    .SAXIHP3RVALID(),            // AXI PS Slave HP3 RVALID, output
+    .SAXIHP3RREADY(),            // AXI PS Slave HP3 RREADY, input
+    .SAXIHP3RID(),               // AXI PS Slave HP3 RID[5:0], output
+    .SAXIHP3RLAST(),             // AXI PS Slave HP3 RLAST, output
+    .SAXIHP3RRESP(),             // AXI PS Slave HP3 RRESP[1:0], output
+    .SAXIHP3RCOUNT(),            // AXI PS Slave HP3 RCOUNT[7:0], output
+    .SAXIHP3RACOUNT(),           // AXI PS Slave HP3 RACOUNT[2:0], output
+    .SAXIHP3RDISSUECAP1EN(),     // AXI PS Slave HP3 RDISSUECAP1EN, input
 // AXI PS Slave HP3: Write Address    
-    .SAXIHP3AWADDR          (afi0_awaddr),            // AXI PS Slave HP3 AWADDR[31:0], input
-    .SAXIHP3AWVALID         (afi0_awvalid),           // AXI PS Slave HP3 AWVALID, input
-    .SAXIHP3AWREADY         (afi0_awready),           // AXI PS Slave HP3 AWREADY, output
-    .SAXIHP3AWID            (afi0_awid),              // AXI PS Slave HP3 AWID[5:0], input
-    .SAXIHP3AWLOCK          (afi0_awlock),            // AXI PS Slave HP3 AWLOCK[1:0], input
-    .SAXIHP3AWCACHE         (afi0_awcache),           // AXI PS Slave HP3 AWCACHE[3:0], input
-    .SAXIHP3AWPROT          (afi0_awprot),            // AXI PS Slave HP3 AWPROT[2:0], input
-    .SAXIHP3AWLEN           (afi0_awlen),             // AXI PS Slave HP3 AWLEN[3:0], input
-    .SAXIHP3AWSIZE          (afi0_awsize),            // AXI PS Slave HP3 AWSIZE[1:0], input
-    .SAXIHP3AWBURST         (afi0_awburst),           // AXI PS Slave HP3 AWBURST[1:0], input
-    .SAXIHP3AWQOS           (afi0_awqos),             // AXI PS Slave HP3 AWQOS[3:0], input
+    .SAXIHP3AWADDR(),            // AXI PS Slave HP3 AWADDR[31:0], input
+    .SAXIHP3AWVALID(),           // AXI PS Slave HP3 AWVALID, input
+    .SAXIHP3AWREADY(),           // AXI PS Slave HP3 AWREADY, output
+    .SAXIHP3AWID(),              // AXI PS Slave HP3 AWID[5:0], input
+    .SAXIHP3AWLOCK(),            // AXI PS Slave HP3 AWLOCK[1:0], input
+    .SAXIHP3AWCACHE(),           // AXI PS Slave HP3 AWCACHE[3:0], input
+    .SAXIHP3AWPROT(),            // AXI PS Slave HP3 AWPROT[2:0], input
+    .SAXIHP3AWLEN(),             // AXI PS Slave HP3 AWLEN[3:0], input
+    .SAXIHP3AWSIZE(),            // AXI PS Slave HP3 AWSIZE[1:0], input
+    .SAXIHP3AWBURST(),           // AXI PS Slave HP3 AWBURST[1:0], input
+    .SAXIHP3AWQOS(),             // AXI PS Slave HP3 AWQOS[3:0], input
 // AXI PS Slave HP3: Write Data
-    .SAXIHP3WDATA           (afi0_wdata),             // AXI PS Slave HP3 WDATA[63:0], input
-    .SAXIHP3WVALID          (afi0_wvalid),            // AXI PS Slave HP3 WVALID, input
-    .SAXIHP3WREADY          (afi0_wready),            // AXI PS Slave HP3 WREADY, output
-    .SAXIHP3WID             (afi0_wid),               // AXI PS Slave HP3 WID[5:0], input
-    .SAXIHP3WLAST           (afi0_wlast),             // AXI PS Slave HP3 WLAST, input
-    .SAXIHP3WSTRB           (afi0_wstrb),             // AXI PS Slave HP3 WSTRB[7:0], input
-    .SAXIHP3WCOUNT          (afi0_wcount),            // AXI PS Slave HP3 WCOUNT[7:0], output
-    .SAXIHP3WACOUNT         (afi0_wacount),           // AXI PS Slave HP3 WACOUNT[5:0], output
-    .SAXIHP3WRISSUECAP1EN   (afi0_wrissuecap1en),     // AXI PS Slave HP3 WRISSUECAP1EN, input
+    .SAXIHP3WDATA(),             // AXI PS Slave HP3 WDATA[63:0], input
+    .SAXIHP3WVALID(),            // AXI PS Slave HP3 WVALID, input
+    .SAXIHP3WREADY(),            // AXI PS Slave HP3 WREADY, output
+    .SAXIHP3WID(),               // AXI PS Slave HP3 WID[5:0], input
+    .SAXIHP3WLAST(),             // AXI PS Slave HP3 WLAST, input
+    .SAXIHP3WSTRB(),             // AXI PS Slave HP3 WSTRB[7:0], input
+    .SAXIHP3WCOUNT(),            // AXI PS Slave HP3 WCOUNT[7:0], output
+    .SAXIHP3WACOUNT(),           // AXI PS Slave HP3 WACOUNT[5:0], output
+    .SAXIHP3WRISSUECAP1EN(),     // AXI PS Slave HP3 WRISSUECAP1EN, input
 // AXI PS Slave HP3: Write Responce
-    .SAXIHP3BVALID          (afi0_bvalid),            // AXI PS Slave HP3 BVALID, output
-    .SAXIHP3BREADY          (afi0_bready),            // AXI PS Slave HP3 BREADY, input
-    .SAXIHP3BID             (afi0_bid),               // AXI PS Slave HP3 BID[5:0], output
-    .SAXIHP3BRESP           (afi0_bresp),             // AXI PS Slave HP3 BRESP[1:0], output
+    .SAXIHP3BVALID(),            // AXI PS Slave HP3 BVALID, output
+    .SAXIHP3BREADY(),            // AXI PS Slave HP3 BREADY, input
+    .SAXIHP3BID(),               // AXI PS Slave HP3 BID[5:0], output
+    .SAXIHP3BRESP(),             // AXI PS Slave HP3 BRESP[1:0], output
 
 // AXI PS Slave ACP    
 // AXI PS Slave ACP: Clock, Reset
@@ -988,88 +870,4 @@ PS7 ps7_i (
     .PSSRSTB()                  // PS PSSRSTB, inout
   );
 
-membridge /*#(
-    .MEMBRIDGE_ADDR         (),
-    .MEMBRIDGE_MASK         (),
-    .MEMBRIDGE_CTRL         (),
-    .MEMBRIDGE_STATUS_CNTRL (),
-    .MEMBRIDGE_LO_ADDR64    (),
-    .MEMBRIDGE_SIZE64       (),
-    .MEMBRIDGE_START64      (),
-    .MEMBRIDGE_LEN64        (),
-    .MEMBRIDGE_WIDTH64      (),
-    .MEMBRIDGE_MODE         (),
-    .MEMBRIDGE_STATUS_REG   (),
-    .FRAME_HEIGHT_BITS      (),
-    .FRAME_WIDTH_BITS       ()
-)*/ membridge_i (
-    .rst                    (axi_rst), // input
-    .mclk                   (axi_aclk), // input
-    .hclk                   (hclk), // input
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata),
-
-    .afi_awaddr             (afi0_awaddr), // output[31:0] 
-    .afi_awvalid            (afi0_awvalid), // output
-    .afi_awready            (afi0_awready), // input
-    .afi_awid               (afi0_awid), // output[5:0] 
-    .afi_awlock             (afi0_awlock), // output[1:0] 
-    .afi_awcache            (afi0_awcache), // output[3:0] 
-    .afi_awprot             (afi0_awprot), // output[2:0] 
-    .afi_awlen              (afi0_awlen), // output[3:0] 
-    .afi_awsize             (afi0_awsize), // output[2:0] 
-    .afi_awburst            (afi0_awburst), // output[1:0] 
-    .afi_awqos              (afi0_awqos), // output[3:0] 
-    .afi_wdata              (afi0_wdata), // output[63:0] 
-    .afi_wvalid             (afi0_wvalid), // output
-    .afi_wready             (afi0_wready), // input
-    .afi_wid                (afi0_wid), // output[5:0] 
-    .afi_wlast              (afi0_wlast), // output
-    .afi_wstrb              (afi0_wstrb), // output[7:0] 
-    .afi_bvalid             (afi0_bvalid), // input
-    .afi_bready             (afi0_bready), // output
-    .afi_bid                (afi0_bid), // input[5:0] 
-    .afi_bresp              (afi0_bresp), // input[1:0] 
-    .afi_wcount             (afi0_wcount), // input[7:0] 
-    .afi_wacount            (afi0_wacount), // input[5:0] 
-    .afi_wrissuecap1en      (afi0_wrissuecap1en), // output
-    .afi_araddr             (afi0_araddr), // output[31:0] 
-    .afi_arvalid            (afi0_arvalid), // output
-    .afi_arready            (afi0_arready), // input
-    .afi_arid               (afi0_arid), // output[5:0] 
-    .afi_arlock             (afi0_arlock), // output[1:0] 
-    .afi_arcache            (afi0_arcache), // output[3:0] 
-    .afi_arprot             (afi0_arprot), // output[2:0] 
-    .afi_arlen              (afi0_arlen), // output[3:0] 
-    .afi_arsize             (afi0_arsize), // output[2:0] 
-    .afi_arburst            (afi0_arburst), // output[1:0] 
-    .afi_arqos              (afi0_arqos), // output[3:0] 
-    .afi_rdata              (afi0_rdata), // input[63:0] 
-    .afi_rvalid             (afi0_rvalid), // input
-    .afi_rready             (afi0_rready), // output
-    .afi_rid                (afi0_rid), // input[5:0] 
-    .afi_rlast              (afi0_rlast), // input
-    .afi_rresp              (afi0_rresp), // input[2:0] 
-    .afi_rcount             (afi0_rcount), // input[7:0] 
-    .afi_racount            (afi0_racount), // input[2:0] 
-    .afi_rdissuecap1en      (afi0_rdissuecap1en) // output
-);
 endmodule
