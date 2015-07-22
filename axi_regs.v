@@ -44,11 +44,7 @@
 `include "axibram_read.v"
 `include "axibram_write.v"
 `include "membridge.v"
-`include "send_dma.v"
-module axi_regs #(
-    parameter   REGISTERS_CNT = 20
-)
-(
+module axi_regs(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
@@ -94,10 +90,6 @@ module axi_regs #(
     input   wire                BREADY,            // AXI PS Master GP1 BREADY, output
     output  wire    [11:0]      BID,               // AXI PS Master GP1 BID[11:0], input
     output  wire    [1:0]       BRESP,             // AXI PS Master GP1 BRESP[1:0], input
-
-// temporary registers output
-    output  wire    [32*REGISTERS_CNT - 1:0] outmem,
-    output  wire                clrstart
 );
 
 // register set
@@ -111,8 +103,6 @@ module axi_regs #(
  * 0x20-0x3c - data
  */
 reg     [32*REGISTERS_CNT - 1:0]  mem;
-assign  outmem = mem;
-`ifndef MAXI_NEW_IFACE
 /*
  * Converntional MAXI interface from x393 project, uses fifos, writes to/reads from memory
  */
@@ -132,22 +122,13 @@ genvar ii;
 generate
 for (ii = 0; ii < REGISTERS_CNT; ii = ii + 1)
 begin: write_to_mem
-    if (ii == 7) // for some reason expression (clrstart & (ii == 7)) ? is not working
-        always @ (posedge ACLK)
-        begin
-            mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: clrstart ? 8'h0 : mem[32*ii + 31-:8];
-            mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: clrstart ? 8'h0 : mem[32*ii + 23-:8];
-            mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: clrstart ? 8'h0 : mem[32*ii + 15-:8];
-            mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: clrstart ? 8'h0 : mem[32*ii +  7-:8];
-        end
-    else
-        always @ (posedge ACLK)
-        begin
-            mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
-            mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
-            mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
-            mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
-        end
+    always @ (posedge ACLK)
+    begin
+        mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
+        mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
+        mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
+        mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
+    end
 end
 endgenerate
 
@@ -221,174 +202,5 @@ axibram_read(
     .bram_regen     (bram_regen),
     .bram_rdata     (bram_rdata)
 );
-`else
-// read
-// simple consecutive non-conveyor
-reg             raval;
-reg     [31:0]  raddr;
-reg     [3:0]   rlen;
-reg     [1:0]   rsize;
-reg     [1:0]   rburst;
-reg             rready;
-
-wire            r_set;
-wire            r_clr;
-wire    [31:0]  rdata_w;
-reg     [31:0]  rdata;
-reg             rval;
-reg     [11:0]  rid;
-reg     [11:0]  rid_in;
-
-reg     [3:0]   burst_cnt;
-reg     [31:0]  raddr_burst;
-
-assign  ARREADY = rready;
-assign  RDATA   = rdata;
-assign  RVALID  = rval;
-assign  RID     = rid;
-assign  RLAST   = burst_cnt == rlen;
-assign  RRESP   = 2'b00;
-
-// recieve controls
-always @ *//(posedge ACLK)
-begin
-    raddr   = ARVALID ? ARADDR : raddr;
-    raval   = ARVALID;
-    rlen    = ARLEN;
-    rsize   = ARSIZE;
-    rburst  = ARBURST;
-    rid_in  = RID;
-end
-
-// determine successful address detection and data delivery
-assign  r_set   = raval & ARREADY | r_clr & ~RLAST;
-assign  r_clr   = RVALID & RREADY;
-
-// drive output signals after address detection until they are delivered
-always @ (posedge ACLK)
-begin
-    rdata   <= {32{r_set}} & rdata_w | rdata & {32{~r_clr & ARESETN}};
-    rid     <= {12{r_set}} & rid_in | rid & {12{~r_clr & ARESETN}};
-    rval    <= r_set | rval & ~r_clr & ARESETN;
-end
-
-// we are ready to proceed another address after we've completely done with previous one:
-// the moment last burst is sent and everytime after that
-always @ (posedge ACLK)
-    rready  <= ~|burst_cnt & (RLAST & r_clr | ~rval) & ARESETN;
-
-// count bursts
-always @ (posedge ACLK)
-    burst_cnt   <= ~ARESETN | RLAST & r_clr ? 4'h0 : r_clr ? burst_cnt + 1'b1 : burst_cnt;
-
-// after simplifying the introduction comment for this particular case
-assign  rdata_w = mem[{|burst_cnt ? raddr_burst[5:2] : raddr[5:2], 2'b00} + 7-:8];
-
-// compute an address for the next burst
-wire    ralmost_last;
-assign  ralmost_last = burst_cnt + 1'b1 == rlen;
-always @ (posedge ACLK)
-    raddr_burst <= ~ARESETN ? 32'h0 : ~r_clr ? raddr_burst : rburst == 2'b01 ? {raddr_burst[5:2] + 1'b1, 2'b00} : // incr
-                                                             rburst == 2'b10 ? (~ralmost_last ? {raddr_burst[5:2] + 1'b1, 2'b00 } : // wrap, ordinary case
-                                                                                                {raddr[5:2], 2'b00}) : // wrap, last transaction is to be 'wrapped'
-                                                                               raddr; // fixed
-
-
-// write
-// simple consecutive non-conveyor
-
-reg     [31:0]  waddr;
-reg             waval;
-reg     [11:0]  wid_in;
-reg     [3:0]   wlen;
-reg     [1:0]   wsize;
-reg     [1:0]   wburst;
-reg     [31:0]  wdata;
-reg             wval;
-reg     [11:0]  wid;
-reg     [3:0]   wstrb;
-reg             waunready;
-reg             wready;
-reg             wlast;
-
-wire            w_set;
-wire            w_clr;
-reg     [31:0]  waddr_burst;
-reg     [3:0]   wburst_cnt;
-reg             wait_resp;
-wire            wresp_clr;
-
-assign  WREADY = wready;
-assign  AWREADY = ~waunready & ~wait_resp;
-
-// latching inputs
-always @ *//(posedge ACLK)
-begin
-    waddr   = AWVALID ? AWADDR : waddr;
-    waval   = AWVALID;
-    wid_in  = AWID;
-    wlen    = AWLEN;
-    wsize   = AWSIZE;
-    wburst  = AWBURST;
-    wdata   = WDATA;
-    wlast   = WLAST;
-    wid     = WID;
-    wstrb   = AWVALID ? WSTRB : wstrb;
-    wval    = WVALID;
-end
-
-// determine start and end of 'transmit data' phase
-assign  w_set = waval & AWREADY | w_clr & ~wlast;
-assign  w_clr = WVALID & WREADY;
-
-// as soon as data phase started, data could be recieved every tick and no control could
-always @ (posedge ACLK)
-begin
-    wait_resp <= w_set | wait_resp & ~wresp_clr & ARESETN;
-    waunready <= w_set | waunready & ~w_clr & ARESETN;
-    wready    <= w_set |    wready & ~w_clr & ARESETN;
-end
-
-// write data to a corresponding memory cell
-wire    waddr_cur;
-assign  waddr_cur = {|wburst_cnt ? waddr_burst[5:2] : waddr[5:2], 2'b00};
-genvar ii;
-generate
-for (ii = 0; ii < 4; ii = ii + 1)
-begin: for_every_word_byte
-    always @ (posedge ACLK)
-    begin
-        mem[waddr_cur + ii*8 + 7-:8] <= w_clr & wstrb[ii] ? wdata[ii*8+7-:8] : mem[waddr_cur + ii*8 + 7-:8];
-    end
-end
-endgenerate
-
-wire    walmost_last;
-assign  walmost_last = wburst_cnt + 1'b1 == wlen;
-always @ (posedge ACLK)
-    wburst_cnt <= ~ARESETN | wlast & w_clr ? 4'h0 : w_clr ? wburst_cnt + 1'b1 : wburst_cnt;
-
-always @ (posedge ACLK)
-    waddr_burst <= ~ARESETN ? 32'h0 : ~w_clr ? waddr_burst : wburst == 2'b01 ? {waddr_burst[5:2] + 1'b1, 2'b00} : //incr
-                                                             wburst == 2'b10 ? (~walmost_last ? {waddr_burst[5:2] + 1'b1, 2'b00} : // wrap, ordinary
-                                                                                                {waddr[5:2], 2'b00}) : // wrap, last burst
-                                                                               waddr; // fixed
-
-// set responses
-reg             bready;
-reg     [11:0]  bid;
-always @ (posedge ACLK)
-begin
-    bid <= AWVALID ? WID : bid;
-    bready <= ~ARESETN | wresp_clr ? 1'b0 : wlast & w_clr ? 1'b1 : bready;
-end
-assign  BRESP = 2'b00;
-assign  BID = bid;
-assign  BREADY = bready;
-assign  wresp_clr = BREADY & BVALID;
-
-
-`endif
-
 
 endmodule
