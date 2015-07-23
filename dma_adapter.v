@@ -29,10 +29,7 @@
  * a big dma data storage and axi interface. So it shall recieve data and control
  * for 1 burst and pass it to axi.
  */
-module send_dma #(
-    parameter   REGISTERS_CNT = 20
-)
-(
+module dma_adapter(
     input   wire                                clk,
     input   wire                                rst,
 
