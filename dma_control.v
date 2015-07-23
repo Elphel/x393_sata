@@ -188,26 +188,26 @@ wire            to_we;
 
 assign  to_wr_next_addr = to_wr_addr + 1'b1;
 assign  to_rd_next_addr = to_rd_addr + 1'b1;
-// hclk domain counters
-always @ (posedge hclk)
+// sclk domain counters
+always @ (posedge sclk)
 begin
     to_wr_addr        <= rst ? 10'h0 : to_we ? to_wr_next_addr : to_wr_addr;
     to_wr_addr_gr     <= rst ? 10'h0 : to_we ? to_wr_next_addr ^ {1'b0, to_wr_next_addr[9:1]} : to_wr_addr_gr;
 end
-// sclk domain counters
-always @ (posedge sclk)
+// hclk domain counters
+always @ (posedge hclk)
 begin
     to_rd_addr        <= rst ?  9'h0 : to_re ? to_rd_next_addr : to_rd_addr;
     to_rd_addr_gr     <= rst ?  9'h0 : to_re ? to_rd_next_addr ^ {1'b0, to_rd_next_addr[8:1]} : to_rd_addr_gr;
 end
-// write address -> sclk (rd) domain to compare 
-always @ (posedge sclk)
+// write address -> hclk (rd) domain to compare 
+always @ (posedge hclk)
 begin
     to_wr_addr_gr_r   <= rst ? 10'h0 : to_wr_addr;
     to_wr_addr_gr_rr  <= rst ? 10'h0 : to_wr_addr_rr;
 end
-// read address -> hclk (wr) domain to compare 
-always @ (posedge hclk)
+// read address -> sclk (wr) domain to compare 
+always @ (posedge sclk)
 begin
     to_rd_addr_gr_r   <= rst ?  9'h0 : to_rd_addr;
     to_rd_addr_gr_rr  <= rst ?  9'h0 : to_rd_addr_rr;
@@ -228,13 +228,13 @@ begin: to_rd_antigray
 end
 endgenerate
 // so we've got the following:
-// hclk domain: to_wr_addr   - current write address
-//              to_rd_addr_r - read address some hclk ticks ago
+// sclk domain: to_wr_addr   - current write address
+//              to_rd_addr_r - read address some sclk ticks ago
 //  => we can say if the fifo have the possibility to be full
 //     since actual to_rd_addr could only be incremented
 //
-// sclk domain: to_rd_addr   - current read address
-//              to_wr_addr_r - write address some sclk ticks ago
+// hclk domain: to_rd_addr   - current read address
+//              to_wr_addr_r - write address some hclk ticks ago
 //  => we can say if the fifo have the possibility to be empty
 //     since actual to_wr_addr could only be incremented
 assign  to_full   = {to_wr_addr, 1'b0}  == to_rd_addr_r + 1'b1;
