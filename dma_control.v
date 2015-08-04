@@ -19,43 +19,207 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
  /*
-  * Later on most of address evaluation logic could divided into 2 parts, which
+  * Later on most of address evaluation logic could be divided into 2 parts, which
   * could be presented as 2 instances of 1 parameterized module
+  * + split data and address parts. Didnt do that because not sure if
+  * virtual channels would be implemented in the future
   */
- module dma_control(
-    input   wire            sclk,   // sata clock
-    input   wire            hclk,   // axi-hp clock
-    input   wire            rst,
+module dma_control(
+   input   wire            sclk,   // sata clock
+   input   wire            hclk,   // axi-hp clock
+   input   wire            rst,
 
-    // registers iface
-    input   wire    [31:7]  mem_address,
-    input   wire    [31:0]  lba,
-    input   wire    [31:0]  sector_cnt,
-    input   wire            dma_type,
-    input   wire            dma_start,
-    output  wire            dma_done,
+   // registers iface
+   input   wire    [31:7]  mem_address,
+   input   wire    [31:0]  lba,
+   input   wire    [31:0]  sector_cnt,
+   input   wire            dma_type,
+   input   wire            dma_start,
+   output  wire            dma_done,
 
-    // adapter data iface
-    // to main memory
-    output  wire    [63:0]  to_data,
-    output  wire            to_val,
-    input   wire            to_ack,
-    // from main memory
-    input   wire    [63:0]  from_data,
-    input   wire            from_val,
-    input   wire            from_ack
+   // adapter command iface
+   input   wire            adp_busy,
+   output  wire    [31:7]  adp_addr,
+   output  wire            adp_type,
+   output  wire            adp_val,
 
-    // sata host iface
-    // data from sata host
-    input   wire    [31:0]  in_data,
-    output  wire            in_val,
-    input   wire            in_busy,
-    // data to sata host
-    output  wire    [31:0]  out_data,
-    output  wire            out_val,
-    input   wire            out_busy
- );
+   // sata host command iface
+   input   wire            host_ready_for_cmd,
+   output  wire            host_new_cmd,
+   output  wire    [1:0]   host_cmd_type,
+   output  wire    [31:0]  host_sector_count,
+   output  wire    [31:0]  host_sector_addr,
 
+   // adapter data iface
+   // to main memory
+   output  wire    [63:0]  to_data,
+   output  wire            to_val,
+   input   wire            to_ack,
+   // from main memory
+   input   wire    [63:0]  from_data,
+   input   wire            from_val,
+   output  wire            from_ack,
+
+   // sata host iface
+   // data from sata host
+   input   wire    [31:0]  in_data,
+   output  wire            in_val,
+   input   wire            in_busy,
+   // data to sata host
+   output  wire    [31:0]  out_data,
+   output  wire            out_val,
+   input   wire            out_busy
+);
+//////////////////////////////////////////////////////////////////////////////////////
+//// ADDRESS
+//////////////////////////////////////////////////////////////////////////////////////
+wire    dma_done_adp;
+wire    dma_done_host;
+assign  dma_done = dma_done_host & dma_done_adp;
+
+reg     adp_busy_sclk;
+/*
+ * Commands to sata host fsm
+ */
+// for now only 2 states: idle and send a pulse
+reg     host_issued;
+wire    host_issued_set;
+wire    host_issued_clr;
+
+assign  dma_done_host   = host_issued;
+
+assign  host_issued_set = ~adp_busy_sclk & host_ready_for_cmd & dma_start;
+assign  host_issued_clr = dma_done;
+
+always @ (posedge sclk)
+    host_issued <= (host_issued | host_issued_set) & ~host_issued_clr & ~rst;
+
+// drive iface signals
+assign  host_new_cmd        = host_issued_set;
+assign  host_cmd_type       = dma_type;
+assign  host_sector_count   = sector_cnt;
+assign  host_sector_addr    = lba;
+
+/*
+ * Commands to adapter fsm
+ */
+reg     [33:0]  quarter_sector_cnt;
+wire            last_data; // last 128 bytes of data are transmitted now
+wire            adp_val_sclk;
+reg     [31:7]  current_addr;
+reg             current_type;
+
+// synchronize with host fsm
+reg     adp_done;
+wire    adp_done_clr;
+wire    adp_done_set;
+
+assign  dma_done_adp = adp_done;
+
+assign  adp_done_set = state_wait_done & clr_wait_done & ~set_wait_busy; // = state_wait_done & set_idle;
+assign  adp_done_clr = dma_done;
+always @ (posedge sclk)
+    adp_done <= (adp_done | adp_done_set) & ~adp_done_clr & ~rst;
+
+
+// calculate sent sector count
+// 1 sector = 512 bytes for now => 1 quarter_sector = 128 bytes
+always @ (posedge sclk)
+    quarter_sector_cnt <= ~set_wait_busy ? quarter_sector_cnt :
+                              state_idle ? 34'h0 :                    // new dma request
+                                           quarter_sector_cnt + 1'b1; // same dma request, next 128 bytes
+
+// flags if we're currently sending the last data piece of dma transaction
+assign  last_data = (sector_cnt == quarter_sector_cnt[33:2] + 1'b1) & (&quarter_sector_cnt[1:0]);
+
+// calculate outgoing address
+// increment every transaction to adapter
+always @ (posedge sclk)
+    current_addr <= ~set_wait_busy ? current_addr :
+                        state_idle ? mem_address :           // new dma request
+                                     current_addr + 1'b1; // same dma request, next 128 bytes
+
+always @ (posedge sclk)
+    current_type <= ~set_wait_busy ? current_type :
+                        state_idle ? dma_type :           // new dma request
+                                     current_type;        // same dma request, next 128 bytes
+
+// fsm itself
+wire    state_idle;
+reg     state_wait_busy;
+reg     state_wait_done;
+
+wire    set_wait_busy;
+wire    set_wait_done;
+wire    clr_wait_busy;
+wire    clr_wait_done;
+
+assign  set_wait_busy = state_idle      & host_issued_set // same start pulse for both fsms
+                      | state_wait_done & clr_wait_done & ~last_data; // still have some data to transmit within a current dma request
+assign  set_wait_done = state_wait_busy & clr_wait_busy;
+
+assign  clr_wait_busy =  adp_busy_sclk;
+assign  clr_wait_done = ~adp_busy_sclk;
+
+assign  state_idle = ~state_wait_busy & ~state_wait_done;
+always @ (posedge sclk)
+begin
+    state_wait_busy <= (state_wait_busy | set_wait_busy) & ~clr_wait_busy & ~rst;
+    state_wait_done <= (state_wait_done | set_wait_done) & ~clr_wait_done & ~rst;
+end
+
+// conrol signals resync
+reg             adp_val_r;
+reg             adp_val_rr;
+always @ (posedge hclk)
+begin
+    adp_val_r   <= adp_val_sclk;
+    adp_val_rr  <= adp_val_r;
+end
+
+assign  adp_addr = current_addr;
+assign  adp_type = current_type;
+assign  adp_val  = adp_val_rr;
+
+// Maintaining correct adp_busy level @ sclk
+// assuming busy won't toggle rapidly, can afford not implementing handshakes
+wire    adp_busy_sclk_set;
+wire    adp_busy_sclk_clr;
+wire    adp_busy_set;
+wire    adp_busy_clr;
+reg     adp_busy_r;
+
+assign  adp_busy_set = adp_busy & ~adp_busy_r;
+assign  adp_busy_clr = ~adp_busy & adp_busy_r;
+
+always @ (posedge sclk)
+    adp_busy_sclk   <= (adp_busy_sclk | adp_busy_sclk_set) & ~rst & ~adp_busy_sclk_clr;
+
+always @ (posedge hclk)
+    adp_busy_r <= adp_busy;
+
+pulse_cross_clock adp_busy_set_pulse(
+    .rst        (rst),
+    .src_clk    (hclk),
+    .dst_clk    (sclk),
+    .in_pulse   (adp_busy_set),
+    .out_pulse  (adp_busy_sclk_set),
+    .busy       ()
+);
+
+pulse_cross_clock adp_busy_clr_pulse(
+    .rst        (rst),
+    .src_clk    (hclk),
+    .dst_clk    (sclk),
+    .in_pulse   (adp_busy_clr),
+    .out_pulse  (adp_busy_sclk_clr),
+    .busy       ()
+);
+
+
+//////////////////////////////////////////////////////////////////////////////////////
+//// DATA
+//////////////////////////////////////////////////////////////////////////////////////
 /*
  * from main memory resyncronisation circuit
  */
@@ -65,8 +229,8 @@ reg     [8:0]   from_wr_addr;
 wire    [8:0]   from_wr_next_addr;
 wire    [9:0]   from_rd_next_addr;
 // gray coded addresses
-reg     [9:0]   from_rd_addr;
-reg     [8:0]   from_wr_addr;
+reg     [9:0]   from_rd_addr_gr;
+reg     [8:0]   from_wr_addr_gr;
 // anti-metastability shift registers for gray-coded addresses
 reg     [9:0]   from_rd_addr_gr_r;
 reg     [8:0]   from_wr_addr_gr_r;
@@ -99,13 +263,13 @@ end
 always @ (posedge sclk)
 begin
     from_wr_addr_gr_r   <= rst ?  9'h0 : from_wr_addr;
-    from_wr_addr_gr_rr  <= rst ?  9'h0 : from_wr_addr_rr;
+    from_wr_addr_gr_rr  <= rst ?  9'h0 : from_wr_addr_gr_r;
 end
 // read address -> hclk (wr) domain to compare 
 always @ (posedge hclk)
 begin
     from_rd_addr_gr_r   <= rst ? 10'h0 : from_rd_addr;
-    from_rd_addr_gr_rr  <= rst ? 10'h0 : from_rd_addr_rr;
+    from_rd_addr_gr_rr  <= rst ? 10'h0 : from_rd_addr_gr_r;
 end
 // translate resynced write address into ordinary (non-gray) address
 genvar ii;
@@ -169,8 +333,8 @@ reg     [9:0]   to_wr_addr;
 wire    [9:0]   to_wr_next_addr;
 wire    [8:0]   to_rd_next_addr;
 // gray coded addresses
-reg     [8:0]   to_rd_addr;
-reg     [9:0]   to_wr_addr;
+reg     [8:0]   to_rd_addr_gr;
+reg     [9:0]   to_wr_addr_gr;
 // anti-metastability shift registers for gray-coded addresses
 reg     [8:0]   to_rd_addr_gr_r;
 reg     [9:0]   to_wr_addr_gr_r;
@@ -204,16 +368,15 @@ end
 always @ (posedge hclk)
 begin
     to_wr_addr_gr_r   <= rst ? 10'h0 : to_wr_addr;
-    to_wr_addr_gr_rr  <= rst ? 10'h0 : to_wr_addr_rr;
+    to_wr_addr_gr_rr  <= rst ? 10'h0 : to_wr_addr_gr_r;
 end
 // read address -> sclk (wr) domain to compare 
 always @ (posedge sclk)
 begin
     to_rd_addr_gr_r   <= rst ?  9'h0 : to_rd_addr;
-    to_rd_addr_gr_rr  <= rst ?  9'h0 : to_rd_addr_rr;
+    to_rd_addr_gr_rr  <= rst ?  9'h0 : to_rd_addr_gr_r;
 end
 // translate resynced write address into ordinary (non-gray) address
-genvar ii;
 generate
 for (ii = 0; ii < 10; ii = ii + 1)
 begin: to_wr_antigray

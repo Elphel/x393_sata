@@ -7,9 +7,19 @@ then
 fi
 if [ "$UNISIMS_PATH" == '' ]
 then
-    export UNISIMS_PATH="../../../../eddr3-src/eddr3/unisims"
+    export UNISIMS_PATH="../x393/unisims"
 fi
-iverilog $SATA_PATH/tb/tb_top.v $SATA_PATH/x393/glbl.v -f opts  -stb -sglbl $1 2>&1| tee $LOGFILE_PATH
+if [ "$HOST_PATH" == '' ]
+then
+    export HOST_PATH="../host"
+fi
+if [ "$GTX_PATH" == '' ]
+then
+    export GTX_PATH=$SATA_PATH
+fi
+iverilog -Wall $SATA_PATH/tb/tb_top.v $SATA_PATH/x393/glbl.v -I$SATA_PATH/tb -I$SATA_PATH -I$SATA_PATH/x393/axi -I$SATA_PATH/x393 -y$SATA_PATH/x393/util_modules -y$SATA_PATH/x393/wrap -y$UNISIMS_PATH -y$SATA_PATH/x393/memctrl -y$SATA_PATH/x393/axi -y$SATA_PATH/x393/simulation_modules $SATA_PATH/x393/simulation_modules/simul_axi_fifo_out.v -y$SATA_PATH/x393/
+
+#iverilog $SATA_PATH/tb/tb_top.v $SATA_PATH/x393/glbl.v -f opts  -stb -sglbl $1 2>&1| tee $LOGFILE_PATH
  
 #-y$SATA_PATH/x393/util_modules -I$SATA_PATH/x393/ -I$SATA_PATH/x393/axi/ $SATA_PATH/tb/tb_axiregs.v -I$SATA_PATH/ -I$SATA_PATH/tb/
 

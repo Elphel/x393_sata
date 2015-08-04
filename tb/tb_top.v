@@ -330,8 +330,17 @@ simul_axi_read #(
   .burst(),     // burst in progress - just debug
   .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
+reg EXT_REF_CLK_P = 1'b1;
+reg EXT_REF_CLK_N = 1'b0;
+
 // device-under-test instance
 top dut(
+    .RXN             (1'b0),
+    .RXP             (1'b0),
+    .TXN             (),
+    .TXP             (),
+    .REFCLK_PAD_P_IN (EXT_REF_CLK_P),
+    .REFCLK_PAD_N_IN (EXT_REF_CLK_N)
 );
 
 // SAXI HP interface

@@ -40,7 +40,7 @@ module sata_host(
     input   wire            data_clk_out,
 
     // timer
-    output  wire            sata_timer,
+    output  wire    [31:0]  sata_timer,
     
     // phy
     input   wire            clkin_150,
@@ -50,9 +50,47 @@ module sata_host(
     output  wire            txp_out,
     output  wire            txn_out,
     input   wire            rxp_in,
-    input   wire            rxn_in
+    input   wire            rxn_in,
+
+    output  wire            plllkdet,
+    output  wire            dcmlocked
+);/*
+assign  ready_for_cmd = 1'b0;
+assign  sata_core_full = 1'b0;
+assign  sata_dout = 32'b0;
+assign  sata_core_empty = 1'b0;
+assign  sata_timer = 1'b0;
+assign  linkup = 1'b0;
+assign  txp_out = 1'b0;
+assign  txn_out = 1'b0;
+assign  plllkdet = 1'b0;
+assign  dcmlocked = 1'b0;*/
+  
+sata_core sata_core(
+    .ready_for_cmd          (ready_for_cmd),
+    .new_cmd                (new_cmd),
+    .cmd_type               (cmd_type),
+    .sector_count           (sector_count),
+    .sector_addr            (sector_addr),
+    .sata_din               (sata_din),
+    .sata_din_we            (sata_din_we),
+    .sata_core_full         (sata_core_full),
+    .sata_dout              (sata_dout),
+    .sata_dout_re           (sata_dout_re),
+    .sata_core_empty        (sata_core_empty),
+    .SATA_USER_DATA_CLK_IN  (data_clk_in),
+    .SATA_USER_DATA_CLK_OUT (data_clk_out),
+    .sata_timer             (sata_timer),
+    .CLKIN_150              (clkin_150),
+    .reset                  (reset),
+    .LINKUP                 (linkup),
+    .TXP0_OUT               (txp_out),
+    .TXN0_OUT               (txn_out),
+    .RXP0_IN                (rxp_in),
+    .RXN0_IN                (rxn_in),
+    .PLLLKDET_OUT_N         (plllkdet),
+    .DCMLOCKED_OUT          (dcmlocked)
 );
-
-
+  
 
 endmodule

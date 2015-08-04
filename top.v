@@ -24,11 +24,19 @@
  * what is called now 'axi_regs' and connect it
  */
 `include "system_defines.vh" 
-`include "axi_regs.v"
+`include "sata_top.v"
 module top #(
 `include "includes/x393_parameters.vh"
 )
 (
+// sata serial data iface
+    input   wire    RXN,
+    input   wire    RXP,
+    output  wire    TXN,
+    output  wire    TXP,
+// sata clocking iface
+    input   wire    REFCLK_PAD_P_IN,
+    input   wire    REFCLK_PAD_N_IN
 );
 parameter   REGISTERS_CNT = 20;
 wire [32*REGISTERS_CNT - 1:0] outmem;
@@ -167,82 +175,118 @@ axi_hp_clk #(
     .locked_axihp () // output // not controlled?
 );
 
-axi_regs #(
-    .REGISTERS_CNT (REGISTERS_CNT)
-)
-axi_regs(
-    .ACLK       (axi_aclk),
-    .ARESETN    (axi_rst),
-    .ARADDR     (ARADDR),
-    .ARVALID    (ARVALID),
-    .ARREADY    (ARREADY),
-    .ARID       (ARID),
-    .ARLOCK     (ARLOCK),
-    .ARCACHE    (ARCACHE),
-    .ARPROT     (ARPROT),
-    .ARLEN      (ARLEN),
-    .ARSIZE     (ARSIZE),
-    .ARBURST    (ARBURST),
-    .ARQOS      (ARQOS),
-    .RDATA      (RDATA),
-    .RVALID     (RVALID),
-    .RREADY     (RREADY),
-    .RID        (RID),
-    .RLAST      (RLAST),
-    .RRESP      (RRESP),
-    .AWADDR     (AWADDR),
-    .AWVALID    (AWVALID),
-    .AWREADY    (AWREADY),
-    .AWID       (AWID),
-    .AWLOCK     (AWLOCK),
-    .AWCACHE    (AWCACHE),
-    .AWPROT     (AWPROT),
-    .AWLEN      (AWLEN),
-    .AWSIZE     (AWSIZE),
-    .AWBURST    (AWBURST),
-    .AWQOS      (AWQOS),
-    .WDATA      (WDATA),
-    .WVALID     (WVALID),
-    .WREADY     (WREADY),
-    .WID        (WID),
-    .WLAST      (WLAST),
-    .WSTRB      (WSTRB),
-    .BVALID     (BVALID),
-    .BREADY     (BREADY),
-    .BID        (BID),
-    .BRESP      (BRESP),
-    .outmem     (outmem),
-    .clrstart   (clrstart)
-);
+sata_top sata_top(
+    .ACLK                       (axi_aclk),
+    .ARESETN                    (axi_rst),
+// AXI PS Master GP1: Read Address    
+    .ARADDR                     (ARADDR),
+    .ARVALID                    (ARVALID),
+    .ARREADY                    (ARREADY),
+    .ARID                       (ARID),
+    .ARLOCK                     (ARLOCK),
+    .ARCACHE                    (ARCACHE),
+    .ARPROT                     (ARPROT),
+    .ARLEN                      (ARLEN),
+    .ARSIZE                     (ARSIZE),
+    .ARBURST                    (ARBURST),
+    .ARQOS                      (ARQOS),
+// AXI PS Master GP1: Read Data
+    .RDATA                      (RDATA),
+    .RVALID                     (RVALID),
+    .RREADY                     (RREADY),
+    .RID                        (RID),
+    .RLAST                      (RLAST),
+    .RRESP                      (RRESP),
+// AXI PS Master GP1: Write Address    
+    .AWADDR                     (AWADDR),
+    .AWVALID                    (AWVALID),
+    .AWREADY                    (AWREADY),
+    .AWID                       (AWID),
+    .AWLOCK                     (AWLOCK),
+    .AWCACHE                    (AWCACHE),
+    .AWPROT                     (AWPROT),
+    .AWLEN                      (AWLEN),
+    .AWSIZE                     (AWSIZE),
+    .AWBURST                    (AWBURST),
+    .AWQOS                      (AWQOS),
+// AXI PS Master GP1: Write Data
+    .WDATA                      (WDATA),
+    .WVALID                     (WVALID),
+    .WREADY                     (WREADY),
+    .WID                        (WID),
+    .WLAST                      (WLAST),
+    .WSTRB                      (WSTRB),
+// AXI PS Master GP1: Write Responce
+    .BVALID                     (BVALID),
+    .BREADY                     (BREADY),
+    .BID                        (BID),
+    .BRESP                      (BRESP),
 
-dma_adapter #(
-    .REGISTERS_CNT (REGISTERS_CNT)
-)
-dma_adapter(
-    .clk                    (axi_aclk),
-    .rst                    (axi_rst),
-    .mem                    (outmem),
-    .clrstart               (clrstart),
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata)
+/*
+ * Data interface
+ */
+    .afi_awaddr                 (afi0_awaddr),
+    .afi_awvalid                (afi0_awvalid),
+    .afi_awready                (afi0_awready),
+    .afi_awid                   (afi0_awid),
+    .afi_awlock                 (afi0_awlock),
+    .afi_awcache                (afi0_awcache),
+    .afi_awprot                 (afi0_awprot),
+    .afi_awlen                  (afi0_awlen),
+    .afi_awsize                 (afi0_awsize),
+    .afi_awburst                (afi0_awburst),
+    .afi_awqos                  (afi0_awqos),
+    // write data
+    .afi_wdata                  (afi0_wdata),
+    .afi_wvalid                 (afi0_wvalid),
+    .afi_wready                 (afi0_wready),
+    .afi_wid                    (afi0_wid),
+    .afi_wlast                  (afi0_wlast),
+    .afi_wstrb                  (afi0_wstrb),
+    // write response
+    .afi_bvalid                 (afi0_bvalid),
+    .afi_bready                 (afi0_bready),
+    .afi_bid                    (afi0_bid),
+    .afi_bresp                  (afi0_bresp),
+    // PL extra (non-AXI) signal
+    .afi_wcount                 (afi0_wcount),
+    .afi_wacount                (afi0_wacount),
+    .afi_wrissuecap1en          (afi0_wrissuecap1en),
+    // AXI_HP signals - read channel
+    // read address
+    .afi_araddr                 (afi0_araddr),
+    .afi_arvalid                (afi0_arvalid),
+    .afi_arready                (afi0_arready),
+    .afi_arid                   (afi0_arid),
+    .afi_arlock                 (afi0_arlock),
+    .afi_arcache                (afi0_arcache),
+    .afi_arprot                 (afi0_arprot),
+    .afi_arlen                  (afi0_arlen),
+    .afi_arsize                 (afi0_arsize),
+    .afi_arburst                (afi0_arburst),
+    .afi_arqos                  (afi0_arqos),
+    // read data
+    .afi_rdata                  (afi0_rdata),
+    .afi_rvalid                 (afi0_rvalid),
+    .afi_rready                 (afi0_rready),
+    .afi_rid                    (afi0_rid),
+    .afi_rlast                  (afi0_rlast),
+    .afi_rresp                  (afi0_rresp),
+    // PL extra (non-AXI) signal
+    .afi_rcount                 (afi0_rcount),
+    .afi_racount                (afi0_racount),
+    .afi_rdissuecap1en          (afi0_rdissuecap1en),
+
+/*
+ * PHY
+ */
+    .TXN                        (TXN),
+    .TXP                        (TXP),
+    .RXN                        (RXN),
+    .RXP                        (RXP),
+
+    .REFCLK_PAD_P_IN            (REFCLK_PAD_P_IN),
+    .REFCLK_PAD_N_IN            (REFCLK_PAD_N_IN)
 );
 
 PS7 ps7_i (
@@ -987,89 +1031,4 @@ PS7 ps7_i (
     .PSPORB(),                   // PS PSPORB, inout
     .PSSRSTB()                  // PS PSSRSTB, inout
   );
-
-membridge /*#(
-    .MEMBRIDGE_ADDR         (),
-    .MEMBRIDGE_MASK         (),
-    .MEMBRIDGE_CTRL         (),
-    .MEMBRIDGE_STATUS_CNTRL (),
-    .MEMBRIDGE_LO_ADDR64    (),
-    .MEMBRIDGE_SIZE64       (),
-    .MEMBRIDGE_START64      (),
-    .MEMBRIDGE_LEN64        (),
-    .MEMBRIDGE_WIDTH64      (),
-    .MEMBRIDGE_MODE         (),
-    .MEMBRIDGE_STATUS_REG   (),
-    .FRAME_HEIGHT_BITS      (),
-    .FRAME_WIDTH_BITS       ()
-)*/ membridge_i (
-    .rst                    (axi_rst), // input
-    .mclk                   (axi_aclk), // input
-    .hclk                   (hclk), // input
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata),
-
-    .afi_awaddr             (afi0_awaddr), // output[31:0] 
-    .afi_awvalid            (afi0_awvalid), // output
-    .afi_awready            (afi0_awready), // input
-    .afi_awid               (afi0_awid), // output[5:0] 
-    .afi_awlock             (afi0_awlock), // output[1:0] 
-    .afi_awcache            (afi0_awcache), // output[3:0] 
-    .afi_awprot             (afi0_awprot), // output[2:0] 
-    .afi_awlen              (afi0_awlen), // output[3:0] 
-    .afi_awsize             (afi0_awsize), // output[2:0] 
-    .afi_awburst            (afi0_awburst), // output[1:0] 
-    .afi_awqos              (afi0_awqos), // output[3:0] 
-    .afi_wdata              (afi0_wdata), // output[63:0] 
-    .afi_wvalid             (afi0_wvalid), // output
-    .afi_wready             (afi0_wready), // input
-    .afi_wid                (afi0_wid), // output[5:0] 
-    .afi_wlast              (afi0_wlast), // output
-    .afi_wstrb              (afi0_wstrb), // output[7:0] 
-    .afi_bvalid             (afi0_bvalid), // input
-    .afi_bready             (afi0_bready), // output
-    .afi_bid                (afi0_bid), // input[5:0] 
-    .afi_bresp              (afi0_bresp), // input[1:0] 
-    .afi_wcount             (afi0_wcount), // input[7:0] 
-    .afi_wacount            (afi0_wacount), // input[5:0] 
-    .afi_wrissuecap1en      (afi0_wrissuecap1en), // output
-    .afi_araddr             (afi0_araddr), // output[31:0] 
-    .afi_arvalid            (afi0_arvalid), // output
-    .afi_arready            (afi0_arready), // input
-    .afi_arid               (afi0_arid), // output[5:0] 
-    .afi_arlock             (afi0_arlock), // output[1:0] 
-    .afi_arcache            (afi0_arcache), // output[3:0] 
-    .afi_arprot             (afi0_arprot), // output[2:0] 
-    .afi_arlen              (afi0_arlen), // output[3:0] 
-    .afi_arsize             (afi0_arsize), // output[2:0] 
-    .afi_arburst            (afi0_arburst), // output[1:0] 
-    .afi_arqos              (afi0_arqos), // output[3:0] 
-    .afi_rdata              (afi0_rdata), // input[63:0] 
-    .afi_rvalid             (afi0_rvalid), // input
-    .afi_rready             (afi0_rready), // output
-    .afi_rid                (afi0_rid), // input[5:0] 
-    .afi_rlast              (afi0_rlast), // input
-    .afi_rresp              (afi0_rresp), // input[2:0] 
-    .afi_rcount             (afi0_rcount), // input[7:0] 
-    .afi_racount            (afi0_racount), // input[2:0] 
-    .afi_rdissuecap1en      (afi0_rdissuecap1en) // output
-);
 endmodule

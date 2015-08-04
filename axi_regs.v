@@ -2,7 +2,7 @@
  * Module: axi_regs
  * Date: 2015-07-11  
  * Author: Alexey     
- * Description: temporary registers, connected to axi bus
+ * Description: slave axi interface buffer
  *
  * Copyright (c) 2015 Elphel, Inc.
  * axi_regs.v is free software; you can redistribute it and/or modify
@@ -18,33 +18,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-/*
- * Some common formulas for AXI:
- * // - integer division, % - leftover
- * addr = raddr(waddr) % device_memory_size
- * size = arsize(awsize), size_bytes = 2^size, bus_width = log2(bus_width_bytes),
- * bus_offset = addr % bus_width_bytes, aligned_bus_addr - address of the first byte on a bus
- * word_addr - current memory word's index, word_size_bytes - memory word size
-
- *            For the i-th byte on a bus,
- *      -------burst_cnt = 0:
- *             aligned_bus_addr = addr // bus_width_bytes * bus_width_bytes
- *             word_addr[i] = (aligned_bus_addr + i) // word_size_bytes
- *             word_data[i] = mem[word_addr[i]]
- *            >data[i] = word_data[i][i % word_size]
- *            >atrobe[i] = i[bus_width:size] == bus_offset[bus_width:size] & i[size-1:0] >= bus_offset[size-1:0]
- *      -------burst_cnt > 0:
- *              let addr_-1 be an addr of a last burst
- *  Incremental
- *      addr = addr_-1 // size_bytes * size_bytes + size_bytes
- *
- *  Wrapping
- *      addr = addr_-1 // size_bytes * size_bytes + size_bytes
- */
 `include "axibram_read.v"
 `include "axibram_write.v"
-`include "membridge.v"
-module axi_regs(
+module axi_regs #(
+    parameter REGISTERS_CNT = 20
+)
+(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
@@ -90,57 +69,19 @@ module axi_regs(
     input   wire                BREADY,            // AXI PS Master GP1 BREADY, output
     output  wire    [11:0]      BID,               // AXI PS Master GP1 BID[11:0], input
     output  wire    [1:0]       BRESP,             // AXI PS Master GP1 BRESP[1:0], input
+// registers iface
+    input   wire    [31:0]      bram_rdata,
+    output  wire    [31:0]      bram_waddr,
+    output  wire    [31:0]      bram_wdata,
+    output  wire    [31:0]      bram_raddr,
+    output  wire    [3:0]       bram_wstb,
+    output  wire                bram_wen,
+    output  wire                bram_ren,
+    output  wire                bram_regen
 );
-
-// register set
-//reg     [31:0]  mem [3:0];
 /*
- * DMA write:
- * 0x10: addr of the buffer
- * 0x14: size
- * 0x18: burst len
- * 0x1c: 
- * 0x20-0x3c - data
+ * Converntional MAXI interface from x393 project
  */
-reg     [32*REGISTERS_CNT - 1:0]  mem;
-/*
- * Converntional MAXI interface from x393 project, uses fifos, writes to/reads from memory
- */
-wire    [31:0]  bram_waddr;
-wire    [31:0]  bram_raddr;
-wire    [31:0]  bram_wdata;
-wire    [31:0]  bram_rdata;
-wire    [3:0]   bram_wstb;
-wire            bram_wen;
-wire            bram_ren;
-wire            bram_regen;
-
-// 'write into memory' 
-// for testing purposes the 'memory' is a set of registers for now
-// later on will try to use them as an application level registers
-genvar ii;
-generate
-for (ii = 0; ii < REGISTERS_CNT; ii = ii + 1)
-begin: write_to_mem
-    always @ (posedge ACLK)
-    begin
-        mem[32*ii + 31-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[31-:8] & {8{bram_wstb[3]}}: mem[32*ii + 31-:8];
-        mem[32*ii + 23-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[23-:8] & {8{bram_wstb[2]}}: mem[32*ii + 23-:8];
-        mem[32*ii + 15-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[15-:8] & {8{bram_wstb[1]}}: mem[32*ii + 15-:8];
-        mem[32*ii +  7-:8] <= bram_wen & (bram_waddr[3:0] == ii) ? bram_wdata[ 7-:8] & {8{bram_wstb[0]}}: mem[32*ii +  7-:8];
-    end
-end
-endgenerate
-
-// read from memory. Interface's protocol assumes returning data to delay
-reg     [3:0]   bram_raddr_r;
-reg     [31:0]  bram_rdata_r;
-always @ (posedge ACLK) begin
-    bram_raddr_r <= bram_ren   ? bram_raddr[3:0] : bram_raddr_r;
-    bram_rdata_r <= bram_regen ? mem[32*bram_raddr_r + 31-:32] : bram_rdata_r;
-end
-assign  bram_rdata = bram_rdata_r;
-
 // Interface's instantiation
 axibram_write #(
     .ADDRESS_BITS(16)

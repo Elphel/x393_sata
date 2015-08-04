@@ -22,6 +22,15 @@
  * this file is included into tb_top.v due to the compatibility with x393 design testbench
  */
 
+// external clock to gtx
+
+always #3.333
+begin
+    EXT_REF_CLK_P = ~EXT_REF_CLK_P;
+    EXT_REF_CLK_N = ~EXT_REF_CLK_N;
+end
+
+// write registers
 initial
 begin
     CLK =1'b0;
@@ -52,14 +61,14 @@ begin
 
 // test SAXI3 iface
     afi_setup(3);
-    axi_write_single(32'h10, 32'h0add9e55 >> 3); // addr
-    axi_write_single(32'h14, 32'h00000010); // size
-    axi_write_single(32'h18, 32'h00000010); // burst_len
-    axi_write_single(32'h20, 32'hdeadbee0); // data
-    axi_write_single(32'h24, 32'hdeadbee1); // data
-    axi_write_single(32'h28, 32'hdeadbee2); // data
+    axi_write_single(32'h10, 32'h0add9e55); // addr
+    axi_write_single(32'h14, 32'h12345678); // lba
+    axi_write_single(32'h18, 32'h00000020); // sector count
+    axi_write_single(32'h20, 32'h00100000); // dma type
+    axi_write_single(32'h24, 32'h00010000); // start
+/*    axi_write_single(32'h28, 32'hdeadbee2); // data
     axi_write_single(32'h2c, 32'hdeadbee3); // data
-    axi_write_single(32'h1c, 32'hffffffff); // start
+    axi_write_single(32'h1c, 32'hffffffff); // start */
 end
 
 initial
