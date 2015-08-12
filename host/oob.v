@@ -26,7 +26,7 @@
 // All references to doc = to SerialATA_Revision_2_6_Gold.pdf
 module oob #(
     parameter DATA_BYTE_WIDTH = 4,
-    parameter CLK_SPEED_GRADE = 2, // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
+    parameter CLK_SPEED_GRADE = 2 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
 )
 (
     // sata clk = usrclk2
@@ -94,7 +94,7 @@ module oob #(
     // reset speedgrade to the fastest one
     output  wire    speed_rst_req,
     input   wire    speed_rst_ack
-`endif OOB_MULTISPEED
+`endif //OOB_MULTISPEED
 );
 
 // 873.8 us error timer
@@ -118,7 +118,7 @@ reg     [DATA_BYTE_WIDTH - 1:0]   rxcharisk;
 
 // primitives detection
 wire    detected_alignp;
-wire    detected_synp;
+wire    detected_syncp;
 
 // fsm, doc p265,266
 wire    state_idle;
@@ -157,13 +157,13 @@ assign  set_wait_cominit = state_idle & oob_start & ~cominit_req;
 assign  set_wait_comwake = state_idle & cominit_req & cominit_allow | state_wait_cominit & rxcominitdet;
 assign  set_wait_align   = state_wait_comwake & rxcomwakedet;
 assign  set_wait_synp    = state_wait_align & detected_alignp;
-assign  set_wait_linkup  = state_wait_synp & detected_synp;
+assign  set_wait_linkup  = state_wait_synp & detected_syncp;
 assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
 assign  clr_wait_cominit = set_wait_comwake | set_error;
 assign  clr_wait_comwake = set_wait_align | set_error;
 assign  clr_wait_align   = set_wait_synp | set_error;
 assign  clr_wait_synp    = set_wait_linkup | set_error;
-assign  clr_wait_linkup  = state_linkup; //TODO not so important, but still have to trace 3 back-to-back non alignp primitives
+assign  clr_wait_linkup  = state_wait_linkup; //TODO not so important, but still have to trace 3 back-to-back non alignp primitives
 assign  clr_error        = state_error;
 
 // waiting timeout timer
@@ -179,7 +179,7 @@ assign  oob_incompatible = state_wait_align & set_error;
 assign  oob_done = set_wait_linkup;
 
 // noone responds to cominits
-assign  oob_silince = set_error & state_wait_cominit;
+assign  oob_silence = set_error & state_wait_cominit;
 
 // other timeouts
 assign  oob_error = set_error & ~oob_silence & ~oob_incompatible;
@@ -207,34 +207,40 @@ assign  cominit_req = cominit_req_set | cominit_req_r;
 
 // detect which primitives sends the device after comwake was done
 generate 
-    if (DATA_BYTE_WIDTH == 16)
+    if (DATA_BYTE_WIDTH == 2)
     begin
         reg detected_alignp_f;
         always @ (posedge clk)
             detected_alignp_f <= rst | ~state_wait_align ? 1'b0 : 
-                                 ~|(rxdata ^ {8'b01001010, 8'b10111100}) & ~|(rxchaisk ^ 2'b01); // {D10.2, K28.5}
-        assign detected_alignp = detected_aligp_f & ~|(rxdata ^ {8'b01111011, 8'b01001010}) & ~|(rxchaisk ^ 2'b00); // {D27.3, D10.2}
+                                 ~|(rxdata ^ {8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 2'b01); // {D10.2, K28.5}
+        assign detected_alignp = detected_alignp_f & ~|(rxdata ^ {8'b01111011, 8'b01001010}) & ~|(rxcharisk ^ 2'b00); // {D27.3, D10.2}
         
         reg detected_syncp_f;
         always @ (posedge clk)
-            detected_syncp_f <= rst | ~state_wait_sync ? 1'b0 : 
-                                ~|(rxdata ^ {8'b10010101, 8'b01111100}) & ~|(rxchaisk ^ 2'b01); // {D21.4, K28.3}
-        assign detected_syncp = detected_syncp_f & ~|(rxdata ^ {8'b10110101, 8'b10110101}) & ~|(rxchaisk ^ 2'b00); // {D21.5, D21.5}
+            detected_syncp_f <= rst | ~state_wait_synp ? 1'b0 : 
+                                ~|(rxdata ^ {8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 2'b01); // {D21.4, K28.3}
+        assign detected_syncp = detected_syncp_f & ~|(rxdata ^ {8'b10110101, 8'b10110101}) & ~|(rxcharisk ^ 2'b00); // {D21.5, D21.5}
     end
     else
-    if (DATA_BYTE_WIDTH == 32)
+    if (DATA_BYTE_WIDTH == 4)
     begin
-        assign detected_alignp = detected_aligp_f & ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxchaisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
-        assign detected_syncp  = detected_syncp_f & ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxchaisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
+        assign detected_alignp = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
+        assign detected_syncp  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
     end
     else
-    if (DATA_BYTE_WIDTH == 64)
+    if (DATA_BYTE_WIDTH == 8)
     begin
-        assign detected_alignp = detected_aligp_f & ~|(rxdata ^ {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}) & ~|(rxchaisk ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
-        assign detected_syncp  = detected_syncp_f & ~|(rxdata ^ {2{8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}}) & ~|(rxchaisk ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
+        assign detected_alignp = ~|(rxdata ^ {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}) & ~|(rxcharisk ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
+        assign detected_syncp  = ~|(rxdata ^ {2{8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}}) & ~|(rxcharisk ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
     end
     else
-        $display("%m oob module works only with 16/32/64 gtx input data width");
+    begin
+        always @ (posedge clk)
+        begin
+            $display("%m oob module works only with 16/32/64 gtx input data width");
+            $finish;
+        end
+    end
 endgenerate
 
 // buf inputs from gtx
@@ -263,9 +269,9 @@ wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_align;
 always @ (posedge clk)
 begin
     txdata      <= state_wait_align ? txdata_d102 :
-                   state_wait_sync  ? txdata_align : txdata_in;
-    txchaisk    <= state_wait_align ? txcharisk_d102 :
-                   state_wait_sync  ? txcharisk_align : txcharisk_in;
+                   state_wait_synp  ? txdata_align : txdata_in;
+    txcharisk   <= state_wait_align ? txcharisk_d102 :
+                   state_wait_synp  ? txcharisk_align : txcharisk_in;
 end
 
 // Continious D10.2 primitive
@@ -274,30 +280,34 @@ assign  txdata_d102     = {DATA_BYTE_WIDTH{8'b01001010}};
 
 // Align primitive: K28.5 + D10.2 + D10.2 + D27.3
 generate 
-    if (DATA_BYTE_WIDTH == 16)
+    if (DATA_BYTE_WIDTH == 2)
     begin
         reg align_odd;
         always @ (posedge clk)
-            align_odd <= rst | ~state_wait_sync ? 1'b0 : ~align_odd;
+            align_odd <= rst | ~state_wait_synp ? 1'b0 : ~align_odd;
         
         assign txcharisk_align  = align_odd ? 2'b01 : 2'b00;
         assign txdata_align     = align_odd ? {8'b01001010, 8'b10111100} : // {D10.2, K28.5}
-                                              {8'b01111011, 8'b01001010); // {D27.3, D10.2}
+                                              {8'b01111011, 8'b01001010}; // {D27.3, D10.2}
     end
     else
-    if (DATA_BYTE_WIDTH == 32)
+    if (DATA_BYTE_WIDTH == 4)
     begin
         assign txcharisk_align  = 4'h1;
         assign txdata_align     = {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}; // {D27.3, D10.2, D10.2, K28.5}
     end
     else
-    if (DATA_BYTE_WIDTH == 64)
+    if (DATA_BYTE_WIDTH == 8)
     begin
         assign txcharisk_align  = 8'h11;
         assign txdata_align     = {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}; // 2x{D27.3, D10.2, D10.2, K28.5}
     end
     else
-        $display("%m oob module works only with 16/32/64 gtx input data width");
+        always @ (posedge clk)
+        begin
+            $display("%m oob module works only with 16/32/64 gtx input data width");
+            $finish;
+        end
 endgenerate
 
 // set data outputs to gtx

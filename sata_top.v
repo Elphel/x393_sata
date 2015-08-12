@@ -395,7 +395,7 @@ dma_adapter dma_adapter(
 
 
 membridge /*#(
-    .MEMBRIDGE_ADDR         (),
+V    .MEMBRIDGE_ADDR         (),
     .MEMBRIDGE_MASK         (),
     .MEMBRIDGE_CTRL         (),
     .MEMBRIDGE_STATUS_CNTRL (),

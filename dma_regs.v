@@ -40,7 +40,73 @@ module dma_regs #(
     input   wire    [3:0]   bram_wstb,
     input   wire            bram_wen,
     input   wire            bram_ren,
-    input   wire            bram_regen
+    input   wire            bram_regen,
+
+// tmp to cmd control
+    output  wire            cmd_val_out,
+    output  wire    [31:0]  cmd_out,
+// tmp to shadow registers
+    output  wire    [31:0]  sh_data, // write data
+    output  wire            sh_data_val, // write strobe
+    output  wire            sh_data_strobe, // read strobe
+    output  wire    [15:0]  sh_feature,
+    output  wire            sh_feature_val,
+    output  wire    [23:0]  sh_lba_lo,
+    output  wire            sh_lba_lo_val,
+    output  wire    [23:0]  sh_lba_hi,
+    output  wire            sh_lba_hi_val,
+    output  wire    [15:0]  sh_count,
+    output  wire            sh_count_val,
+    output  wire    [7:0]   sh_command,
+    output  wire            sh_command_val,
+    output  wire    [7:0]   sh_dev,
+    output  wire            sh_dev_val,
+    output  wire    [7:0]   sh_control,
+    output  wire            sh_control_val,
+    output  wire    [31:0]  sh_dma_id_lo
+    output  wire            sh_dma_id_lo_val,
+    output  wire    [31:0]  sh_dma_id_hi,
+    output  wire            sh_dma_id_hi_val,
+    output  wire    [31:0]  sh_buf_off,
+    output  wire            sh_buf_off_val,
+    output  wire    [31:0]  sh_dma_cnt,
+    output  wire            sh_dma_cnt_val,
+    output  wire    [31:0]  sh_tran_cnt,
+    output  wire            sh_tran_cnt_val,
+    output  wire            sh_autoact,
+    output  wire            sh_autoact_val,
+    output  wire            sh_inter,
+    output  wire            sh_inter_val,
+    output  wire    [3:0]   sh_port,
+    output  wire            sh_port_val,
+    output  wire            sh_notif,
+    output  wire            sh_notif_val,
+    output  wire            sh_dir,
+    output  wire            sh_dir_val,
+
+// inputs from sh registers
+    input   wire            sh_data_val_in,
+    input   wire    [31:0]  sh_data_in,
+    input   wire    [7:0]   sh_control_in,
+    input   wire    [15:0]  sh_feature_in,
+    input   wire    [47:0]  sh_lba_in,
+    input   wire    [15:0]  sh_count_in,
+    input   wire    [7:0]   sh_command_in,
+    input   wire    [7:0]   sh_err_in,
+    input   wire    [7:0]   sh_status_in,
+    input   wire    [7:0]   sh_estatus_in, // E_Status
+    input   wire    [7:0]   sh_dev_in,
+    input   wire    [3:0]   sh_port_in,
+    input   wire            sh_inter_in,
+    input   wire            sh_dir_in,
+    input   wire    [63:0]  sh_dma_id_in,
+    input   wire    [31:0]  sh_dma_off_in,
+    input   wire    [31:0]  sh_dma_cnt_in,
+    input   wire    [15:0]  sh_tran_cnt_in, // Transfer Count
+    input   wire            sh_notif_in,
+    input   wire            sh_autoact_in
+// inputs from cmd control
+    input   wire    [31:0]  cmd_in
 );
 //reg     [32*REGISTERS_CNT - 1:0]  mem;
 /*
@@ -86,7 +152,7 @@ pulse_cross_clock dma_start_pulse(
     .busy       ()
 );
 
-assign  dma_start_aclk  = bram_wen & (bram_waddr[3:0] == 4'h4) & |wdata;
+assign  dma_start_aclk  = bram_wen & (bram_waddr[7:0] == 8'hf4) & |wdata;
 assign  wdata           = bram_wdata[31:0] & {{8{bram_wstb[3]}}, {8{bram_wstb[2]}}, {8{bram_wstb[1]}}, {8{bram_wstb[0]}}};
 
 always @ (posedge ACLK)
@@ -99,27 +165,94 @@ assign  dma_type    = |reg0c;
 
 always @ (posedge ACLK)
 begin
-    reg00 <= rst ? 32'h0 : bram_wen & (bram_waddr[3:0] == 4'h0) ? wdata : reg00;
-    reg04 <= rst ? 32'h0 : bram_wen & (bram_waddr[3:0] == 4'h1) ? wdata : reg04;
-    reg08 <= rst ? 32'h0 : bram_wen & (bram_waddr[3:0] == 4'h2) ? wdata : reg08;
-    reg0c <= rst ? 32'h0 : bram_wen & (bram_waddr[3:0] == 4'h3) ? wdata : reg0c;
+    reg00 <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf0) ? wdata : reg00;
+    reg04 <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf1) ? wdata : reg04;
+    reg08 <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf2) ? wdata : reg08;
+    reg0c <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf3) ? wdata : reg0c;
     reg10 <= rst ? 32'h0 : dma_start_aclk ? 32'h0 : dma_done_aclk ? 32'hffffffff : reg10; // status reg
     reg14 <= rst ? 32'h0 : dma_done_aclk ? reg00 : reg14;
 end
 
+// writes to shadow registers:
+assign sh_data_val      = bram_wen & (bram_waddr[7:0] == 8'h0);
+assign sh_feature_val   = bram_wen & (bram_waddr[7:0] == 8'h1);
+assign sh_lba_lo_val    = bram_wen & (bram_waddr[7:0] == 8'h2);
+assign sh_lba_hi_val    = bram_wen & (bram_waddr[7:0] == 8'h3);
+assign sh_count_val     = bram_wen & (bram_waddr[7:0] == 8'h4);
+assign sh_command_val   = bram_wen & (bram_waddr[7:0] == 8'h5);
+assign sh_dev_val       = bram_wen & (bram_waddr[7:0] == 8'h6);
+assign sh_control_val   = bram_wen & (bram_waddr[7:0] == 8'h7);
+assign sh_dma_id_lo_val = bram_wen & (bram_waddr[7:0] == 8'h8);
+assign sh_dma_id_hi_val = bram_wen & (bram_waddr[7:0] == 8'h9);
+assign sh_buf_off_val   = bram_wen & (bram_waddr[7:0] == 8'ha);
+assign sh_tran_cnt_val  = bram_wen & (bram_waddr[7:0] == 8'hb);
+assign sh_autoact_val   = bram_wen & (bram_waddr[7:0] == 8'hc);
+assign sh_inter_val     = bram_wen & (bram_waddr[7:0] == 8'hd);
+assign sh_dir_val       = bram_wen & (bram_waddr[7:0] == 8'he);
+assign cmd_val_out      = bram_wen & (bram_waddr[7:0] == 8'hf);
+assign sh_port          = bram_wen & (bram_waddr[7:0] == 8'h13);
+assign sh_dma_cnt_val   = bram_wen & (bram_waddr[7:0] == 8'h14);
+assign sh_notif_val     = bram_wen & (bram_waddr[7:0] == 8'h15);
+
+assign sh_data          = wdata;
+assign sh_feature       = wdata;
+assign sh_lba_lo        = wdata;
+assign sh_lba_hi        = wdata;
+assign sh_count         = wdata;
+assign sh_command       = wdata;
+assign sh_dev           = wdata;
+assign sh_control       = wdata;
+assign sh_dma_id_lo     = wdata;
+assign sh_dma_id_hi     = wdata;
+assign sh_buf_off       = wdata;
+assign sh_tran_cnt      = wdata;
+assign sh_autoact       = wdata;
+assign sh_inter         = wdata;
+assign sh_dir           = wdata;
+assign sh_port          = wdata;
+assign sh_notif         = wdata;
+assign sh_dma_cnt       = wdata;
+assign cmd_out          = wdata;
+
+
+
+assign sh_data_strobe   = bram_regen & bram_raddr_r == 8'h00;
+
 // read from registers. Interface's protocol assumes returning data with a delay
-reg     [3:0]   bram_raddr_r;
+reg     [7:0]   bram_raddr_r;
 reg     [31:0]  bram_rdata_r;
 always @ (posedge ACLK) begin
-    bram_raddr_r <= bram_ren   ? bram_raddr[3:0] : bram_raddr_r;
+    bram_raddr_r <= bram_ren   ? bram_raddr[7:0] : bram_raddr_r;
     bram_rdata_r <=          ~bram_regen ? bram_rdata_r :
-                    bram_raddr_r == 4'h0 ? reg00 :
-                    bram_raddr_r == 4'h1 ? reg04 :
-                    bram_raddr_r == 4'h2 ? reg08 :
-                    bram_raddr_r == 4'h3 ? reg0c :
-                    bram_raddr_r == 4'h4 ? reg10 :
-                    bram_raddr_r == 4'h5 ? reg14 :
-                                           32'hd34db33f;
+                    bram_raddr_r == 8'hf0 ? reg00 :
+                    bram_raddr_r == 8'hf1 ? reg04 :
+                    bram_raddr_r == 8'hf2 ? reg08 :
+                    bram_raddr_r == 8'hf3 ? reg0c :
+                    bram_raddr_r == 8'hf4 ? reg10 :
+                    bram_raddr_r == 8'hf5 ? reg14 :
+                    bram_raddr_r == 8'h00 ? sh_data_in :
+                    bram_raddr_r == 8'h01 ? sh_feature_in :
+                    bram_raddr_r == 8'h02 ? sh_lba_in[23:0] :
+                    bram_raddr_r == 8'h03 ? sh_lba_in[47:24] :
+                    bram_raddr_r == 8'h04 ? sh_count_in :
+                    bram_raddr_r == 8'h05 ? sh_command_in :
+                    bram_raddr_r == 8'h06 ? sh_dev_in :
+                    bram_raddr_r == 8'h07 ? sh_control_in :
+                    bram_raddr_r == 8'h08 ? sh_dma_id_in[31:0] :
+                    bram_raddr_r == 8'h09 ? sh_dma_id_in[63:32] :
+                    bram_raddr_r == 8'h0a ? sh_dma_off_in :
+                    bram_raddr_r == 8'h0b ? sh_tran_cnt_in : // Transfer Count
+                    bram_raddr_r == 8'h0c ? sh_autoact_in :
+                    bram_raddr_r == 8'h0d ? sh_inter_in :
+                    bram_raddr_r == 8'h0e ? sh_dir_in :
+                    bram_raddr_r == 8'h0f ? cmd_in :
+                    bram_raddr_r == 8'h10 ? sh_err_in :
+                    bram_raddr_r == 8'h11 ? sh_status_in :
+                    bram_raddr_r == 8'h12 ? sh_estatus_in : // E_Status
+                    bram_raddr_r == 8'h13 ? sh_port_in :
+                    bram_raddr_r == 8'h14 ? sh_dma_cnt_in :
+                    bram_raddr_r == 8'h15 ? sh_notif_in :
+                                            32'hd34db33f;
 end
 assign  bram_rdata = bram_rdata_r;
 

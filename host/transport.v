@@ -44,17 +44,19 @@ module transport #(
     input   wire    incom_start,
     // LL reports of a completion of an incoming frame transmission.
     input   wire    incom_done,
+    // LL reports of errors in current FIS
+    input   wire    incom_invalidate, // TODO
     // TL analyzes FIS and returnes if FIS makes sense.
     output  wire    incom_ack_good,
     // ... and if it doesn't
     output  wire    incom_ack_bad,
 
     // transmission interrupts
-    // TL demands to brutally cancel current transaction
+    // TL demands to brutally cancel current transaction TODO
     input   wire    sync_escape_req,
-    // acknowlegement of a successful reception
+    // acknowlegement of a successful reception TODO
     output  wire    sync_escape_ack,
-    // TL demands to stop current recieving session
+    // TL demands to stop current recieving session TODO
     input   wire    incom_stop_req,
 
     // controls from a command layer (CL)
@@ -70,6 +72,7 @@ module transport #(
     output  wire            cmd_done_good,
     // request is completed, but device wasn't able to receive
     output  wire            cmd_done_bad,
+
     // shadow registers TODO reduce outputs/inputs count. or not
     // actual registers are stored in CL
     input   wire    [31:0]  sh_data_in,
@@ -84,20 +87,44 @@ module transport #(
     input   wire            sh_dir_in,
     input   wire    [63:0]  sh_dma_id_in,
     input   wire    [31:0]  sh_buf_off_in,
+    input   wire    [32:0]  sh_dma_cnt_in,
+    input   wire            sh_notif_in,
     input   wire    [31:0]  sh_tran_cnt_in,
+    input   wire    [3:0]   sh_port_in,
     // TL decodes register writes and sends corresponding issues to CL
-    output  wire    [31:0]  sh_data_out,
-    output  wire            sh_data_val,
     output  wire    [47:0]  sh_lba_out,
-    output  wire            sh_lba_val,
-    output  wire    [7:0]   sh_err_out,
-    output  wire            sh_err_val,
-    output  wire    [7:0]   sh_status_out,
-    output  wire            sh_status_val,
     output  wire    [15:0]  sh_count_out,
-    output  wire            sh_count_val,
+    output  wire    [7:0]   sh_command_out,
+    output  wire    [7:0]   sh_err_out,
+    output  wire    [7:0]   sh_status_out,
+    output  wire    [7:0]   sh_estatus_out, // E_Status
     output  wire    [7:0]   sh_dev_out,
-    output  wire            sh_dev_val,
+    output  wire    [3:0]   sh_port_out,
+    output  wire            sh_inter_out,
+    output  wire            sh_dir_out,
+    output  wire    [63:0]  sh_dma_id_out,
+    output  wire    [31:0]  sh_dma_off_out,
+    output  wire    [31:0]  sh_dma_cnt_out,
+    output  wire    [15:0]  sh_tran_cnt_out, // Transfer Count
+    output  wire            sh_notif_out,
+    output  wire            sh_autoact_out,
+    output  wire            sh_lba_val_out,
+    output  wire            sh_count_val_out,
+    output  wire            sh_command_val_out,
+    output  wire            sh_err_val_out,
+    output  wire            sh_status_val_out,
+    output  wire            sh_estatus_val_out, // E_Status
+    output  wire            sh_dev_val_out,
+    output  wire            sh_port_val_out,
+    output  wire            sh_inter_val_out,
+    output  wire            sh_dir_val_out,
+    output  wire            sh_dma_id_val_out,
+    output  wire            sh_dma_off_val_out,
+    output  wire            sh_dma_cnt_val_out,
+    output  wire            sh_tran_cnt_val_out, // Transfer Count
+    output  wire            sh_notif_val_out,
+    output  wire            sh_autoact_val_out,
+
 
     // shows if dma activate was received (a pulse)
     output  wire            got_dma_activate,
@@ -110,6 +137,7 @@ module transport #(
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_in,
     input   wire    [DATA_BYTE_WIDTH/2 - 1:0]   ll_data_mask_in,
     input   wire                                ll_data_val_in,
+    input   wire                                ll_data_last_in,
     // transport layer tells if its inner buffer is almost full
     output  wire                                ll_data_busy_out,
 
@@ -128,13 +156,14 @@ module transport #(
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0]   cl_data_out,
     output  wire    [DATA_BYTE_WIDTH/2 - 1:0]   cl_data_mask_out,
     output  wire                                cl_data_val_out,
+    output  wire                                cl_data_last_out,
     // transport layer tells if its inner buffer is almost full
     input   wire                                cl_data_busy_in,
 
     // data inputs from CL
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0]   cl_data_out,
+    input   wire    [DATA_BYTE_WIDTH*8 - 1:0]   cl_data_in,
     // not implemented yet TODO
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0]   cl_data_mask_in,
+    input   wire    [DATA_BYTE_WIDTH/2 - 1:0]   cl_data_mask_in,
     input   wire                                cl_data_last_in,
     input   wire                                cl_data_val_in,
     output  wire                                cl_data_strobe_out,
@@ -143,6 +172,8 @@ module transport #(
     // watchdog timers calls. They shall be handled in TL, but for debug purposes are wired to the upper level
     // when eof acknowledgement is not received after sent FIS
     output  wire    watchdog_eof,
+    // when too many dwords is in current FIS
+    output  wire    watchdog_dwords
 );
 
 // How much time does device have to response on EOF
@@ -152,8 +183,6 @@ parameter [13:0]  WATCHDOG_EOF_LIMIT = 14'd1000;
 // a) received FIS with incorrect length (seems like an error, so no registers shall be written)
 // b) incoming transmission overrides outcoming, so we have to latch outcoming values in real shadow registers
 //    while storing incoming ones in the local copy
-reg [31:0]  loc_data;
-reg [15:0]  loc_feature;
 reg [47:0]  loc_lba;
 reg [15:0]  loc_count;
 reg [7:0]   loc_command;
@@ -171,6 +200,7 @@ reg [15:0]  loc_tran_cnt; // Transfer Count
 reg         loc_notif;
 reg         loc_autoact;
 
+
 // latching cmd inputs
 reg [3:0]   cmd_port_r;
 reg [2:0]   cmd_type_r;
@@ -180,16 +210,14 @@ always @ (posedge clk)
     cmd_port_r  <= rst ? 4'h0 : cmd_val ? cmd_port : cmd_port_r;
 
 // incomming command type decode, shows which type of FIS shall be issued
-localparam CMD_TYPE_REG_DEV     = 2'h0; // Reg H2D, bit C -> 0
-localparam CMD_TYPE_REG_CMD     = 2'h1; // Reg H2D, bit C -> 1
-localparam CMD_TYPE_DMA_SETUP   = 2'h2;
-localparam CMD_TYPE_DATA        = 2'h3;
-localparam CMD_TYPE_BIST_ACT    = 2'h4;
+localparam [2:0] CMD_TYPE_REG_DEV     = 3'h0; // Reg H2D, bit C -> 0
+localparam [2:0] CMD_TYPE_REG_CMD     = 3'h1; // Reg H2D, bit C -> 1
+localparam [2:0] CMD_TYPE_DMA_SETUP   = 3'h2;
+localparam [2:0] CMD_TYPE_DATA        = 3'h3;
+localparam [2:0] CMD_TYPE_BIST_ACT    = 3'h4;
 
 // asserts after FIS is sent
 reg             cmd_done_f;
-// count sent dwords within current FIS scope
-reg     [13:0]  dword_cnt;
 // current header dword
 wire    [31:0]  ll_header_dword;
 // current dword shall be header's
@@ -197,11 +225,11 @@ wire            ll_header_val;
 // if last data dword is header's
 wire            ll_header_last;
 // incorrect size or unmatched type of a received FIS
-reg             bad_fis_rcvd; 
-// if a FIS has wrong size, make sure it would stop
-reg     [13:0]  err_timer;
-// last count condition
-wire            err_timeout = err_timer == 14'd2049;
+reg             bad_fis_received; 
+// if a FIS has wrong size, make sure it would stop, universal dword counter
+reg     [13:0]  dword_cnt;
+// FIS dword size exceeded condition
+assign  watchdog_dwords = dword_cnt == 14'd2049;
 // ask for a receiving termination in case of errors
 reg             incom_stop_req_timeout;
 // dma activate is received when its type met and no errors occurs
@@ -260,13 +288,33 @@ always @ (posedge clk)
     if (rst)
     begin
         state                   <= STATE_IDLE;
-        err_timer               <= 14'h0;
-        incom_stop_req_timeout  <= 1'b1;
+        dword_cnt               <= 14'h0;
+        incom_stop_req_timeout  <= 1'b0;
+        bad_fis_received        <= 1'b0;
+        loc_lba                 <= 48'h0;
+        loc_count               <= 32'h0;
+        loc_command             <= 8'h0;
+        loc_err                 <= 8'h0;
+        loc_status              <= 8'h0;
+        loc_estatus             <= 8'h0;
+        loc_dev                 <= 8'h0;
+        loc_port                <= 4'h0;
+        loc_inter               <= 1'h0;
+        loc_dir                 <= 1'h0;
+        loc_dma_id              <= 64'h0;
+        loc_dma_off             <= 32'h0;
+        loc_dma_cnt             <= 32'h0;
+        loc_tran_cnt            <= 16'h0;
+        loc_notif               <= 1'h0;
+        loc_autoact             <= 1'h0;
     end
     else
         case (state)
             STATE_IDLE:
             begin
+                dword_cnt               <= 14'h0;
+                incom_stop_req_timeout  <= 1'b0;
+                bad_fis_received        <= 1'b0;
                 if (frame_req)
                     state   <= STATE_OUTCOMING;
                 else
@@ -274,6 +322,23 @@ always @ (posedge clk)
                     state   <= STATE_INCOMING;
                 else
                     state   <= STATE_IDLE;
+
+                loc_lba      <= sh_lba_in;
+                loc_count    <= sh_count_in;
+                loc_command  <= sh_command_in;
+                loc_err      <= 8'h0;
+                loc_status   <= 8'h0;
+                loc_estatus  <= 8'h0;
+                loc_dev      <= 8'h0;
+                loc_port     <= sh_port_in;
+                loc_inter    <= sh_inter_in;
+                loc_dir      <= sh_dir_in;
+                loc_dma_id   <= sh_dma_id_in;
+                loc_dma_off  <= sh_buf_off_in;
+                loc_dma_cnt  <= sh_dma_cnt_in;
+                loc_tran_cnt <= sh_tran_cnt_in;
+                loc_notif    <= sh_notif_in;
+                loc_autoact  <= sh_autoact_in;
             end
 
             STATE_INCOMING:
@@ -292,7 +357,7 @@ always @ (posedge clk)
                                 loc_port    <= ll_data_in[11:8];
                                 loc_inter   <= ll_data_in[14];
                                 loc_status  <= ll_data_in[23:16];
-                                loc_error   <= ll_data_in[31:24];
+                                loc_err     <= ll_data_in[31:24];
                                 state       <= STATE_IN_REG_1;
                             end
                             else
@@ -307,8 +372,10 @@ always @ (posedge clk)
                         // DMA Activate
                         begin
                             if (~ll_data_last_in)
+                            begin
                                 state       <= STATE_IN_DMAA_ERR;
-                                err_timer   <= 14'h1;
+                                dword_cnt   <= 14'h1;
+                            end
                             else
                             begin
                                 // got_dma_activate - wire assigment
@@ -368,7 +435,7 @@ always @ (posedge clk)
                                 loc_dir         <= ll_data_in[13];
                                 loc_inter       <= ll_data_in[14];
                                 loc_status      <= ll_data_in[23:16];
-                                loc_error       <= ll_data_in[31:24];
+                                loc_err         <= ll_data_in[31:24];
                                 state           <= STATE_IN_PIOS_1;
                             end
                             else
@@ -383,12 +450,14 @@ always @ (posedge clk)
                         // Set Device Bits
                         begin
                             if (~ll_data_last_in)
+                            begin
                                 loc_inter       <= ll_data_in[14];
                                 loc_notif       <= ll_data_in[15];
                                 loc_status[2:0] <= ll_data_in[19:17];
                                 loc_status[6:4] <= ll_data_in[23:21];
-                                loc_error       <= ll_data_in[31:24];
+                                loc_err         <= ll_data_in[31:24];
                                 state           <= STATE_IN_SDB_1;
+                            end
                             else
                             // an error state, too little dwords transfered
                             begin
@@ -400,7 +469,8 @@ always @ (posedge clk)
                         default:
                         // no known FIS type matched
                         begin
-                            state   <= STATE_IN_UNRECOG;
+                            dword_cnt   <= 14'h0;
+                            state       <= STATE_IN_UNRECOG;
                         end
                     endcase
             end
@@ -410,12 +480,12 @@ always @ (posedge clk)
             // or if FIS won't start because of incoming transmission. In such case outcoming request parameter shall be latched TODO or not?
             begin
                 dword_cnt   <= 14'h0;
-                state       <= frame_rej ? STATE_INCOMING;
-                               frame_ack & cmd_type_r == CMD_TYPE_REG_DEV   ? STATE_OUT_REG_0  :
-                               frame_ack & cmd_type_r == CMD_TYPE_REG_CMD   ? STATE_OUT_REG_0  :
-                               frame_ack & cmd_type_r == CMD_TYPE_DMA_SETUP ? STATE_OUT_DMAS_0 :
-                               frame_ack & cmd_type_r == CMD_TYPE_DATA      ? STATE_OUT_DATA_0 :
-                               frame_ack & cmd_type_r == CMD_TYPE_BIST_ACT  ? STATE_OUT_BIST_0 :
+                state       <= frame_rej ? STATE_INCOMING :
+                               frame_ack & cmd_type_r == CMD_TYPE_REG_DEV   ? STATE_OUT_REG    :
+                               frame_ack & cmd_type_r == CMD_TYPE_REG_CMD   ? STATE_OUT_REG    :
+                               frame_ack & cmd_type_r == CMD_TYPE_DMA_SETUP ? STATE_OUT_DMAS   :
+                               frame_ack & cmd_type_r == CMD_TYPE_DATA      ? STATE_OUT_DATA_H :
+                               frame_ack & cmd_type_r == CMD_TYPE_BIST_ACT  ? STATE_OUT_BIST   :
                                                                               STATE_OUTCOMING;
             end
 
@@ -423,7 +493,7 @@ always @ (posedge clk)
             // receiving data from Data FIS, bypass it into buffer at upper level
             begin
                 if (incom_done)
-                // EOF received
+                // EOF received, CRC good
                 begin
                     state   <= STATE_IDLE;
                 end
@@ -459,7 +529,7 @@ always @ (posedge clk)
                         loc_lba[23:16]  <= ll_data_in[15:8];
                         loc_lba[39:32]  <= ll_data_in[23:16];
                         loc_dev[7:0]    <= ll_data_in[31:24];
-                        state           <= STATE_IN_REG_2:
+                        state           <= STATE_IN_REG_2;
                     end
             end
 
@@ -471,7 +541,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: {Reserved, LBA High (exp), LBA Mid (exp), LBA Low (exp)}
@@ -491,7 +561,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        state            <= STATE_IN_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: {Reserved, Reserved, Sector Count (exp), Sector Count}
@@ -508,13 +578,13 @@ always @ (posedge clk)
                     if (ll_data_last_in)
                     // correct frame size, finishing
                     begin
-                        state            <= STATE_IN_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // incorrect frame size
                     begin
                         state           <= STATE_IN_REG_ERR;
-                        err_timer       <= 14'h4;
+                        dword_cnt       <= 14'h4;
                     end
             end
 
@@ -530,14 +600,14 @@ always @ (posedge clk)
                     end
                     else
                     begin
-                        if (err_timeout)
+                        if (watchdog_dwords)
                         // if for some reason FIS continue transferring for too long, terminate it
                         begin
                             state                   <= STATE_IDLE;
                             incom_stop_req_timeout  <= 1'b1;
                         end
                         else
-                            err_timer <= err_timer + 1'b1;
+                            dword_cnt <= dword_cnt + 1'b1;
                     end
             end
 
@@ -553,14 +623,14 @@ always @ (posedge clk)
                     end
                     else
                     begin
-                        if (err_timeout)
+                        if (watchdog_dwords)
                         // if for some reason FIS continue transferring for too long, terminate it
                         begin
                             state                   <= STATE_IDLE;
                             incom_stop_req_timeout  <= 1'b1;
                         end
                         else
-                            err_timer <= err_timer + 1'b1;
+                            dword_cnt <= dword_cnt + 1'b1;
                     end
             end
 
@@ -595,8 +665,8 @@ always @ (posedge clk)
                     else
                     // going to the next dword, parse current one: DMA Buffer Id High
                     begin
-                        loc_lba[63:32]  <= ll_data_in[31:0];
-                        state           <= STATE_IN_DMAS_3;
+                        loc_dma_id[63:32]   <= ll_data_in[31:0];
+                        state               <= STATE_IN_DMAS_3;
                     end
             end
 
@@ -608,7 +678,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: Reserved
@@ -625,7 +695,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: DMA Buffer Offset
@@ -643,7 +713,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: DMA Transfer Count
@@ -660,13 +730,13 @@ always @ (posedge clk)
                     if (ll_data_last_in)
                     // correct frame size, finishing, current dword: Reserved
                     begin
-                        state            <= STATE_IN_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // incorrect frame size
                     begin
                         state           <= STATE_IN_DMAS_ERR;
-                        err_timer       <= 14'h6;
+                        dword_cnt       <= 14'h6;
                     end
             end
 
@@ -682,14 +752,14 @@ always @ (posedge clk)
                     end
                     else
                     begin
-                        if (err_timeout)
+                        if (watchdog_dwords)
                         // if for some reason FIS continue transferring for too long, terminate it
                         begin
                             state                   <= STATE_IDLE;
                             incom_stop_req_timeout  <= 1'b1;
                         end
                         else
-                            err_timer <= err_timer + 1'b1;
+                            dword_cnt <= dword_cnt + 1'b1;
                     end
             end
 
@@ -701,7 +771,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: TODO
@@ -717,13 +787,13 @@ always @ (posedge clk)
                     if (ll_data_last_in)
                     // correct frame size, finishing, current dword: Reserved
                     begin
-                        state            <= STATE_IN_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // incorrect frame size
                     begin
                         state           <= STATE_IN_BIST_ERR;
-                        err_timer       <= 14'h2;
+                        dword_cnt       <= 14'h2;
                     end
             end
 
@@ -739,14 +809,14 @@ always @ (posedge clk)
                     end
                     else
                     begin
-                        if (err_timeout)
+                        if (watchdog_dwords)
                         // if for some reason FIS continue transferring for too long, terminate it
                         begin
                             state                   <= STATE_IDLE;
                             incom_stop_req_timeout  <= 1'b1;
                         end
                         else
-                            err_timer <= err_timer + 1'b1;
+                            dword_cnt <= dword_cnt + 1'b1;
                     end
             end
 
@@ -758,7 +828,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: {Device, LBA High, LBA Mid, LBA Low}
@@ -766,7 +836,7 @@ always @ (posedge clk)
                         loc_lba[7:0]    <= ll_data_in[7:0];  
                         loc_lba[23:16]  <= ll_data_in[15:8];
                         loc_lba[39:32]  <= ll_data_in[23:16];
-                        loc_device      <= ll_data_in[31:24];
+                        loc_dev         <= ll_data_in[31:24];
                         state           <= STATE_IN_PIOS_2;
                     end
             end
@@ -775,20 +845,20 @@ always @ (posedge clk)
             // receiving PIO Setup FIS, dword by dword
             begin
                 if (ll_data_val_in)
-                if (ll_data_last_in)
-                // incorrect frame size
-                begin
-                    bad_fis_received <= 1'b1;
-                    STATE_IDLE       <= STATE_IDLE;
-                end
-                else
-                // going to the next dword, parse current one: {Reserved, LBA High (exp), LBA Mid (exp), LBA Low (exp)}
-                begin
-                    loc_lba[15:8]   <= ll_data_in[7:0];
-                    loc_lba[31:24]  <= ll_data_in[15:8];
-                    loc_lba[47:40]  <= ll_data_in[23:16];
-                    state           <= STATE_IN_PIOS_3;
-                end
+                    if (ll_data_last_in)
+                    // incorrect frame size
+                    begin
+                        bad_fis_received <= 1'b1;
+                        state            <= STATE_IDLE;
+                    end
+                    else
+                    // going to the next dword, parse current one: {Reserved, LBA High (exp), LBA Mid (exp), LBA Low (exp)}
+                    begin
+                        loc_lba[15:8]   <= ll_data_in[7:0];
+                        loc_lba[31:24]  <= ll_data_in[15:8];
+                        loc_lba[47:40]  <= ll_data_in[23:16];
+                        state           <= STATE_IN_PIOS_3;
+                    end
             end
 
             STATE_IN_PIOS_3:
@@ -799,7 +869,7 @@ always @ (posedge clk)
                     // incorrect frame size
                     begin
                         bad_fis_received <= 1'b1;
-                        STATE_IDLE       <= STATE_IDLE;
+                        state            <= STATE_IDLE;
                     end
                     else
                     // going to the next dword, parse current one: {E_Status, Reserved, Sector Count (exp), Sector Count}
@@ -810,21 +880,21 @@ always @ (posedge clk)
                     end
             end
 
-            STATE_IN_BIST_4:
-            // receiving BIST FIS, dword by dword
+            STATE_IN_PIOS_4:
+            // receiving PIO Setup FIS, dword by dword
             begin
                 if (ll_data_val_in)
                     if (ll_data_last_in)
                     // correct frame size, finishing, current dword: {Reserved, Transfer Count}
                     begin
                         loc_tran_cnt    <= ll_data_in[15:0];
-                        state           <= STATE_IN_IDLE;
+                        state           <= STATE_IDLE;
                     end
                     else
                     // incorrect frame size
                     begin
                         state           <= STATE_IN_BIST_ERR;
-                        err_timer       <= 14'h4;
+                        dword_cnt       <= 14'h4;
                     end
             end
 
@@ -840,14 +910,14 @@ always @ (posedge clk)
                     end
                     else
                     begin
-                        if (err_timeout)
+                        if (watchdog_dwords)
                         // if for some reason FIS continue transferring for too long, terminate it
                         begin
                             state                   <= STATE_IDLE;
                             incom_stop_req_timeout  <= 1'b1;
                         end
                         else
-                            err_timer <= err_timer + 1'b1;
+                            dword_cnt <= dword_cnt + 1'b1;
                     end
             end
 
@@ -858,13 +928,13 @@ always @ (posedge clk)
                     if (ll_data_last_in)
                     // correct frame size, finishing, current dword: Reserved
                     begin
-                        state           <= STATE_IN_IDLE;
+                        state           <= STATE_IDLE;
                     end
                     else
                     // incorrect frame size
                     begin
                         state           <= STATE_IN_SDB_ERR;
-                        err_timer       <= 14'h1;
+                        dword_cnt       <= 14'h1;
                     end
             end
 
@@ -880,14 +950,14 @@ always @ (posedge clk)
                      end
                      else
                      begin
-                         if (err_timeout)
+                         if (watchdog_dwords)
                          // if for some reason FIS continue transferring for too long, terminate it
                          begin
                              state                   <= STATE_IDLE;
                              incom_stop_req_timeout  <= 1'b1;
                          end
                          else
-                             err_timer <= err_timer + 1'b1;
+                             dword_cnt <= dword_cnt + 1'b1;
                      end
             end
 
@@ -907,9 +977,11 @@ always @ (posedge clk)
                 if (ll_data_strobe_in)
                 begin
                     if (cl_data_last_in)
+                    begin
                     // All data is transmitted
                         dword_cnt   <= 14'h0;
                         state       <= STATE_OUT_WAIT_RESP;
+                    end
                     else
                     if (dword_cnt == 2048)
                     // data_limit_exceed - wire assigned
@@ -928,8 +1000,10 @@ always @ (posedge clk)
                 if (ll_data_strobe_in)
                     // 5 header dwords, then wait for a reception on a device side
                     if (dword_cnt[2:0] == 3'h4)
+                    begin
                         dword_cnt   <= 14'h0;
                         state       <= STATE_OUT_WAIT_RESP;
+                    end
                     else
                     begin
                         state       <= STATE_OUT_REG;
@@ -943,8 +1017,10 @@ always @ (posedge clk)
                 if (ll_data_strobe_in)
                     // 7 header dwords, then wait for a reception on a device side
                     if (dword_cnt[2:0] == 3'h6)
+                    begin
                         dword_cnt   <= 14'h0;
                         state       <= STATE_OUT_WAIT_RESP;
+                    end
                     else
                     begin
                         state       <= STATE_OUT_DMAS;
@@ -957,8 +1033,10 @@ always @ (posedge clk)
                 if (ll_data_strobe_in)
                     // 3 header dwords, then wait for a reception on a device side
                     if (dword_cnt[2:0] == 3'h2)
+                    begin
                         dword_cnt   <= 14'h0;
                         state       <= STATE_OUT_WAIT_RESP;
+                    end
                     else
                     begin
                         state       <= STATE_OUT_BIST;
@@ -983,6 +1061,7 @@ always @ (posedge clk)
                     // watchdog_eof wire assigned
                     // for now while debugging let it be indicated on higher level TODO Choose exception. May be send incom stop req. 
                     //      Be aware of no response for that. In such case go for rst for ll. Or better make link_reset -> 1. And dont forget for oob
+                end
                 else
                 begin
                     dword_cnt   <= dword_cnt + 1'b1;
@@ -992,6 +1071,22 @@ always @ (posedge clk)
 
             STATE_IN_UNRECOG:
             begin
+                if (incom_done | incom_invalidate)
+                // transmission complete
+                // incom_ack_bad wire assigned
+                    state   <= STATE_IDLE;
+                else
+                if (watchdog_dwords)
+                begin
+                    state                   <= STATE_IDLE;
+                    incom_stop_req_timeout  <= 1'b1;
+                end
+                else
+                begin
+                    dword_cnt   <= dword_cnt + 1'b1;
+                    state       <= STATE_IN_UNRECOG;
+                end
+                    
             end
 
             default:
@@ -999,10 +1094,25 @@ always @ (posedge clk)
             end
         endcase
 
+// buys circuit
+assign  cmd_busy = |state | frame_busy;
+
+// respond if received FIS had any meaning in terms of TL
+// actual response shall come next tick after done signal to fit LL fsm
+reg incom_done_r;
+always @ (posedge clk)
+    incom_done_r <= incom_done;
+assign  incom_ack_bad   = state == STATE_IN_UNRECOG & incom_done_r | bad_fis_received;
+assign  incom_ack_good  = incom_done_r & ~incom_ack_bad;
+
+// after a device says it received the FIS, reveal the error code
+assign  cmd_done_good = state == STATE_OUT_WAIT_RESP & frame_done_good;
+assign  cmd_done_bad  = state == STATE_OUT_WAIT_RESP & frame_done_bad;
+
 // Reg H2D FIS header
 wire    [31:0] header_regfis;
 assign  header_regfis   = dword_cnt[2:0] == 3'h0 ?  {sh_feature_in[7:0], sh_command_in, cmd_type_r == CMD_TYPE_REG_CMD, 3'h0, cmd_port_r, 8'h27} : //  features command C R R R PMPort FISType
-                          dword_cnt[2:0] == 3'h1 ?  {sh_dev_in, sh_lba_in[39:32], sh_lba_in[23:16], sh_lba_in[7:0] : // Device LBAHigh LBAMid LBALow
+                          dword_cnt[2:0] == 3'h1 ?  {sh_dev_in, sh_lba_in[39:32], sh_lba_in[23:16], sh_lba_in[7:0]} : // Device LBAHigh LBAMid LBALow
                           dword_cnt[2:0] == 3'h2 ?  {sh_feature_in[15:8], sh_lba_in[47:40], sh_lba_in[31:24], sh_lba_in[15:8]} : // Features (exp) LBAHigh (exp) LBAMid (exp) LBALow (exp)
                           dword_cnt[2:0] == 3'h3 ?  {sh_control_in[7:0], 8'h00, sh_count_in[15:0]} : // Control Reserved SectorCount (exp) SectorCount
                        /*dword_cnt[2:0] == 3'h4 ?*/ {32'h0000}; // Reserved
@@ -1012,7 +1122,7 @@ assign  header_dmas     = dword_cnt[3:0] == 3'h0 ?  {8'h0, 8'h0, sh_autoact_in, 
                           dword_cnt[3:0] == 3'h1 ?  {sh_dma_id_in[31:0]} : // DMA Buffer Identifier Low
                           dword_cnt[3:0] == 3'h2 ?  {sh_dma_id_in[63:32]} : // DMA Buffer Identifier High
                           dword_cnt[3:0] == 3'h4 ?  {sh_buf_off_in[31:0]} : // DMA Buffer Offset
-                          dword_cnt[3:0] == 3'h5 ?  {sh_tran_cnt[31:0]} : // DMA Transfer Count
+                          dword_cnt[3:0] == 3'h5 ?  {sh_tran_cnt_in[31:0]} : // DMA Transfer Count
                                   /* 3'h3 | 3'h6 */ {32'h0000}; // Reserved
 // BIST Activate FIS header
 wire    [31:0] header_bist; // TODO
@@ -1036,11 +1146,12 @@ assign  ll_header_dword = {32{state == STATE_OUT_REG}}      & header_regfis |
 
 // bypass data from ll to cl if it's data stage in data FIS
 assign  cl_data_val_out     = ll_data_val_in & state == STATE_IN_DATA;
+assign  cl_data_last_out    = ll_data_val_in & ll_data_last_in & state == STATE_IN_DATA;
 assign  cl_data_mask_out    = ll_data_mask_in;
 assign  cl_data_out         = ll_data_in & {32{cl_data_val_out}};
 
 // set data to ll: bypass payload from cl or headers constructed in here
-assign  ll_data_val         = ll_header_val | cl_data_val_in;
+assign  ll_data_val_out     = ll_header_val | cl_data_val_in;
 assign  ll_data_last_out    = ll_header_last & ll_header_val | cl_data_last_in & ~ll_header_val; 
 assign  ll_data_out         = ll_header_dword & {32{ll_header_val}} | cl_data_in & {32{~ll_header_val}};
 assign  ll_data_mask_out    = {2{ll_header_val}} | cl_data_mask_in & {2{~ll_header_val}};
@@ -1051,6 +1162,44 @@ assign  data_limit_exceeded = dword_cnt == 14'd2048 & ~cl_data_last_in;
 // check if no data was obtained from buffer by ll when we're waiting for a response
 wire    chk_strobe_while_waitresp;
 assign  chk_strobe_while_waitresp = state == STATE_OUT_WAIT_RESP & ll_data_strobe_in;
+
+
+// update shadow registers as soon as transaction finishes TODO invalidate in case of errors
+// TODO update only corresponding fields, which was updated during the transmission
+assign  sh_lba_out      = loc_lba;
+assign  sh_count_out    = loc_count;
+assign  sh_command_out  = loc_command;
+assign  sh_err_out      = loc_err;
+assign  sh_status_out   = loc_status;
+assign  sh_estatus_out  = loc_estatus;
+assign  sh_dev_out      = loc_dev;
+assign  sh_port_out     = loc_port;
+assign  sh_inter_out    = loc_inter;
+assign  sh_dir_out      = loc_dir;
+assign  sh_dma_id_out   = loc_dma_id;
+assign  sh_dma_off_out  = loc_dma_off;
+assign  sh_dma_cnt_out  = loc_dma_cnt;
+assign  sh_tran_cnt_out = loc_tran_cnt;
+assign  sh_notif_out    = loc_notif;
+assign  sh_autoact_out  = loc_autoact;
+
+assign  sh_lba_val_out      = ll_data_last_in;
+assign  sh_count_val_out    = ll_data_last_in;
+assign  sh_command_val_out  = ll_data_last_in;
+assign  sh_err_val_out      = ll_data_last_in;
+assign  sh_status_val_out   = ll_data_last_in;
+assign  sh_estatus_val_out  = ll_data_last_in;
+assign  sh_dev_val_out      = ll_data_last_in;
+assign  sh_port_val_out     = ll_data_last_in;
+assign  sh_inter_val_out    = ll_data_last_in;
+assign  sh_dir_val_out      = ll_data_last_in;
+assign  sh_dma_id_val_out   = ll_data_last_in;
+assign  sh_dma_off_val_out  = ll_data_last_in;
+assign  sh_dma_cnt_val_out  = ll_data_last_in;
+assign  sh_tran_cnt_val_out = ll_data_last_in;
+assign  sh_notif_val_out    = ll_data_last_in;
+assign  sh_autoact_val_out  = ll_data_last_in;
+
 
 `ifdef CHECKERS_ENABLED
 always @ (posedge clk)
@@ -1073,7 +1222,17 @@ always @ (posedge clk)
         $stop;
     end
 `endif
-assign  chk_inc_dword_limit_exceeded = state = STATE_IN_DATA & dword_cnt == 14'd2049;
+`ifdef CHECKERS_ENABLED
+always @ (posedge clk)
+    if (~rst)
+    if (watchdog_dwords)
+    begin
+        $display("ERROR in %m: state %h - current FIS contains more than 2048 dwords", state);
+        $finish;
+    end
+`endif
+wire chk_inc_dword_limit_exceeded;
+assign  chk_inc_dword_limit_exceeded = state == STATE_IN_DATA & dword_cnt == 14'd2049;
 `ifdef CHECKERS_ENABLED
 always @ (posedge clk)
     if (~rst)
