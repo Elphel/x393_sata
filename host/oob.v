@@ -33,8 +33,6 @@ module oob #(
     input   wire    clk,
     // reset oob
     input   wire    rst,
-    // gtx is ready = all resets are done TODO move it to control oobstart/status control block
-    input   wire    gtx_ready,
     // oob responces
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
@@ -64,6 +62,8 @@ module oob #(
 
     // doc p265, link is established after 3back-to-back non-ALIGNp
     output  wire    link_up,
+    // link goes down - if rxelecidle
+    output  wire    link_down,
 
     // the device itself sends cominit
     output  wire    cominit_req,
@@ -195,6 +195,17 @@ assign  txelecidle = set_wait_cominit | txelecidle_r;
 
 // indicate if link up condition was made
 assign  link_up = clr_wait_linkup;
+
+// link goes down when line is idle
+reg     rxelecidle_r;
+reg     rxelecidle_rr;
+always @ (posedge clk)
+begin
+    rxelecidle_rr   <= rxelecidle_r;
+    rxelecidle_r    <= rxelecidle;
+end
+
+assign  link_down = rxelecidle_rr;
 
 // indicate that device is requesting for oob
 reg     cominit_req_r;

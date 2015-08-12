@@ -18,45 +18,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-/*
- * For now assuming the actual rtl would be Ashwin's
- */
+`include "sata_phy.v"
+`include "link.v"
+`include "transport.v"
+`include "command.v"
+
 module sata_host(
-// TODO trim these old interfaces
-    // command, control and status
-    output  wire            ready_for_cmd,
-    input   wire            new_cmd,
-    input   wire    [1:0]   cmd_type,
-    input   wire    [31:0]  sector_count,
-    input   wire    [31:0]  sector_addr,
-
-    // data and user clock
-    input   wire    [31:0]  sata_din,
-    input   wire            sata_din_we,
-    output  wire            sata_core_full,
-    output  wire    [31:0]  sata_dout,
-    input   wire            sata_dout_re,
-    output  wire            sata_core_empty,
-    input   wire            data_clk_in,
-    input   wire            data_clk_out,
-
-    // timer
-    output  wire    [31:0]  sata_timer,
-    
-    // phy
-    input   wire            clkin_150,
-    input   wire            reset,
-
-    output  wire            linkup,
-    output  wire            txp_out,
-    output  wire            txn_out,
-    input   wire            rxp_in,
-    input   wire            rxn_in,
-
-    output  wire            plllkdet,
-    output  wire            dcmlocked
-// end of old ifaces
-
+    input   wire    rst,
+    // sata clk
+    output  wire    clk,
 // temporary
     input   wire    [31:0]  al_cmd_in; // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
     input   wire            al_cmd_val_in;
@@ -102,7 +72,15 @@ module sata_host(
     input   wire    [3:0]   al_sh_port_in,
     input   wire            al_sh_port_val_in,
 
-
+// top-level ifaces
+// ref clk from an external source, shall be connected to pads
+    input   wire            extclk_p; 
+    input   wire            extclk_n;
+// sata physical link data pins      
+    input   wire            txp_out;
+    input   wire            txn_out;
+    input   wire            rxp_in;
+    input   wire            rxn_in;
 
 );
   
@@ -313,36 +291,36 @@ command command(
 );
 
 // issue a frame
-wire    frame_req;
+wire    tl2ll_frame_req;
 // frame started to be transmitted
-wire    frame_ack;
+wire    tl2ll_frame_ack;
 // frame issue was rejected because of incoming frame with higher priority
-wire    frame_rej;
+wire    tl2ll_frame_rej;
 // LL is not ready to receive a frame request. frame_req shall be low if busy is asserted
-wire    frame_busy;
+wire    tl2ll_frame_busy;
 // frame was transmitted w/o probles and successfully received @ a device side
-wire    frame_done_good;
+wire    tl2ll_frame_done_good;
 // frame was transmitted, but device messages of problems with receiving
-wire    frame_done_bad;
+wire    tl2ll_frame_done_bad;
 
 // LL reports of an incoming frame transmission. They're always allowed and have the highest priority
-wire    incom_start;
+wire    ll2tl_incom_start;
 // LL reports of a completion of an incoming frame transmission.
-wire    incom_done;
+wire    ll2tl_incom_done;
 // LL reports of errors in current FIS
-wire    incom_invalidate; // TODO
+wire    ll2tl_incom_invalidate; // TODO
 // TL analyzes FIS and returnes if FIS makes sense.
-wire    incom_ack_good;
+wire    ll2tl_incom_ack_good;
 // ... and if it doesn't
-wire    incom_ack_bad;
+wire    ll2tl_incom_ack_bad;
 
 // transmission interrupts
 // TL demands to brutally cancel current transaction TODO
-wire    sync_escape_req;
+wire    tl2ll_sync_escape_req;
 // acknowlegement of a successful reception TODO
-wire    sync_escape_ack;
+wire    tl2ll_sync_escape_ack;
 // TL demands to stop current recieving session TODO
-wire    incom_stop_req;
+wire    tl2ll_incom_stop_req;
 
 // shows if dma activate was received (a pulse)
 wire            got_dma_activate;
@@ -352,20 +330,20 @@ wire            data_limit_exceeded;
 
 // LL data
 // data inputs from LL
-wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_in;
-wire    [DATA_BYTE_WIDTH/2 - 1:0]   ll_data_mask_in;
-wire                                ll_data_val_in;
-wire                                ll_data_last_in;
+wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll2tl_data;
+wire    [DATA_BYTE_WIDTH/2 - 1:0]   ll2tl_data_mask;
+wire                                ll2tl_data_val;
+wire                                ll2tl_data_last;
 // transport layer tells if its inner buffer is almost full
-wire                                ll_data_busy_out;
+wire                                ll2tl_data_busy;
 
 // data outputs to LL
-wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_out;
+wire    [DATA_BYTE_WIDTH*8 - 1:0]   tl2ll_data;
 // not implemented yet TODO
-wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_mask_out;
-wire                                ll_data_last_out;
-wire                                ll_data_val_out;
-wire                                ll_data_strobe_in;
+wire    [DATA_BYTE_WIDTH*8 - 1:0]   tl2ll_data_mask;
+wire                                tl2ll_data_last;
+wire                                tl2ll_data_val;
+wire                                tl2ll_data_strobe;
 
 // watchdog timers calls. They shall be handled in TL, but for debug purposes are wired to the upper level
 // when eof acknowledgement is not received after sent FIS
@@ -529,76 +507,19 @@ transport transport(
 );
 
 
-// data s from transport layer
-// data stream (if any data during OOB setting => ignored)
-wire    [DATA_BYTE_WIDTH*8 - 1:0] data_in,
-// in case of strange data aligments and size (1st mentioned @ doc, p.310, odd number of words case)
-// Actually, only last data bundle shall be masked, others are always valid.
-// Mask could be encoded into 3 bits instead of 4 for qword, but encoding+decoding aren't worth the bit
-// TODO, for now not supported, all mask bits are assumed to be set
-wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_in,
-// buffer read strobe
-wire    data_strobe_out,
-// transaction's last data budle pulse
-wire    data_last_in,
-// read data is valid (if 0 while last pulse wasn't received => need to hold the line)
-wire    data_val_in,
-
-// data s to transport layer
-// read data, same as related s
-wire    [DATA_BYTE_WIDTH*8 - 1:0] data_out,
-// same thing - all 1s for now. TODO
-wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_out,
-// count every data bundle read by transport layer, even if busy flag is set
-// let the transport layer handle oveflows by himself
-wire    data_val_out,
-// transport layer tells if its inner buffer is almost full
-wire    data_busy_in,
-wire    data_last_out,
-
-// request for a new frame transition
-wire    frame_req,
-// a little bit of overkill with the cound of response signals, think of throwing out 1 of them
-// LL tells back if it cant handle the request for now
-wire    frame_busy,
-// LL tells if the request is transmitting
-wire    frame_ack,
-// or if it was cancelled because of simultanious incoming transmission
-wire    frame_rej,
-// TL tell if the outcoming transaction is done and how it was done
-wire    frame_done_good,
-wire    frame_done_bad,
-
-// if started an incoming transaction
-wire    incom_start,
-// if incoming transition was completed
-wire    incom_done,
-// if incoming transition had errors
-wire    incom_invalidate,
-// transport layer responds on a completion of a FIS
-wire    incom_ack_good,
-wire    incom_ack_bad,
-
 // oob sequence is reinitiated and link now is not established or rxelecidle
 wire    link_reset,
-// TL demands to brutally cancel current transaction
-wire    sync_escape_req,
-// acknowlegement of a successful reception
-wire    sync_escape_ack,
-// TL demands to stop current recieving session
-wire    incom_stop_req,
 
-// s from phy
 // phy is ready - link is established
 wire    phy_ready,
 
 // data-primitives stream from phy
-wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in,
-wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_isk_in, // charisk
-wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_err_in, // disperr | notintable
+wire    [DATA_BYTE_WIDTH*8 - 1:0] phy2ll_data;
+wire    [DATA_BYTE_WIDTH/2 - 1:0] phy2ll_isk; // charisk
+wire    [DATA_BYTE_WIDTH/2 - 1:0] phy2ll_err; // disperr | notintable
 // to phy
-wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
-wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_isk_out // charisk
+wire    [DATA_BYTE_WIDTH*8 - 1:0] ll2phy_data;
+wire    [DATA_BYTE_WIDTH/2 - 1:0] ll2phy_isk; // charisk
 
 
 link link(
@@ -608,73 +529,102 @@ link link(
 
     // data inputs from transport layer
     // input data stream (if any data during OOB setting => ignored)
-    .data_in                            (data_in),
+    .data_in                            (tl2ll_data),
     // in case of strange data aligments and size (1st mentioned @ doc, p.310, odd number of words case)
     // Actually, only last data bundle shall be masked, others are always valid.
     // Mask could be encoded into 3 bits instead of 4 for qword, but encoding+decoding aren't worth the bit
     // TODO, for now not supported, all mask bits are assumed to be set
-    .data_mask_in                       (data_mask_in),
+    .data_mask_in                       (tl2ll_data_mask),
     // buffer read strobe
-    .data_strobe_out                    (data_strobe_out),
+    .data_strobe_out                    (tl2ll_data_strobe),
     // transaction's last data budle pulse
-    .data_last_in                       (data_last_in),
+    .data_last_in                       (tl2ll_data_last),
     // read data is valid (if 0 while last pulse wasn't received => need to hold the line)
-    .data_val_in                        (data_val_in),
+    .data_val_in                        (tl2ll_val),
 
     // data outputs to transport layer
     // read data, same as related inputs
-    .data_out                           (data_out),
+    .data_out                           (ll2tl_data),
     // same thing - all 1s for now. TODO
-    .data_mask_out                      (data_mask_out),
+    .data_mask_out                      (ll2tl_data_mask),
     // count every data bundle read by transport layer, even if busy flag is set
     // let the transport layer handle oveflows by himself
-    .data_val_out                       (data_val_out),
+    .data_val_out                       (ll2tl_data_val),
     // transport layer tells if its inner buffer is almost full
-    .data_busy_in                       (data_busy_in),
-    .data_last_out                      (data_last_out),
+    .data_busy_in                       (ll2tl_busy),
+    .data_last_out                      (ll2tl_data_last),
 
     // request for a new frame transition
-    .frame_req                          (frame_req),
+    .frame_req                          (tl2ll_frame_req),
     // a little bit of overkill with the cound of response signals, think of throwing out 1 of them
     // LL tells back if it cant handle the request for now
-    .frame_busy                         (frame_busy),
+    .frame_busy                         (tl2ll_frame_busy),
     // LL tells if the request is transmitting
-    .frame_ack                          (frame_ack),
+    .frame_ack                          (tl2ll_frame_ack),
     // or if it was cancelled because of simultanious incoming transmission
-    .frame_rej                          (frame_rej),
+    .frame_rej                          (tl2ll_frame_rej),
     // TL tell if the outcoming transaction is done and how it was done
-    .frame_done_good                    (frame_done_good),
-    .frame_done_bad                     (frame_done_bad),
+    .frame_done_good                    (tl2ll_frame_done_good),
+    .frame_done_bad                     (tl2ll_frame_done_bad),
 
     // if started an incoming transaction
-    .incom_start                        (incom_start),
+    .incom_start                        (ll2tl_incom_start),
     // if incoming transition was completed
-    .incom_done                         (incom_done),
+    .incom_done                         (ll2tl_incom_done),
     // if incoming transition had errors
-    .incom_invalidate                   (incom_invalidate),
+    .incom_invalidate                   (ll2tl_incom_invalidate),
     // transport layer responds on a completion of a FIS
-    .incom_ack_good                     (incom_ack_good),
-    .incom_ack_bad                      (incom_ack_bad),
+    .incom_ack_good                     (ll2tl_incom_ack_good),
+    .incom_ack_bad                      (ll2tl_incom_ack_bad),
 
     // oob sequence is reinitiated and link now is not established or rxelecidle
     .link_reset                         (link_reset),
     // TL demands to brutally cancel current transaction
-    .sync_escape_req                    (sync_escape_req),
+    .sync_escape_req                    (tl2ll_sync_escape_req),
     // acknowlegement of a successful reception
-    .sync_escape_ack                    (sync_escape_ack),
+    .sync_escape_ack                    (tl2ll_sync_escape_ack),
     // TL demands to stop current recieving session
-    .incom_stop_req                     (incom_stop_req),
+    .incom_stop_req                     (tl2ll_incom_stop_req),
 
     // inputs from phy
     // phy is ready - link is established
     .phy_ready                          (phy_ready),
 
     // data-primitives stream from phy
-    .phy_data_in                        (phy_data_in),
-    .phy_isk_in                         (phy_isk_in), // charisk
-    .phy_err_in                         (phy_err_in), // disperr | notintable
+    .phy_data_in                        (phy2ll_data),
+    .phy_isk_in                         (phy2ll_isk), // charisk
+    .phy_err_in                         (phy2ll_err), // disperr | notintable
     // to phy
-    .phy_data_out                       (phy_data_out),
-    .phy_isk_out // charis
+    .phy_data_out                       (ll2phy_data),
+    .phy_isk_out                        (ll2phy_isk)// charis
 );
+
+sata_phy phy(
+	.rst				(rst),
+    // sata clk, generated in pll as usrclk2
+	.clk				(clk),
+
+    // state
+	.phy_ready			(phy_ready),
+
+    // top-level ifaces
+    // ref clk from an external source, shall be connected to pads
+	.extclk_p			(extclk_p), 
+	.extclk_n			(extclk_n),
+    // sata link data pins
+	.txp_out			(txp_out),
+	.txn_out			(txn_out),
+	.rxp_in				(rxp_in),
+	.rxn_in				(rxn_in),
+
+    // to link layer
+	.ll_data_out		(phy2ll_data),
+	.ll_charisk_out		(phy2ll_isk),
+    .ll_err_out         (phy2ll_err),
+
+    // from link layer
+	.ll_data_in			(ll2phy_data),
+	.ll_charisk_in		(ll2phy_charisk)
+);
+
 endmodule

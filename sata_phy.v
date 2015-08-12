@@ -2,7 +2,7 @@
  * Module: sata_phy
  * Date: 2015-07-11  
  * Author: Alexey     
- * Description: Ashwin's sata_phy replacement with 7-series support
+ * Description: phy-level, including oob, clock generation and GTXE2 
  *
  * Copyright (c) 2015 Elphel, Inc.
  * sata_phy.v is free software; you can redistribute it and/or modify
@@ -18,46 +18,45 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
+`include "oob_ctrl.v"
 module sata_phy(
-    input   wire        REFCLK_PAD_P_IN,    // GTX reference clock input
-    input   wire        REFCLK_PAD_N_IN,    // GTX reference clock input
-    input   wire        RXP0_IN,      // Receiver input
-    input   wire        RXN0_IN,      // Receiver input
-    input   wire        GTXRESET_IN,        // Main GTX reset
-    input   wire        CLKIN_150,              // reliable clock input
+    input   wire        rst,
+    // sata clk, generated in pll as usrclk2
+    output  wire        clk,
 
-    // Input from Link Layer
-    input   wire [31:0] tx_datain,              
-    input   wire        tx_charisk_in,          
-    output  wire        DCMLOCKED_OUT,      // DCM locked 
-    output  wire        PLLLKDET_OUT_N,         // PLL Lock Detect
-    output  wire        TXP0_OUT,
-    output  wire        TXN0_OUT,
-    output  wire        LINKUP,
-    output  wire        LINKUP_led,
-    output  wire        GEN2_led,
-    output  wire        align_en_out,
-    output  wire        sata_user_clk,
-    // Outputs to Link Layer
-    output  wire [31:0] rx_dataout,       
-    output  wire [3:0]  rx_charisk_out,
-    output  wire [7:0]  CurrentState_out,
-    output  wire        rxelecidle_out,
-    // Rudiments
-    input   wire [35:0] sata_phy_ila_control,
-    input   wire [35:0] oob_control_ila_control
+    // state
+    output  wire        phy_ready,
+
+    // top-level ifaces
+    // ref clk from an external source, shall be connected to pads
+    input   wire        extclk_p, 
+    input   wire        extclk_n,
+    // sata link data pins
+    output  wire        txp_out,
+    output  wire        txn_out,
+    input   wire        rxp_in,
+    input   wire        rxn_in,
+
+    // to link layer
+    output  wire    [31:0]  ll_data_out,
+    output  wire    [3:0]   ll_charisk_out,
+    output  wire    [3:0]   ll_err_out, // TODO!!!
+
+    // from link layer
+    input   wire    [31:0]  ll_data_in,
+    input   wire    [3:0]   ll_charisk_in
 );
 
 parameter  CHIPSCOPE            = "FALSE";
 
 wire    [31:0]  txdata;
-wire            txcharisk;
+wire    [3:0]   txcharisk;
 wire    [63:0]  rxdata;
-wire    [7:0]   rxcharisk;
+wire    [3:0]   rxcharisk;
 wire    [31:0]  rxdata_out;
+wire    [31:0]  txdata_in;
+wire    [3:0]   txcharisk_in;
 wire    [3:0]   rxcharisk_out;
-wire            linkup;
-wire            linkup_led;
                
 wire            rxcomwakedet;
 wire            rxcominitdet;
@@ -69,37 +68,41 @@ wire            rxelecidle;
 wire            txelecidle;
 wire            rxbyteisaligned;
 
-OOB_control oob_control(
-    .oob_control_ila_control    (36'h0),
-                        //-------- GTX Ports --------/
-    .clk                        (sata_user_clk),
-    .reset                      (GTXRESET_IN),
-    .rxreset                    (/*rxreset*/),
-    .rx_locked                  (cplllock),
-    // OOB generation and detection signals from GTX
-    .txcominit                  (txcominit),
-    .txcomwake                  (txcomwake),
-    .cominitdet                 (rxcominitdet),
-    .comwakedet                 (rxcomwakedet),
-                                
-    .rxelecidle                 (rxelecidle),
-    .txelecidle_out             (txelecidle),
-    .rxbyteisaligned            (rxbyteisaligned),     
-    .tx_dataout                 (txdata),       // outgoing GTX data
-    .tx_charisk_out             (txcharisk),       // GTX charisk out    
-    .rx_datain                  (rxdata[31:0]),               // incoming GTX data 
-    .rx_charisk_in              (rxcharisk[3:0]),            // GTX charisk in   
-    .gen2                       (1'b1),                 // for SATA Generation 2
-        
-       //----- USER DATA PORTS---------//        
-    .tx_datain                  (tx_datain),        // User datain port
-    .tx_charisk_in              (tx_charisk_in),        // User charisk in port 
-    .rx_dataout                 (rxdata_out),            // User dataout port
-    .rx_charisk_out             (rxcharisk_out),       // User charisk out port    
-    .linkup                     (linkup),
-    .linkup_led_out             (linkup_led),
-    .align_en_out               (align_en_out),
-    .CurrentState_out           (CurrentState_out)
+
+oob_ctrl oob_ctrl(
+    // sata clk = usrclk2
+    .clk                (clk),
+    // reset oob
+    .rst                (rst),
+    // gtx is ready = all resets are done
+    .gtx_ready          (gtx_ready),
+    // oob responces
+    .rxcominitdet_in    (rxcominitdet),
+    .rxcomwakedet_in    (rxcomwakedet),
+    .rxelecidle_in      (rxelecidle),
+    // oob issues
+    .txcominit          (txcominit),
+    .txcomwake          (txcomwake),
+    .txelecidle         (txelecidle),
+
+    // input data stream (if any data during OOB setting => ignored)
+    .txdata_in          (txdata_in),
+    .txcharisk_in       (txcharisk_in),
+    // output data stream to gtx
+    .txdata_out         (txdata_out),
+    .txcharisk_out      (txcharisk_out),
+    // input data from gtx
+    .rxdata_in          (rxdata_in),
+    .rxcharisk_in       (rxcharisk_in),
+    // bypassed data from gtx
+    .rxdata_out         (rxdata_out),
+    .rxcharisk_out      (rxcharisk_out),
+
+    // receiving data is aligned
+    .rxbyteisaligned    (rxbyteisaligned),
+
+    // shows if channel is ready
+    .phy_ready          (phy_ready)
 );
 
 wire    cplllockdetclk; // TODO
@@ -147,7 +150,7 @@ always @ (posedge gtrefclk)
  */
 wire    usrpll_locked;
 
-assign  cpllreset = GTXRESET_IN;
+assign  cpllreset = rst;
 assign  rxreset = ~cplllock | cpllreset;
 assign  txreset = ~cplllock | cpllreset;
 assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyereset_done;
@@ -226,23 +229,21 @@ usrclk_pll(
 
 /*
  * Padding for an external input clock @ 150 MHz
- * TODO !!! Temporary moved to sata_top
  */
-assign  gtrefclk = CLKIN_150;
-/*localparam [1:0] CLKSWING_CFG = 2'b11;
+localparam [1:0] CLKSWING_CFG = 2'b11;
 IBUFDS_GTE2 #(
     .CLKRCV_TRST   ("TRUE"),
     .CLKCM_CFG      ("TRUE"),
     .CLKSWING_CFG   (CLKSWING_CFG)
 )
 ext_clock_buf(
-    .I      (REFCLK_PAD_P_IN),
-    .IB     (REFCLK_PAD_N_IN),
+    .I      (extclk_p),
+    .IB     (extclk_n),
     .CEB    (1'b0),
     .O      (gtrefclk),
     .ODIV2  ()
 );
-*/
+
 GTXE2_CHANNEL #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
     .SIM_TX_EIDLE_DRIVE_LEVEL               ("X"),
@@ -656,7 +657,7 @@ dut(
     .TXOUTCLKPCS                    (),
     .TXOUTCLKSEL                    (3'b010),
     .TXRATEDONE                     (),
-    .TXCHARISK                      ({7'b0, txcharisk}),
+    .TXCHARISK                      ({4'b0, txcharisk}),
     .TXGEARBOXREADY                 (),
     .TXHEADER                       (3'd0),
     .TXSEQUENCE                     (7'd0),
@@ -683,20 +684,17 @@ dut(
 /*
  * Interfaces
  */
-assign  DCMLOCKED_OUT   = usrpll_locked;
-assign  PLLLKDET_OUT_N  = cplllock;
-assign  rxn             = RXN0_IN;
-assign  rxp             = RXP0_IN;
-assign  TXN0_OUT        = txn;
-assign  TXP0_OUT        = txp;
 assign  cplllockdetclk  = CLKIN_150;
 assign  drpclk          = CLKIN_150;
-assign  LINKUP          = linkup;
-assign  LINKUP_led      = linkup_led;
-assign  rx_dataout      = rxdata_out;
-assign  rx_charisk_out  = rxcharisk_out;
-assign  rxelecidle_out  = rxelecidle;
-assign  GEN2_led        = 1'b0;
-assign  sata_user_clk   = usrclk2;
+
+assign  clk             = usrclk2;
+assign  rxn             = rxn_in;
+assign  rxp             = rxp_in;
+assign  txp_out         = txn;
+assign  txp_out         = txp;
+assign  ll_data_out     = rxdata_out;
+assign  ll_charisk_out  = rxcharisk_out;
+assign  txdata_in       = ll_data_in;
+assign  txcharisk_in    = ll_charisk_in;
 
 endmodule
