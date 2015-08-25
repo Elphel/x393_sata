@@ -38,7 +38,7 @@ reg [15:0]  now;
 reg [31:0]  next;
 
 always @ (posedge clk)
-    now <= rst ? 16'hf0f6 : val_in ? next : now;
+    now <= rst ? 16'hf0f6 : val_in ? next[31:16] : now;
 
 assign  data_out = val_in ? data_in ^ next : data_in;
 

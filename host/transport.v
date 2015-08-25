@@ -53,11 +53,11 @@ module transport #(
 
     // transmission interrupts
     // TL demands to brutally cancel current transaction TODO
-    input   wire    sync_escape_req,
+    output  wire    sync_escape_req,
     // acknowlegement of a successful reception TODO
-    output  wire    sync_escape_ack,
+    input   wire    sync_escape_ack,
     // TL demands to stop current recieving session TODO
-    input   wire    incom_stop_req,
+    output  wire    incom_stop_req,
 
     // controls from a command layer (CL)
     // FIS type, ordered by CL
@@ -87,9 +87,9 @@ module transport #(
     input   wire            sh_dir_in,
     input   wire    [63:0]  sh_dma_id_in,
     input   wire    [31:0]  sh_buf_off_in,
-    input   wire    [32:0]  sh_dma_cnt_in,
+    input   wire    [31:0]  sh_dma_cnt_in,
     input   wire            sh_notif_in,
-    input   wire    [31:0]  sh_tran_cnt_in,
+    input   wire    [15:0]  sh_tran_cnt_in,
     input   wire    [3:0]   sh_port_in,
     // TL decodes register writes and sends corresponding issues to CL
     output  wire    [47:0]  sh_lba_out,
@@ -144,7 +144,7 @@ module transport #(
     // data outputs to LL
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_out,
     // not implemented yet TODO
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0]   ll_data_mask_out,
+    output  wire    [DATA_BYTE_WIDTH/2 - 1:0]   ll_data_mask_out,
     output  wire                                ll_data_last_out,
     output  wire                                ll_data_val_out,
     input   wire                                ll_data_strobe_in,
@@ -175,6 +175,11 @@ module transport #(
     // when too many dwords is in current FIS
     output  wire    watchdog_dwords
 );
+
+//TODO
+assign sync_escape_req = 1'b0;
+assign incom_stop_req = 1'b0;
+assign cl_data_strobe_out = 1'b0;
 
 // How much time does device have to response on EOF
 parameter [13:0]  WATCHDOG_EOF_LIMIT = 14'd1000;
@@ -1100,9 +1105,13 @@ assign  cmd_busy = |state | frame_busy;
 // respond if received FIS had any meaning in terms of TL
 // actual response shall come next tick after done signal to fit LL fsm
 reg incom_done_r;
+reg incom_done_bad_r;
 always @ (posedge clk)
-    incom_done_r <= incom_done;
-assign  incom_ack_bad   = state == STATE_IN_UNRECOG & incom_done_r | bad_fis_received;
+    incom_done_bad_r <= incom_done & state == STATE_IN_UNRECOG;
+always @ (posedge clk)
+    incom_done_r     <= incom_done;
+
+assign  incom_ack_bad   = incom_done_bad_r | bad_fis_received;
 assign  incom_ack_good  = incom_done_r & ~incom_ack_bad;
 
 // after a device says it received the FIS, reveal the error code
@@ -1122,7 +1131,7 @@ assign  header_dmas     = dword_cnt[3:0] == 3'h0 ?  {8'h0, 8'h0, sh_autoact_in, 
                           dword_cnt[3:0] == 3'h1 ?  {sh_dma_id_in[31:0]} : // DMA Buffer Identifier Low
                           dword_cnt[3:0] == 3'h2 ?  {sh_dma_id_in[63:32]} : // DMA Buffer Identifier High
                           dword_cnt[3:0] == 3'h4 ?  {sh_buf_off_in[31:0]} : // DMA Buffer Offset
-                          dword_cnt[3:0] == 3'h5 ?  {sh_tran_cnt_in[31:0]} : // DMA Transfer Count
+                          dword_cnt[3:0] == 3'h5 ?  {sh_dma_cnt_in[31:0]} : // DMA Transfer Count
                                   /* 3'h3 | 3'h6 */ {32'h0000}; // Reserved
 // BIST Activate FIS header
 wire    [31:0] header_bist; // TODO
@@ -1149,6 +1158,7 @@ assign  cl_data_val_out     = ll_data_val_in & state == STATE_IN_DATA;
 assign  cl_data_last_out    = ll_data_val_in & ll_data_last_in & state == STATE_IN_DATA;
 assign  cl_data_mask_out    = ll_data_mask_in;
 assign  cl_data_out         = ll_data_in & {32{cl_data_val_out}};
+assign  ll_data_busy_out    = cl_data_busy_in;
 
 // set data to ll: bypass payload from cl or headers constructed in here
 assign  ll_data_val_out     = ll_header_val | cl_data_val_in;
@@ -1163,6 +1173,8 @@ assign  data_limit_exceeded = dword_cnt == 14'd2048 & ~cl_data_last_in;
 wire    chk_strobe_while_waitresp;
 assign  chk_strobe_while_waitresp = state == STATE_OUT_WAIT_RESP & ll_data_strobe_in;
 
+// issue a FIS 
+assign  frame_req = cmd_val & state == STATE_IDLE & ~frame_busy;
 
 // update shadow registers as soon as transaction finishes TODO invalidate in case of errors
 // TODO update only corresponding fields, which was updated during the transmission
@@ -1216,7 +1228,7 @@ assign  watchdog_eof = dword_cnt == WATCHDOG_EOF_LIMIT & state == STATE_OUT_WAIT
 `ifdef CHECKERS_ENABLED
 always @ (posedge clk)
     if (~rst)
-    if (watchgod_eof)
+    if (watchdog_eof)
     begin
         $display("WARNING in %m: watchdog_eof asserted");
         $stop;

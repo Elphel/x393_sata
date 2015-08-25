@@ -18,6 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
+`include "scrambler.v"
+`include "crc.v"
 module link #(
     // 4 = dword. 4-bytes aligned data transfers TODO 2 = word - easy, 8 = qword - difficult
     parameter DATA_BYTE_WIDTH = 4
@@ -92,11 +94,11 @@ module link #(
 
     // data-primitives stream from phy
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in,
-    input   wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_isk_in, // charisk
-    input   wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_err_in, // disperr | notintable
+    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_in, // charisk
+    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_err_in, // disperr | notintable
     // to phy
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
-    output  wire    [DATA_BYTE_WIDTH/2 - 1:0] phy_isk_out // charisk
+    output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out // charisk
 );
 // scrambled data
 wire    [DATA_BYTE_WIDTH*8 - 1:0]   scrambler_out;
@@ -114,7 +116,7 @@ always @ (posedge clk)
 // send primitives variety count, including CRC and DATA as primitives
 localparam  PRIM_NUM = 15;
 // list of bits of rcvd_dword
-wire    [PRIM_NUM:0]    rcvd_dword; // shows current processing primitive (or just data dword)
+wire    [PRIM_NUM - 1:0] rcvd_dword; // shows current processing primitive (or just data dword)
 wire                    dword_val;
 localparam  CODE_DATA   = 0;
 localparam  CODE_CRC    = 1;
@@ -213,27 +215,27 @@ wire    clr_rcvr_goodend;
 wire    clr_rcvr_badend;
 
 assign state_idle = ~state_sync_esc
-                  | ~state_nocommerr
-                  | ~state_nocomm
-                  | ~state_align
-                  | ~state_reset
-                  | ~state_send_rdy
-                  | ~state_send_sof
-                  | ~state_send_data
-                  | ~state_send_rhold
-                  | ~state_send_shold
-                  | ~state_send_crc
-                  | ~state_send_eof
-                  | ~state_wait
-                  | ~state_rcvr_wait
-                  | ~state_rcvr_rdy
-                  | ~state_rcvr_data
-                  | ~state_rcvr_rhold
-                  | ~state_rcvr_shold
-                  | ~state_rcvr_eof
-                  | ~state_rcvr_goodcrc
-                  | ~state_rcvr_goodend
-                  | ~state_rcvr_badend;
+                  & ~state_nocommerr
+                  & ~state_nocomm
+                  & ~state_align
+                  & ~state_reset
+                  & ~state_send_rdy
+                  & ~state_send_sof
+                  & ~state_send_data
+                  & ~state_send_rhold
+                  & ~state_send_shold
+                  & ~state_send_crc
+                  & ~state_send_eof
+                  & ~state_wait
+                  & ~state_rcvr_wait
+                  & ~state_rcvr_rdy
+                  & ~state_rcvr_data
+                  & ~state_rcvr_rhold
+                  & ~state_rcvr_shold
+                  & ~state_rcvr_eof
+                  & ~state_rcvr_goodcrc
+                  & ~state_rcvr_goodend
+                  & ~state_rcvr_badend;
 
 
 // got an escaping primitive = request to cancel the transmission
@@ -306,13 +308,13 @@ assign  clr_send_shold      = set_nocommerr | set_reset | set_sync_esc | set_sen
 assign  clr_send_crc        = set_nocommerr | set_reset | set_sync_esc | set_send_eof | got_escape;
 assign  clr_send_eof        = set_nocommerr | set_reset | set_sync_esc | set_wait | got_escape;
 assign  clr_wait            = set_nocommerr | set_reset | set_sync_esc | frame_done | got_escape; 
-assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rdy | dword_val & ~rcvd_dword[CODE_RRDYP];
-assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | dword_val & ~rcvd_dword[CODE_RRDYP] & ~rcvd_dword[CODE_SOFP];
+assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rdy | dword_val & ~rcvd_dword[CODE_XRDYP];
+assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | dword_val & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP];
 assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof | set_rcvr_badend | got_escape;
 assign  clr_rcvr_rhold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | set_rcvr_shold | got_escape;
 assign  clr_rcvr_shold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | got_escape;
-assign  clr_rcvr_eof        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_eof | set_rcvr_goodcrc | set_rcvr_badend;
-assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodend | set_rcvr_badend | set_rcvr_goodcrc | got_escape;
+assign  clr_rcvr_eof        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodcrc | set_rcvr_badend;
+assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodend | set_rcvr_badend | got_escape;
 assign  clr_rcvr_goodend    = set_nocommerr | set_reset | set_sync_esc | got_escape;
 assign  clr_rcvr_badend     = set_nocommerr | set_reset | set_sync_esc | got_escape;
 
@@ -352,7 +354,7 @@ always @ (posedge clk)
 
 // form data to phy
 reg     [DATA_BYTE_WIDTH*8 - 1:0] to_phy_data;
-reg     [DATA_BYTE_WIDTH/2 - 1:0] to_phy_isk;
+reg     [DATA_BYTE_WIDTH   - 1:0] to_phy_isk;
 // TODO implement CONTP
 localparam [15:0] PRIM_SYNCP_HI     = {3'd5, 5'd21, 3'd5, 5'd21};
 localparam [15:0] PRIM_SYNCP_LO     = {3'd4, 5'd21, 3'd3, 5'd28};
@@ -477,7 +479,7 @@ always @ (posedge clk)
                     {DATA_BYTE_WIDTH*8{select_prim[CODE_DATA]}}   & prim_data[CODE_DATA];
 
 always @ (posedge clk)
-    to_phy_isk <= rst | ~select_prim[CODE_DATA] & ~select_prim[CODE_CRC] ? {{(DATA_BYTE_WIDTH/2 - 1){1'b0}}, 1'b1} : {DATA_BYTE_WIDTH/2{1'b0}} ;
+    to_phy_isk <= rst | ~select_prim[CODE_DATA] & ~select_prim[CODE_CRC] ? {{(DATA_BYTE_WIDTH - 1){1'b0}}, 1'b1} : {DATA_BYTE_WIDTH{1'b0}} ;
 
 // incoming data is data
 wire    inc_is_data;
@@ -503,7 +505,7 @@ crc crc(
     .clk        (clk),
     .rst        (select_prim[CODE_SOFP] | dword_val & rcvd_dword[CODE_SOFP]),
     .val_in     (select_prim[CODE_DATA] | inc_is_data),
-    .data_in    (data_in & {DATA_BYTE_WIDTH*8{select_prim[CODE_DATA]}} | phy_data_in & {DATA_BYTE_WIDTH*8{inc_is_data}}),
+    .data_in    (data_in & {DATA_BYTE_WIDTH*8{select_prim[CODE_DATA]}} | scrambler_out & {DATA_BYTE_WIDTH*8{inc_is_data}}),
     .crc_out    (crc_dword)
 );
 
@@ -549,26 +551,27 @@ assign  incom_start = set_rcvr_wait & ~alignes_pair;
 // ... and processed
 assign  incom_done  = set_rcvr_goodcrc & ~alignes_pair;
 // or the FIS had errors
-assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
+assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP] 
+                         | (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
 
 // shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val
-assign  dword_val = |rcvd_dword & phy_ready;
+assign  dword_val = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP];
 // determine imcoming primitive type
 assign  rcvd_dword[CODE_DATA]	= ~|phy_isk_in;
 assign  rcvd_dword[CODE_CRC]	= 1'b0;
-assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_SYNCP ] == phy_data_in;
-assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_ALIGNP] == phy_data_in;
-assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_XRDYP ] == phy_data_in;
-assign  rcvd_dword[CODE_SOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_SOFP  ] == phy_data_in;
-assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_HOLDAP] == phy_data_in;
-assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_HOLDP ] == phy_data_in;
-assign  rcvd_dword[CODE_EOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_EOFP  ] == phy_data_in;
-assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_WTRMP ] == phy_data_in;
-assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_RRDYP ] == phy_data_in;
-assign  rcvd_dword[CODE_IPP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_IPP   ] == phy_data_in;
-assign  rcvd_dword[CODE_DMATP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_DMATP ] == phy_data_in;
-assign  rcvd_dword[CODE_OKP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_OKP   ] == phy_data_in;
-assign  rcvd_dword[CODE_ERRP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH/2-1:1] & prim_data[CODE_ERRP  ] == phy_data_in;
+assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in;
+assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in;
+assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in;
+assign  rcvd_dword[CODE_SOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in;
+assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in;
+assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in;
+assign  rcvd_dword[CODE_EOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in;
+assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in;
+assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in;
+assign  rcvd_dword[CODE_IPP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in;
+assign  rcvd_dword[CODE_DMATP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in;
+assign  rcvd_dword[CODE_OKP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in;
+assign  rcvd_dword[CODE_ERRP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in;
 
 // phy level errors handling TODO
 assign  dec_err = |phy_err_in;
@@ -591,7 +594,8 @@ always @ (posedge clk)
 reg  [STATES_COUNT - 1:0] sim_states_concat;
 always @ (posedge clk)
     if (~rst)
-    if ((state_idle
+    if (( 32'h0
+       + state_idle
        + state_sync_esc
        + state_nocommerr
        + state_nocomm
@@ -616,7 +620,7 @@ always @ (posedge clk)
        + state_rcvr_badend
        ) != 1)
     begin
-        sim_state_concat = {
+        sim_states_concat = {
                            state_idle
                          , state_sync_esc
                          , state_nocommerr
@@ -641,9 +645,23 @@ always @ (posedge clk)
                          , state_rcvr_goodend
                          , state_rcvr_badend
                          };
-        $display("%m: invalid states: %b", sim_state_concat);
+        $display("%m: invalid states: %b", sim_states_concat);
         $finish;
     end
+`endif
+
+`ifdef SIMULATION
+always @ (posedge clk)
+begin
+    if (data_val_out) begin
+        $display("[Host] LINK: From device - received data = %h", data_out);
+    end
+
+    if (inc_is_data) begin
+        $display("[Host] LINK: From device - received raw data = %h", phy_data_in);
+    end
+end
+    
 `endif
 
 endmodule

@@ -18,11 +18,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "oob_ctrl.v"
-module sata_phy(
-    input   wire        rst,
+`include "oob_dev.v"
+module sata_phy_dev(
+    // initial reset, resets PLL. After pll is locked, an internal sata reset is generated.
+    input   wire        extrst,
     // sata clk, generated in pll as usrclk2
     output  wire        clk,
+    output  wire        rst,
 
     // state
     output  wire        phy_ready,
@@ -50,7 +52,9 @@ module sata_phy(
 parameter  CHIPSCOPE            = "FALSE";
 
 wire    [31:0]  txdata;
+wire    [31:0]  txdata_oob;
 wire    [3:0]   txcharisk;
+wire    [3:0]   txcharisk_oob;
 wire    [63:0]  rxdata;
 wire    [3:0]   rxcharisk;
 wire    [31:0]  rxdata_out;
@@ -68,8 +72,16 @@ wire            rxelecidle;
 wire            txelecidle;
 wire            rxbyteisaligned;
 
+wire            gtx_ready;
 
-oob_ctrl oob_ctrl(
+assign  txdata          = phy_ready ? ll_data_in : txdata_oob;
+assign  txcharisk       = phy_ready ? ll_charisk_in : txcharisk_oob;
+assign  ll_err_out      = 4'h0;
+assign  ll_charisk_out  = rxcharisk[3:0];
+assign  ll_data_out     = rxdata;
+
+
+oob_dev oob_dev(
     // sata clk = usrclk2
     .clk                (clk),
     // reset oob
@@ -85,24 +97,15 @@ oob_ctrl oob_ctrl(
     .txcomwake          (txcomwake),
     .txelecidle         (txelecidle),
 
-    // input data stream (if any data during OOB setting => ignored)
-    .txdata_in          (txdata_in),
-    .txcharisk_in       (txcharisk_in),
     // output data stream to gtx
-    .txdata_out         (txdata_out),
-    .txcharisk_out      (txcharisk_out),
+    .txdata_out         (txdata_oob),
+    .txcharisk_out      (txcharisk_oob),
     // input data from gtx
-    .rxdata_in          (rxdata_in),
-    .rxcharisk_in       (rxcharisk_in),
-    // bypassed data from gtx
-    .rxdata_out         (rxdata_out),
-    .rxcharisk_out      (rxcharisk_out),
-
-    // receiving data is aligned
-    .rxbyteisaligned    (rxbyteisaligned),
+    .rxdata_in          (rxdata[31:0]),
+    .rxcharisk_in       (rxcharisk[3:0]),
 
     // shows if channel is ready
-    .phy_ready          (phy_ready)
+    .link_up            (phy_ready)
 );
 
 wire    cplllockdetclk; // TODO
@@ -150,11 +153,26 @@ always @ (posedge gtrefclk)
  */
 wire    usrpll_locked;
 
-assign  cpllreset = rst;
+assign  cpllreset = extrst;
 assign  rxreset = ~cplllock | cpllreset;
 assign  txreset = ~cplllock | cpllreset;
 assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyereset_done;
 assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmareset_done;
+
+assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
+
+// generate internal reset after a clock is established
+// !!!ATTENTION!!!
+// async rst block
+reg [7:0]   rst_timer;
+reg         rst_r;
+localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
+always @ (posedge clk or posedge extrst)
+    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : rst_timer == RST_TIMER_LIMIT ? rst_timer : rst_timer + 1'b1;
+
+assign  rst = rst_r;
+always @ (posedge clk or posedge extrst)
+    rst_r <= extrst | ~|rst_timer ? 1'b0 : rst_timer[3] ? 1'b0 : 1'b1;
 
 /*
  * USRCLKs generation. USRCLK @ 150MHz, same as TXOUTCLK; USRCLK2 @ 75Mhz -> sata_clk === sclk
@@ -445,7 +463,7 @@ GTXE2_CHANNEL #(
     .RX_DFE_XYD_CFG                         (13'b0000000000000),
     .TX_PREDRIVER_MODE                      (1'b0)
 ) 
-dut(
+gtx(
     .CPLLFBCLKLOST                  (),
     .CPLLLOCK                       (cplllock),
     .CPLLLOCKDETCLK                 (cplllockdetclk),
@@ -684,13 +702,13 @@ dut(
 /*
  * Interfaces
  */
-assign  cplllockdetclk  = CLKIN_150;
-assign  drpclk          = CLKIN_150;
+assign  cplllockdetclk  = gtrefclk; //TODO
+assign  drpclk          = gtrefclk;
 
 assign  clk             = usrclk2;
 assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
-assign  txp_out         = txn;
+assign  txn_out         = txn;
 assign  txp_out         = txp;
 assign  ll_data_out     = rxdata_out;
 assign  ll_charisk_out  = rxcharisk_out;

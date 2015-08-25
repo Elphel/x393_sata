@@ -23,6 +23,7 @@
  */
 `timescale 1ns/1ps
 `include "top.v"
+`include "sata_device.v"
 
 module tb #(
 `include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - not used
@@ -330,17 +331,34 @@ simul_axi_read #(
   .burst(),     // burst in progress - just debug
   .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
-reg EXT_REF_CLK_P = 1'b1;
-reg EXT_REF_CLK_N = 1'b0;
+reg EXTCLK_P = 1'b1;
+reg EXTCLK_N = 1'b0;
+reg serial_clk = 1'b1;
 
 // device-under-test instance
+wire    rxn;
+wire    rxp;
+wire    txn;
+wire    txp;
+wire    device_rst;
 top dut(
-    .RXN             (1'b0),
-    .RXP             (1'b0),
-    .TXN             (),
-    .TXP             (),
-    .REFCLK_PAD_P_IN (EXT_REF_CLK_P),
-    .REFCLK_PAD_N_IN (EXT_REF_CLK_N)
+    .RXN             (rxn),
+    .RXP             (rxp),
+    .TXN             (txn),
+    .TXP             (txp),
+    .EXTCLK_P (EXTCLK_P),
+    .EXTCLK_N (EXTCLK_N)
+);
+
+assign device_rst = dut.axi_rst;
+sata_device dev(
+    .rst      (device_rst),
+    .RXN      (txn),
+    .RXP      (txp),
+    .TXN      (rxn),
+    .TXP      (rxp),
+    .EXTCLK_P (EXTCLK_P),
+    .EXTCLK_N (EXTCLK_N)
 );
 
 // SAXI HP interface

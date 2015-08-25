@@ -63,7 +63,7 @@ module dma_regs #(
     output  wire            sh_dev_val,
     output  wire    [7:0]   sh_control,
     output  wire            sh_control_val,
-    output  wire    [31:0]  sh_dma_id_lo
+    output  wire    [31:0]  sh_dma_id_lo,
     output  wire            sh_dma_id_lo_val,
     output  wire    [31:0]  sh_dma_id_hi,
     output  wire            sh_dma_id_hi_val,
@@ -71,7 +71,7 @@ module dma_regs #(
     output  wire            sh_buf_off_val,
     output  wire    [31:0]  sh_dma_cnt,
     output  wire            sh_dma_cnt_val,
-    output  wire    [31:0]  sh_tran_cnt,
+    output  wire    [15:0]  sh_tran_cnt,
     output  wire            sh_tran_cnt_val,
     output  wire            sh_autoact,
     output  wire            sh_autoact_val,
@@ -104,7 +104,7 @@ module dma_regs #(
     input   wire    [31:0]  sh_dma_cnt_in,
     input   wire    [15:0]  sh_tran_cnt_in, // Transfer Count
     input   wire            sh_notif_in,
-    input   wire            sh_autoact_in
+    input   wire            sh_autoact_in,
 // inputs from cmd control
     input   wire    [31:0]  cmd_in
 );

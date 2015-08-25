@@ -18,7 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`timescale 1ns/1ns
+`timescale 1ns/1ps
 `include "axi_regs.v"
 `include "dma_regs.v"
 `include "sata_host.v"
@@ -141,9 +141,77 @@
     output  wire            RXN,
     output  wire            RXP,
 
-    input   wire            REFCLK_PAD_P_IN,
-    input   wire            REFCLK_PAD_N_IN
+    input   wire            EXTCLK_P,
+    input   wire            EXTCLK_N
  );
+
+wire    sata_rst;
+// dma_regs <-> sata host
+// tmp to cmd control
+wire            cmd_val_out;
+wire    [31:0]  cmd_out;
+// tmp to shadow registers
+wire    [31:0]  sh_data; // write data
+wire            sh_data_val; // write strobe
+wire            sh_data_strobe; // read strobe
+wire    [15:0]  sh_feature;
+wire            sh_feature_val;
+wire    [23:0]  sh_lba_lo;
+wire            sh_lba_lo_val;
+wire    [23:0]  sh_lba_hi;
+wire            sh_lba_hi_val;
+wire    [15:0]  sh_count;
+wire            sh_count_val;
+wire    [7:0]   sh_command;
+wire            sh_command_val;
+wire    [7:0]   sh_dev;
+wire            sh_dev_val;
+wire    [7:0]   sh_control;
+wire            sh_control_val;
+wire    [31:0]  sh_dma_id_lo;
+wire            sh_dma_id_lo_val;
+wire    [31:0]  sh_dma_id_hi;
+wire            sh_dma_id_hi_val;
+wire    [31:0]  sh_buf_off;
+wire            sh_buf_off_val;
+wire    [31:0]  sh_dma_cnt;
+wire            sh_dma_cnt_val;
+wire    [15:0]  sh_tran_cnt;
+wire            sh_tran_cnt_val;
+wire            sh_autoact;
+wire            sh_autoact_val;
+wire            sh_inter;
+wire            sh_inter_val;
+wire    [3:0]   sh_port;
+wire            sh_port_val;
+wire            sh_notif;
+wire            sh_notif_val;
+wire            sh_dir;
+wire            sh_dir_val;
+// inputs from sh registers
+wire            sh_data_val_in;
+wire    [31:0]  sh_data_in;
+wire    [7:0]   sh_control_in;
+wire    [15:0]  sh_feature_in;
+wire    [47:0]  sh_lba_in;
+wire    [15:0]  sh_count_in;
+wire    [7:0]   sh_command_in;
+wire    [7:0]   sh_err_in;
+wire    [7:0]   sh_status_in;
+wire    [7:0]   sh_estatus_in; // E_Status
+wire    [7:0]   sh_dev_in;
+wire    [3:0]   sh_port_in;
+wire            sh_inter_in;
+wire            sh_dir_in;
+wire    [63:0]  sh_dma_id_in;
+wire    [31:0]  sh_dma_off_in;
+wire    [31:0]  sh_dma_cnt_in;
+wire    [15:0]  sh_tran_cnt_in; // Transfer Count
+wire            sh_notif_in;
+wire            sh_autoact_in;
+// inputs from cmd control
+wire    [31:0]  cmd_in;
+
 // axi_regs <-> data regs
 wire    [31:0]      bram_rdata;
 wire    [31:0]      bram_waddr;
@@ -214,14 +282,6 @@ wire            buf_rd;
 wire    [63:0]  buf_rdata;
 // additional adapter <-> membridge wire
 wire            rdata_done; // = membridge.is_last_in_page & membridge.afi_rready;
-// sata_host timer
-wire            host_sata_timer;
-// sata_host diag
-wire            host_linkup;
-wire            host_plllkdet;
-wire            host_dcmlocked;
-// temporary 150Mhz clk
-wire            gtrefclk;
 
 assign  rst = ARESETN;
 
@@ -301,7 +361,74 @@ dma_regs dma_regs(
     .bram_wstb      (bram_wstb),
     .bram_wen       (bram_wen),
     .bram_ren       (bram_ren),
-    .bram_regen     (bram_regen)
+    .bram_regen     (bram_regen),
+
+// direct connections to the host
+// tmp to cmd control
+    .cmd_val_out                (cmd_val_out),
+    .cmd_out                    (cmd_out),
+// tmp to shadow registers
+    .sh_data                    (sh_data), // write data
+    .sh_data_val                (sh_data_val), // write strobe
+    .sh_data_strobe             (sh_data_strobe), // read strobe
+    .sh_feature                 (sh_feature),
+    .sh_feature_val             (sh_feature_val),
+    .sh_lba_lo                  (sh_lba_lo),
+    .sh_lba_lo_val              (sh_lba_lo_val),
+    .sh_lba_hi                  (sh_lba_hi),
+    .sh_lba_hi_val              (sh_lba_hi_val),
+    .sh_count                   (sh_count),
+    .sh_count_val               (sh_count_val),
+    .sh_command                 (sh_command),
+    .sh_command_val             (sh_command_val),
+    .sh_dev                     (sh_dev),
+    .sh_dev_val                 (sh_dev_val),
+    .sh_control                 (sh_control),
+    .sh_control_val             (sh_control_val),
+    .sh_dma_id_lo               (sh_dma_id_lo),
+    .sh_dma_id_lo_val           (sh_dma_id_lo_val),
+    .sh_dma_id_hi               (sh_dma_id_hi),
+    .sh_dma_id_hi_val           (sh_dma_id_hi_val),
+    .sh_buf_off                 (sh_buf_off),
+    .sh_buf_off_val             (sh_buf_off_val),
+    .sh_dma_cnt                 (sh_dma_cnt),
+    .sh_dma_cnt_val             (sh_dma_cnt_val),
+    .sh_tran_cnt                (sh_tran_cnt),
+    .sh_tran_cnt_val            (sh_tran_cnt_val),
+    .sh_autoact                 (sh_autoact),
+    .sh_autoact_val             (sh_autoact_val),
+    .sh_inter                   (sh_inter),
+    .sh_inter_val               (sh_inter_val),
+    .sh_port                    (sh_port),
+    .sh_port_val                (sh_port_val),
+    .sh_notif                   (sh_notif),
+    .sh_notif_val               (sh_notif_val),
+    .sh_dir                     (sh_dir),
+    .sh_dir_val                 (sh_dir_val),
+
+// inputs from sh registers
+    .sh_data_val_in             (sh_data_val_in),
+    .sh_data_in                 (sh_data_in),
+    .sh_control_in              (sh_control_in),
+    .sh_feature_in              (sh_feature_in),
+    .sh_lba_in                  (sh_lba_in),
+    .sh_count_in                (sh_count_in),
+    .sh_command_in              (sh_command_in),
+    .sh_err_in                  (sh_err_in),
+    .sh_status_in               (sh_status_in),
+    .sh_estatus_in              (sh_estatus_in), // E_Status
+    .sh_dev_in                  (sh_dev_in),
+    .sh_port_in                 (sh_port_in),
+    .sh_inter_in                (sh_inter_in),
+    .sh_dir_in                  (sh_dir_in),
+    .sh_dma_id_in               (sh_dma_id_in),
+    .sh_dma_off_in              (sh_dma_off_in),
+    .sh_dma_cnt_in              (sh_dma_cnt_in),
+    .sh_tran_cnt_in             (sh_tran_cnt_in), // Transfer Count
+    .sh_notif_in                (sh_notif_in),
+    .sh_autoact_in              (sh_autoact_in),
+// inputs from cmd control
+    .cmd_in                     (cmd_in)
 );
 
 
@@ -481,52 +608,88 @@ V    .MEMBRIDGE_ADDR         (),
 );
 
 sata_host sata_host(
-    .ready_for_cmd      (host_ready_for_cmd),
-    .new_cmd            (host_new_cmd),
-    .cmd_type           (host_cmd_type),
-    .sector_count       (host_sector_count),
-    .sector_addr        (host_sector_addr),
+    .extrst                     (rst),
+    // sata rst
+    .rst                        (sata_rst),
+    // sata clk
+    .clk                        (clk),
+// temporary
+    .al_cmd_in                  (cmd_out), // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
+    .al_cmd_val_in              (cmd_val_out),
+    .al_cmd_out                 (cmd_in), // same
 
-    .sata_din           (out_data),
-    .sata_din_we        (out_val),
-    .sata_core_full     (out_busy),
-    .sata_dout          (in_data),
-    .sata_dout_re       (in_val),
-    .sata_core_empty    (in_busy),
-    .data_clk_in        (sclk),
-    .data_clk_out       (sclk),
+// tmp inputs directly from registers for each and every shadow register and control bit
+// from al
+    .al_sh_data_in              (sh_data), // write data
+    .al_sh_data_val_in          (sh_data_val), // write strobe
+    .al_sh_data_strobe_in       (sh_data_strobe), // read strobe
+    .al_sh_feature_in           (sh_feature),
+    .al_sh_feature_val_in       (sh_feature_val),
+    .al_sh_lba_lo_in            (sh_lba_lo),
+    .al_sh_lba_lo_val_in        (sh_lba_lo_val),
+    .al_sh_lba_hi_in            (sh_lba_hi),
+    .al_sh_lba_hi_val_in        (sh_lba_hi_val),
+    .al_sh_count_in             (sh_count),
+    .al_sh_count_val_in         (sh_count_val),
+    .al_sh_command_in           (sh_command),
+    .al_sh_command_val_in       (sh_command_val),
+    .al_sh_dev_in               (sh_dev),
+    .al_sh_dev_val_in           (sh_dev_val),
+    .al_sh_control_in           (sh_control),
+    .al_sh_control_val_in       (sh_control_val),
+    .al_sh_dma_id_lo_in         (sh_dma_id_lo),
+    .al_sh_dma_id_lo_val_in     (sh_dma_id_lo_val),
+    .al_sh_dma_id_hi_in         (sh_dma_id_hi),
+    .al_sh_dma_id_hi_val_in     (sh_dma_id_hi_val),
+    .al_sh_buf_off_in           (sh_buf_off),
+    .al_sh_buf_off_val_in       (sh_buf_off_val),
+    .al_sh_tran_cnt_in          (sh_tran_cnt),
+    .al_sh_tran_cnt_val_in      (sh_tran_cnt_val),
+    .al_sh_autoact_in           (sh_autoact),
+    .al_sh_autoact_val_in       (sh_autoact_val),
+    .al_sh_inter_in             (sh_inter),
+    .al_sh_inter_val_in         (sh_inter_val),
+    .al_sh_dir_in               (sh_dir),
+    .al_sh_dir_val_in           (sh_dir_val),
+    .al_sh_dma_cnt_in           (sh_dma_cnt),
+    .al_sh_dma_cnt_val_in       (sh_dma_cnt_val),
+    .al_sh_notif_in             (sh_notif),
+    .al_sh_notif_val_in         (sh_notif_val),
+    .al_sh_port_in              (sh_port),
+    .al_sh_port_val_in          (sh_port_val),
 
-    .sata_timer         (host_sata_timer),
+// outputs from shadow registers
 
-    .clkin_150          (gtrefclk),
-    .reset              (rst),
+    .sh_data_val_out            (sh_data_val_in),
+    .sh_data_out                (sh_data_in),
+    .sh_control_out             (sh_control_in),
+    .sh_feature_out             (sh_feature_in),
+    .sh_lba_out                 (sh_lba_in),
+    .sh_count_out               (sh_count_in),
+    .sh_command_out             (sh_command_in),
+    .sh_err_out                 (sh_err_in),
+    .sh_status_out              (sh_status_in),
+    .sh_estatus_out             (sh_estatus_in), // E_Status
+    .sh_dev_out                 (sh_dev_in),
+    .sh_port_out                (sh_port_in),
+    .sh_inter_out               (sh_inter_in),
+    .sh_dir_out                 (sh_dir_in),
+    .sh_dma_id_out              (sh_dma_id_in),
+    .sh_dma_off_out             (sh_dma_off_in),
+    .sh_dma_cnt_out             (sh_dma_cnt_in),
+    .sh_tran_cnt_out            (sh_tran_cnt_in), // Transfer Count
+    .sh_notif_out               (sh_notif_in),
+    .sh_autoact_out             (sh_autoact_in),
 
-    .linkup             (host_linkup),
-    .txp_out            (TXP),
-    .txn_out            (TXN),
-    .rxp_in             (RXP),
-    .rxn_in             (RXN),
-
-    .plllkdet           (host_plllkdet),
-    .dcmlocked          (host_dcmlocked)
-);
-
-/*
- * Padding for an external input clock @ 150 MHz
- * TODO!!! Shall be done on phy-level
- */
-localparam [1:0] CLKSWING_CFG = 2'b11;
-IBUFDS_GTE2 #(
-    .CLKRCV_TRST    ("TRUE"),
-    .CLKCM_CFG      ("TRUE"),
-    .CLKSWING_CFG   (CLKSWING_CFG)
-)
-ext_clock_buf(
-    .I      (REFCLK_PAD_P_IN),
-    .IB     (REFCLK_PAD_N_IN),
-    .CEB    (1'b0),
-    .O      (gtrefclk),
-    .ODIV2  ()
+// top-level ifaces
+// ref clk from an external source, shall be connected to pads
+    .extclk_p                   (EXTCLK_P),
+    .extclk_n                   (EXTCLK_N),
+// sata physical link data pins      
+    .txp_out                    (TXP),
+    .txn_out                    (TXN),
+    .rxp_in                     (RXP),
+    .rxn_in                     (RXN)
 );
 
 endmodule

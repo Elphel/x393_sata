@@ -74,7 +74,7 @@ module command(
     input   wire            al_sh_dma_id_hi_val_in,
     input   wire    [31:0]  al_sh_buf_off_in,
     input   wire            al_sh_buf_off_val_in,
-    input   wire    [31:0]  al_sh_tran_cnt_in,
+    input   wire    [15:0]  al_sh_tran_cnt_in,
     input   wire            al_sh_tran_cnt_val_in,
     input   wire            al_sh_autoact_in,
     input   wire            al_sh_autoact_val_in,
@@ -188,7 +188,7 @@ begin
     sh_dma_id[63:32] <= rst ? 32'h0 : al_sh_dma_id_lo_val_in  ? al_sh_dma_id_hi_in : tl_sh_dma_id_val_in ? tl_sh_dma_id_in[63:32] : sh_dma_id[63:32];
     sh_dma_off       <= rst ? 32'h0 : al_sh_buf_off_val_in    ? al_sh_buf_off_in   : tl_sh_dma_off_val_in    ? tl_sh_dma_off_in   : sh_dma_off;
     sh_dma_cnt       <= rst ? 32'h0 : al_sh_dma_cnt_val_in    ? al_sh_dma_cnt_in   : tl_sh_dma_cnt_val_in    ? tl_sh_dma_cnt_in   : sh_dma_cnt;
-    sh_tran_cnt      <= rst ? 32'h0 : al_sh_tran_cnt_val_in   ? al_sh_tran_cnt_in  : tl_sh_tran_cnt_val_in   ? tl_sh_tran_cnt_in  : sh_tran_cnt;
+    sh_tran_cnt      <= rst ? 16'h0 : al_sh_tran_cnt_val_in   ? al_sh_tran_cnt_in  : tl_sh_tran_cnt_val_in   ? tl_sh_tran_cnt_in  : sh_tran_cnt;
     sh_notif         <= rst ? 1'h0  : al_sh_notif_val_in      ? al_sh_notif_in     : tl_sh_notif_val_in      ? tl_sh_notif_in     : sh_notif;
     sh_autoact       <= rst ? 1'h0  : al_sh_autoact_val_in    ? al_sh_autoact_in   : tl_sh_autoact_val_in    ? tl_sh_autoact_in   : sh_autoact;
 end
@@ -220,10 +220,10 @@ reg [31:0]  cmd;
 assign  al_cmd_out = cmd;
 always @ (posedge clk)
 begin
-    cmd[31:4]   <= rst ? 28'h0 : al_cmd_val_in ? al_cmd_in : cmd;
+    cmd[31:4]   <= rst ? 28'h0 : al_cmd_val_in ? al_cmd_in[31:4] : cmd[31:4];
     cmd[3]      <= rst ? 1'b0 : al_cmd_val_in ? al_cmd_in[3] : cmd_val ? 1'b0 : cmd[3];
     cmd[2]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_done_bad ? 1'b1 : cmd[2];
-    cmd[1]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_done_good ? 1'b1 : cmd[2];
+    cmd[1]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_done_good ? 1'b1 : cmd[1];
     cmd[0]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_busy;
 end
 

@@ -24,13 +24,15 @@
 `include "command.v"
 
 module sata_host(
-    input   wire    rst,
+    input   wire    extrst,
+    // sata rst
+    output  wire    rst,
     // sata clk
     output  wire    clk,
 // temporary
-    input   wire    [31:0]  al_cmd_in; // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
-    input   wire            al_cmd_val_in;
-    input   wire    [31:0]  al_cmd_out; // same
+    input   wire    [31:0]  al_cmd_in, // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
+    input   wire            al_cmd_val_in,
+    output  wire    [31:0]  al_cmd_out, // same
 
 // tmp inputs directly from registers for each and every shadow register and control bit
 // from al
@@ -51,13 +53,13 @@ module sata_host(
     input   wire            al_sh_dev_val_in,
     input   wire    [7:0]   al_sh_control_in,
     input   wire            al_sh_control_val_in,
-    input   wire    [31:0]  al_sh_dma_id_lo_in
+    input   wire    [31:0]  al_sh_dma_id_lo_in,
     input   wire            al_sh_dma_id_lo_val_in,
     input   wire    [31:0]  al_sh_dma_id_hi_in,
     input   wire            al_sh_dma_id_hi_val_in,
     input   wire    [31:0]  al_sh_buf_off_in,
     input   wire            al_sh_buf_off_val_in,
-    input   wire    [31:0]  al_sh_tran_cnt_in,
+    input   wire    [15:0]  al_sh_tran_cnt_in,
     input   wire            al_sh_tran_cnt_val_in,
     input   wire            al_sh_autoact_in,
     input   wire            al_sh_autoact_val_in,
@@ -72,21 +74,48 @@ module sata_host(
     input   wire    [3:0]   al_sh_port_in,
     input   wire            al_sh_port_val_in,
 
+// outputs from shadow registers
+
+    output  wire            sh_data_val_out,
+    output  wire    [31:0]  sh_data_out,
+    output  wire    [7:0]   sh_control_out,
+    output  wire    [15:0]  sh_feature_out,
+    output  wire    [47:0]  sh_lba_out,
+    output  wire    [15:0]  sh_count_out,
+    output  wire    [7:0]   sh_command_out,
+    output  wire    [7:0]   sh_err_out,
+    output  wire    [7:0]   sh_status_out,
+    output  wire    [7:0]   sh_estatus_out, // E_Status
+    output  wire    [7:0]   sh_dev_out,
+    output  wire    [3:0]   sh_port_out,
+    output  wire            sh_inter_out,
+    output  wire            sh_dir_out,
+    output  wire    [63:0]  sh_dma_id_out,
+    output  wire    [31:0]  sh_dma_off_out,
+    output  wire    [31:0]  sh_dma_cnt_out,
+    output  wire    [15:0]  sh_tran_cnt_out, // Transfer Count
+    output  wire            sh_notif_out,
+    output  wire            sh_autoact_out,
+
 // top-level ifaces
 // ref clk from an external source, shall be connected to pads
-    input   wire            extclk_p; 
-    input   wire            extclk_n;
+    input   wire            extclk_p,
+    input   wire            extclk_n,
 // sata physical link data pins      
-    input   wire            txp_out;
-    input   wire            txn_out;
-    input   wire            rxp_in;
-    input   wire            rxn_in;
+    output  wire            txp_out,
+    output  wire            txn_out,
+    input   wire            rxp_in,
+    input   wire            rxn_in
 
 );
-  
-wire    rst;
-// sata clk
-wire    clk;
+/*
+initial 
+begin
+    $dumpfile("dump.vcd");
+    $dumpvars(0, sata_host);
+end
+*/
+parameter DATA_BYTE_WIDTH = 4;
 
 // tl cmd iface
 wire    [2:0]   cl2tl_cmd_type;
@@ -110,38 +139,40 @@ wire            cl2tl_data_strobe;
 
 
 // from tl
-wire    [47:0]  tl2cl_sh_lba_in;
-wire    [15:0]  tl2cl_sh_count_in;
-wire    [7:0]   tl2cl_sh_command_in;
-wire    [7:0]   tl2cl_sh_err_in;
-wire    [7:0]   tl2cl_sh_status_in;
-wire    [7:0]   tl2cl_sh_estatus_in; // E_Status
-wire    [7:0]   tl2cl_sh_dev_in;
-wire    [3:0]   tl2cl_sh_port_in;
-wire            tl2cl_sh_inter_in;
-wire            tl2cl_sh_dir_in;
-wire    [63:0]  tl2cl_sh_dma_id_in;
-wire    [31:0]  tl2cl_sh_dma_off_in;
-wire    [31:0]  tl2cl_sh_dma_cnt_in;
-wire    [15:0]  tl2cl_sh_tran_cnt_in; // Transfer Count
-wire            tl2cl_sh_notif_in;
-wire            tl2cl_sh_autoact_in;
-wire            tl2cl_sh_lba_val_in;
-wire            tl2cl_sh_count_val_in;
-wire            tl2cl_sh_command_val_in;
-wire            tl2cl_sh_err_val_in;
-wire            tl2cl_sh_status_val_in;
-wire            tl2cl_sh_estatus_val_in; // E_Status
-wire            tl2cl_sh_dev_val_in;
-wire            tl2cl_sh_port_val_in;
-wire            tl2cl_sh_inter_val_in;
-wire            tl2cl_sh_dir_val_in;
-wire            tl2cl_sh_dma_id_val_in;
-wire            tl2cl_sh_dma_off_val_in;
-wire            tl2cl_sh_dma_cnt_val_in;
-wire            tl2cl_sh_tran_cnt_val_in; // Transfer Count
-wire            tl2cl_sh_notif_val_in;
-wire            tl2cl_sh_autoact_val_in;
+wire    [47:0]  tl2cl_sh_lba;
+wire    [15:0]  tl2cl_sh_count;
+wire    [7:0]   tl2cl_sh_command;
+wire    [7:0]   tl2cl_sh_err;
+wire    [7:0]   tl2cl_sh_status;
+wire    [7:0]   tl2cl_sh_estatus; // E_Status
+wire    [7:0]   tl2cl_sh_dev;
+wire    [3:0]   tl2cl_sh_port;
+wire            tl2cl_shter_in;
+wire            tl2cl_sh_dir;
+wire            tl2cl_sh_inter;
+wire    [63:0]  tl2cl_sh_dma_id;
+wire    [31:0]  tl2cl_sh_dma_off;
+wire    [31:0]  tl2cl_sh_dma_cnt;
+wire    [15:0]  tl2cl_sh_tran_cnt; // Transfer Count
+wire            tl2cl_sh_notif;
+wire            tl2cl_sh_autoact;
+wire            tl2cl_sh_lba_val;
+wire            tl2cl_sh_count_val;
+wire            tl2cl_sh_command_val;
+wire            tl2cl_sh_err_val;
+wire            tl2cl_sh_status_val;
+wire            tl2cl_sh_estatus_val; // E_Status
+wire            tl2cl_sh_dev_val;
+wire            tl2cl_sh_port_val;
+wire            tl2cl_shter_val_in;
+wire            tl2cl_sh_dir_val;
+wire            tl2cl_sh_inter_val;
+wire            tl2cl_sh_dma_id_val;
+wire            tl2cl_sh_dma_off_val;
+wire            tl2cl_sh_dma_cnt_val;
+wire            tl2cl_sh_tran_cnt_val; // Transfer Count
+wire            tl2cl_sh_notif_val;
+wire            tl2cl_sh_autoact_val;
 
 // all regs to output
 wire            sh_data_val;
@@ -165,6 +196,27 @@ wire    [15:0]  sh_tran_cnt; // Transfer Count
 wire            sh_notif;
 wire            sh_autoact;
 
+assign  sh_data_val_out = sh_data_val;
+assign  sh_data_out     = sh_data;
+assign  sh_control_out  = sh_control;
+assign  sh_feature_out  = sh_feature;
+assign  sh_lba_out      = sh_lba;
+assign  sh_count_out    = sh_count;
+assign  sh_command_out  = sh_command;
+assign  sh_err_out      = sh_err;
+assign  sh_status_out   = sh_status;
+assign  sh_estatus_out  = sh_estatus;
+assign  sh_dev_out      = sh_dev;
+assign  sh_port_out     = sh_port;
+assign  sh_inter_out    = sh_inter;
+assign  sh_dir_out      = sh_dir;
+assign  sh_dma_id_out   = sh_dma_id;
+assign  sh_dma_off_out  = sh_dma_off;
+assign  sh_dma_cnt_out  = sh_dma_cnt;
+assign  sh_tran_cnt_out = sh_tran_cnt;
+assign  sh_notif_out    = sh_notif;
+assign  sh_autoact_out  = sh_autoact;
+
 command command(
     .rst                                (rst),
     .clk                                (clk),
@@ -184,9 +236,9 @@ command command(
 
 // data from tl
     .tl_data_in                         (tl2cl_data),
-    .tl_data_val_in                     (tl2tl_data_val),
-    .tl_data_last_in                    (tl2tl_data_last),
-    .tl_data_busy_out                   (tl2tl_data_busy),
+    .tl_data_val_in                     (tl2cl_data_val),
+    .tl_data_last_in                    (tl2cl_data_last),
+    .tl_data_busy_out                   (tl2cl_data_busy),
 // to tl
     .tl_data_out                        (cl2tl_data),
     .tl_data_last_out                   (cl2tl_data_last),
@@ -234,60 +286,60 @@ command command(
     .al_sh_port_val_in                  (al_sh_port_val_in),
 
 // from tl
-    .tl_sh_lba_in                       (tl_sh_lba_in),
-    .tl_sh_count_in                     (tl_sh_count_in),
-    .tl_sh_command_in                   (tl_sh_command_in),
-    .tl_sh_err_in                       (tl_sh_err_in),
-    .tl_sh_status_in                    (tl_sh_status_in),
-    .tl_sh_estatus_in                   (tl_sh_estatus_in), // E_Status
-    .tl_sh_dev_in                       (tl_sh_dev_in),
-    .tl_sh_port_in                      (tl_sh_port_in),
-    .tl_sh_inter_in                     (tl_sh_inter_in),
-    .tl_sh_dir_in                       (tl_sh_dir_in),
-    .tl_sh_dma_id_in                    (tl_sh_dma_id_in),
-    .tl_sh_dma_off_in                   (tl_sh_dma_off_in),
-    .tl_sh_dma_cnt_in                   (tl_sh_dma_cnt_in),
-    .tl_sh_tran_cnt_in                  (tl_sh_tran_cnt_in), // Transfer Count
-    .tl_sh_notif_in                     (tl_sh_notif_in),
-    .tl_sh_autoact_in                   (tl_sh_autoact_in),
-    .tl_sh_lba_val_in                   (tl_sh_lba_val_in),
-    .tl_sh_count_val_in                 (tl_sh_count_val_in),
-    .tl_sh_command_val_in               (tl_sh_command_val_in),
-    .tl_sh_err_val_in                   (tl_sh_err_val_in),
-    .tl_sh_status_val_in                (tl_sh_status_val_in),
-    .tl_sh_estatus_val_in               (tl_sh_estatus_val_in), // E_Status
-    .tl_sh_dev_val_in                   (tl_sh_dev_val_in),
-    .tl_sh_port_val_in                  (tl_sh_port_val_in),
-    .tl_sh_inter_val_in                 (tl_sh_inter_val_in),
-    .tl_sh_dir_val_in                   (tl_sh_dir_val_in),
-    .tl_sh_dma_id_val_in                (tl_sh_dma_id_val_in),
-    .tl_sh_dma_off_val_in               (tl_sh_dma_off_val_in),
-    .tl_sh_dma_cnt_val_in               (tl_sh_dma_cnt_val_in),
-    .tl_sh_tran_cnt_val_in              (tl_sh_tran_cnt_val_in), // Transfer Count
-    .tl_sh_notif_val_in                 (tl_sh_notif_val_in),
-    .tl_sh_autoact_val_in               (tl_sh_autoact_val_in),
+    .tl_sh_lba_in                       (tl2cl_sh_lba),
+    .tl_sh_count_in                     (tl2cl_sh_count),
+    .tl_sh_command_in                   (tl2cl_sh_command),
+    .tl_sh_err_in                       (tl2cl_sh_err),
+    .tl_sh_status_in                    (tl2cl_sh_status),
+    .tl_sh_estatus_in                   (tl2cl_sh_estatus), // E_Status
+    .tl_sh_dev_in                       (tl2cl_sh_dev),
+    .tl_sh_port_in                      (tl2cl_sh_port),
+    .tl_sh_inter_in                     (tl2cl_sh_inter),
+    .tl_sh_dir_in                       (tl2cl_sh_dir),
+    .tl_sh_dma_id_in                    (tl2cl_sh_dma_id),
+    .tl_sh_dma_off_in                   (tl2cl_sh_dma_off),
+    .tl_sh_dma_cnt_in                   (tl2cl_sh_dma_cnt),
+    .tl_sh_tran_cnt_in                  (tl2cl_sh_tran_cnt), // Transfer Count
+    .tl_sh_notif_in                     (tl2cl_sh_notif),
+    .tl_sh_autoact_in                   (tl2cl_sh_autoact),
+    .tl_sh_lba_val_in                   (tl2cl_sh_lba_val),
+    .tl_sh_count_val_in                 (tl2cl_sh_count_val),
+    .tl_sh_command_val_in               (tl2cl_sh_command_val),
+    .tl_sh_err_val_in                   (tl2cl_sh_err_val),
+    .tl_sh_status_val_in                (tl2cl_sh_status_val),
+    .tl_sh_estatus_val_in               (tl2cl_sh_estatus_val), // E_Status
+    .tl_sh_dev_val_in                   (tl2cl_sh_dev_val),
+    .tl_sh_port_val_in                  (tl2cl_sh_port_val),
+    .tl_sh_inter_val_in                 (tl2cl_sh_inter_val),
+    .tl_sh_dir_val_in                   (tl2cl_sh_dir_val),
+    .tl_sh_dma_id_val_in                (tl2cl_sh_dma_id_val),
+    .tl_sh_dma_off_val_in               (tl2cl_sh_dma_off_val),
+    .tl_sh_dma_cnt_val_in               (tl2cl_sh_dma_cnt_val),
+    .tl_sh_tran_cnt_val_in              (tl2cl_sh_tran_cnt_val), // Transfer Count
+    .tl_sh_notif_val_in                 (tl2cl_sh_notif_val),
+    .tl_sh_autoact_val_in               (tl2cl_sh_autoact_val),
 
 // all regs to output
-    .sh_data_val_out                    (sh_data_val_out),
-    .sh_data_out                        (sh_data_out),
-    .sh_control_out                     (sh_control_out),
-    .sh_feature_out                     (sh_feature_out),
-    .sh_lba_out                         (sh_lba_out),
-    .sh_count_out                       (sh_count_out),
-    .sh_command_out                     (sh_command_out),
-    .sh_err_out                         (sh_err_out),
-    .sh_status_out                      (sh_status_out),
-    .sh_estatus_out                     (sh_estatus_out), // E_Status
-    .sh_dev_out                         (sh_dev_out),
-    .sh_port_out                        (sh_port_out),
-    .sh_inter_out                       (sh_inter_out),
-    .sh_dir_out                         (sh_dir_out),
-    .sh_dma_id_out                      (sh_dma_id_out),
-    .sh_dma_off_out                     (sh_dma_off_out),
-    .sh_dma_cnt_out                     (sh_dma_cnt_out),
-    .sh_tran_cnt_out                    (sh_tran_cnt_out), // Transfer Count
-    .sh_notif_out                       (sh_notif_out),
-    .sh_autoact_out                     (sh_autoact_out)
+    .sh_data_val_out                    (sh_data_val),
+    .sh_data_out                        (sh_data),
+    .sh_control_out                     (sh_control),
+    .sh_feature_out                     (sh_feature),
+    .sh_lba_out                         (sh_lba),
+    .sh_count_out                       (sh_count),
+    .sh_command_out                     (sh_command),
+    .sh_err_out                         (sh_err),
+    .sh_status_out                      (sh_status),
+    .sh_estatus_out                     (sh_estatus), // E_Status
+    .sh_dev_out                         (sh_dev),
+    .sh_port_out                        (sh_port),
+    .sh_inter_out                       (sh_inter),
+    .sh_dir_out                         (sh_dir),
+    .sh_dma_id_out                      (sh_dma_id),
+    .sh_dma_off_out                     (sh_dma_off),
+    .sh_dma_cnt_out                     (sh_dma_cnt),
+    .sh_tran_cnt_out                    (sh_tran_cnt), // Transfer Count
+    .sh_notif_out                       (sh_notif),
+    .sh_autoact_out                     (sh_autoact)
 );
 
 // issue a frame
@@ -340,7 +392,7 @@ wire                                ll2tl_data_busy;
 // data outputs to LL
 wire    [DATA_BYTE_WIDTH*8 - 1:0]   tl2ll_data;
 // not implemented yet TODO
-wire    [DATA_BYTE_WIDTH*8 - 1:0]   tl2ll_data_mask;
+wire    [DATA_BYTE_WIDTH/2 - 1:0]   tl2ll_data_mask;
 wire                                tl2ll_data_last;
 wire                                tl2ll_data_val;
 wire                                tl2ll_data_strobe;
@@ -358,36 +410,36 @@ transport transport(
     // link layer (LL) control
 
     // issue a frame
-    .frame_req                          (frame_req),
+    .frame_req                          (tl2ll_frame_req),
     // frame started to be transmitted
-    .frame_ack                          (frame_ack),
+    .frame_ack                          (tl2ll_frame_ack),
     // frame issue was rejected because of incoming frame with higher priority
-    .frame_rej                          (frame_rej),
+    .frame_rej                          (tl2ll_frame_rej),
     // LL is not ready to receive a frame request. frame_req shall be low if busy is asserted
-    .frame_busy                         (frame_busy),
+    .frame_busy                         (tl2ll_frame_busy),
     // frame was transmitted w/o probles and successfully received @ a device side
-    .frame_done_good                    (frame_done_good),
+    .frame_done_good                    (tl2ll_frame_done_good),
     // frame was transmitted, but device messages of problems with receiving
-    .frame_done_bad                     (frame_done_bad),
+    .frame_done_bad                     (tl2ll_frame_done_bad),
 
     // LL reports of an incoming frame transmission. They're always allowed and have the highest priority
-    .incom_start                        (incom_start),
+    .incom_start                        (ll2tl_incom_start),
     // LL reports of a completion of an incoming frame transmission.
-    .incom_done                         (incom_done),
+    .incom_done                         (ll2tl_incom_done),
     // LL reports of errors in current FIS
-    .incom_invalidate                   (incom_invalidate), // TODO
+    .incom_invalidate                   (ll2tl_incom_invalidate), // TODO
     // TL analyzes FIS and returnes if FIS makes sense.
-    .incom_ack_good                     (incom_ack_good),
+    .incom_ack_good                     (ll2tl_incom_ack_good),
     // ... and if it doesn't
-    .incom_ack_bad                      (incom_ack_bad),
+    .incom_ack_bad                      (ll2tl_incom_ack_bad),
 
     // transmission interrupts
     // TL demands to brutally cancel current transaction TODO
-    .sync_escape_req                    (sync_escape_req),
+    .sync_escape_req                    (tl2ll_sync_escape_req),
     // acknowlegement of a successful reception TODO
-    .sync_escape_ack                    (sync_escape_ack),
+    .sync_escape_ack                    (tl2ll_sync_escape_ack),
     // TL demands to stop current recieving session TODO
-    .incom_stop_req                     (incom_stop_req),
+    .incom_stop_req                     (tl2ll_incom_stop_req),
 
     // controls from a command layer (CL)
     // FIS type, ordered by CL
@@ -416,44 +468,44 @@ transport transport(
     .sh_inter_in                        (sh_inter),
     .sh_dir_in                          (sh_dir),
     .sh_dma_id_in                       (sh_dma_id),
-    .sh_buf_off_in                      (sh_buf_off),
+    .sh_buf_off_in                      (sh_dma_off),
     .sh_dma_cnt_in                      (sh_dma_cnt),
     .sh_notif_in                        (sh_notif),
     .sh_tran_cnt_in                     (sh_tran_cnt),
     .sh_port_in                         (sh_port),
     // TL decodes register writes and sends corresponding issues to CL
-    .sh_lba_out                         (tl2cl_sh_lba_out),
-    .sh_count_out                       (tl2cl_sh_count_out),
-    .sh_command_out                     (tl2cl_sh_command_out),
-    .sh_err_out                         (tl2cl_sh_err_out),
-    .sh_status_out                      (tl2cl_sh_status_out),
-    .sh_estatus_out                     (tl2cl_sh_estatus_out), // E_Status
-    .sh_dev_out                         (tl2cl_sh_dev_out),
-    .sh_port_out                        (tl2cl_sh_port_out),
-    .sh_inter_out                       (tl2cl_sh_inter_out),
-    .sh_dir_out                         (tl2cl_sh_dir_out),
-    .sh_dma_id_out                      (tl2cl_sh_dma_id_out),
-    .sh_dma_off_out                     (tl2cl_sh_dma_off_out),
-    .sh_dma_cnt_out                     (tl2cl_sh_dma_cnt_out),
-    .sh_tran_cnt_out                    (tl2cl_sh_tran_cnt_out), // Transfer Count
-    .sh_notif_out                       (tl2cl_sh_notif_out),
-    .sh_autoact_out                     (tl2cl_sh_autoact_out),
-    .sh_lba_val_out                     (tl2cl_sh_lba_val_out),
-    .sh_count_val_out                   (tl2cl_sh_count_val_out),
-    .sh_command_val_out                 (tl2cl_sh_command_val_out),
-    .sh_err_val_out                     (tl2cl_sh_err_val_out),
-    .sh_status_val_out                  (tl2cl_sh_status_val_out),
-    .sh_estatus_val_out                 (tl2cl_sh_estatus_val_out), // E_Status
-    .sh_dev_val_out                     (tl2cl_sh_dev_val_out),
-    .sh_port_val_out                    (tl2cl_sh_port_val_out),
-    .sh_inter_val_out                   (tl2cl_sh_inter_val_out),
-    .sh_dir_val_out                     (tl2cl_sh_dir_val_out),
-    .sh_dma_id_val_out                  (tl2cl_sh_dma_id_val_out),
-    .sh_dma_off_val_out                 (tl2cl_sh_dma_off_val_out),
-    .sh_dma_cnt_val_out                 (tl2cl_sh_dma_cnt_val_out),
-    .sh_tran_cnt_val_out                (tl2cl_sh_tran_cnt_val_out), // Transfer Count
-    .sh_notif_val_out                   (tl2cl_sh_notif_val_out),
-    .sh_autoact_val_out                 (tl2cl_sh_autoact_val_out),
+    .sh_lba_out                         (tl2cl_sh_lba),
+    .sh_count_out                       (tl2cl_sh_count),
+    .sh_command_out                     (tl2cl_sh_command),
+    .sh_err_out                         (tl2cl_sh_err),
+    .sh_status_out                      (tl2cl_sh_status),
+    .sh_estatus_out                     (tl2cl_sh_estatus), // E_Status
+    .sh_dev_out                         (tl2cl_sh_dev),
+    .sh_port_out                        (tl2cl_sh_port),
+    .sh_inter_out                       (tl2cl_sh_inter),
+    .sh_dir_out                         (tl2cl_sh_dir),
+    .sh_dma_id_out                      (tl2cl_sh_dma_id),
+    .sh_dma_off_out                     (tl2cl_sh_dma_off),
+    .sh_dma_cnt_out                     (tl2cl_sh_dma_cnt),
+    .sh_tran_cnt_out                    (tl2cl_sh_tran_cnt), // Transfer Count
+    .sh_notif_out                       (tl2cl_sh_notif),
+    .sh_autoact_out                     (tl2cl_sh_autoact),
+    .sh_lba_val_out                     (tl2cl_sh_lba_val),
+    .sh_count_val_out                   (tl2cl_sh_count_val),
+    .sh_command_val_out                 (tl2cl_sh_command_val),
+    .sh_err_val_out                     (tl2cl_sh_err_val),
+    .sh_status_val_out                  (tl2cl_sh_status_val),
+    .sh_estatus_val_out                 (tl2cl_sh_estatus_val), // E_Status
+    .sh_dev_val_out                     (tl2cl_sh_dev_val),
+    .sh_port_val_out                    (tl2cl_sh_port_val),
+    .sh_inter_val_out                   (tl2cl_sh_inter_val),
+    .sh_dir_val_out                     (tl2cl_sh_dir_val),
+    .sh_dma_id_val_out                  (tl2cl_sh_dma_id_val),
+    .sh_dma_off_val_out                 (tl2cl_sh_dma_off_val),
+    .sh_dma_cnt_val_out                 (tl2cl_sh_dma_cnt_val),
+    .sh_tran_cnt_val_out                (tl2cl_sh_tran_cnt_val), // Transfer Count
+    .sh_notif_val_out                   (tl2cl_sh_notif_val),
+    .sh_autoact_val_out                 (tl2cl_sh_autoact_val),
 
 
     // shows if dma activate was received (a pulse)
@@ -464,20 +516,20 @@ transport transport(
 
     // LL data
     // data inputs from LL
-    .ll_data_in                         (ll_data_in),
-    .ll_data_mask_in                    (ll_data_mask_in),
-    .ll_data_val_in                     (ll_data_val_in),
-    .ll_data_last_in                    (ll_data_last_in),
+    .ll_data_in                         (ll2tl_data),
+    .ll_data_mask_in                    (ll2tl_data_mask),
+    .ll_data_val_in                     (ll2tl_data_val),
+    .ll_data_last_in                    (ll2tl_data_last),
     // transport layer tells if its inner buffer is almost full
-    .ll_data_busy_out                   (ll_data_busy_out),
+    .ll_data_busy_out                   (ll2tl_data_busy),
 
     // data outputs to LL
-    .ll_data_out                        (ll_data_out),
+    .ll_data_out                        (tl2ll_data),
     // not implemented yet TODO
-    .ll_data_mask_out                   (ll_data_mask_out),
-    .ll_data_last_out                   (ll_data_last_out),
-    .ll_data_val_out                    (ll_data_val_out),
-    .ll_data_strobe_in                  (ll_data_strobe_in),
+    .ll_data_mask_out                   (tl2ll_data_mask),
+    .ll_data_last_out                   (tl2ll_data_last),
+    .ll_data_val_out                    (tl2ll_data_val),
+    .ll_data_strobe_in                  (tl2ll_data_strobe),
 
     // CL data
     // required content is bypassed from ll, other is trimmed
@@ -493,7 +545,7 @@ transport transport(
     // data inputs from CL
     .cl_data_in                         (cl2tl_data),
     // not implemented yet TODO
-    .cl_data_mask_in                    (cl2tl_data_mask),
+    .cl_data_mask_in                    (2'b11),//cl2tl_data_mask),
     .cl_data_last_in                    (cl2tl_data_last),
     .cl_data_val_in                     (cl2tl_data_val),
     .cl_data_strobe_out                 (cl2tl_data_strobe),
@@ -508,18 +560,18 @@ transport transport(
 
 
 // oob sequence is reinitiated and link now is not established or rxelecidle
-wire    link_reset,
+wire    link_reset;
 
 // phy is ready - link is established
-wire    phy_ready,
+wire    phy_ready;
 
 // data-primitives stream from phy
 wire    [DATA_BYTE_WIDTH*8 - 1:0] phy2ll_data;
-wire    [DATA_BYTE_WIDTH/2 - 1:0] phy2ll_isk; // charisk
-wire    [DATA_BYTE_WIDTH/2 - 1:0] phy2ll_err; // disperr | notintable
+wire    [DATA_BYTE_WIDTH   - 1:0] phy2ll_isk; // charisk
+wire    [DATA_BYTE_WIDTH   - 1:0] phy2ll_err; // disperr | notintable
 // to phy
 wire    [DATA_BYTE_WIDTH*8 - 1:0] ll2phy_data;
-wire    [DATA_BYTE_WIDTH/2 - 1:0] ll2phy_isk; // charisk
+wire    [DATA_BYTE_WIDTH   - 1:0] ll2phy_isk; // charisk
 
 
 link link(
@@ -540,7 +592,7 @@ link link(
     // transaction's last data budle pulse
     .data_last_in                       (tl2ll_data_last),
     // read data is valid (if 0 while last pulse wasn't received => need to hold the line)
-    .data_val_in                        (tl2ll_val),
+    .data_val_in                        (tl2ll_data_val),
 
     // data outputs to transport layer
     // read data, same as related inputs
@@ -551,7 +603,7 @@ link link(
     // let the transport layer handle oveflows by himself
     .data_val_out                       (ll2tl_data_val),
     // transport layer tells if its inner buffer is almost full
-    .data_busy_in                       (ll2tl_busy),
+    .data_busy_in                       (ll2tl_data_busy),
     .data_last_out                      (ll2tl_data_last),
 
     // request for a new frame transition
@@ -578,7 +630,7 @@ link link(
     .incom_ack_bad                      (ll2tl_incom_ack_bad),
 
     // oob sequence is reinitiated and link now is not established or rxelecidle
-    .link_reset                         (link_reset),
+    .link_reset                         (~phy_ready), //TODO mb it shall be independent
     // TL demands to brutally cancel current transaction
     .sync_escape_req                    (tl2ll_sync_escape_req),
     // acknowlegement of a successful reception
@@ -600,31 +652,34 @@ link link(
 );
 
 sata_phy phy(
-	.rst				(rst),
+    // pll reset
+    .extrst             (extrst),
+    // sata clk
+    .rst                (rst),
     // sata clk, generated in pll as usrclk2
-	.clk				(clk),
+    .clk                (clk),
 
     // state
-	.phy_ready			(phy_ready),
+    .phy_ready          (phy_ready),
 
     // top-level ifaces
     // ref clk from an external source, shall be connected to pads
-	.extclk_p			(extclk_p), 
-	.extclk_n			(extclk_n),
+    .extclk_p           (extclk_p), 
+    .extclk_n           (extclk_n),
     // sata link data pins
-	.txp_out			(txp_out),
-	.txn_out			(txn_out),
-	.rxp_in				(rxp_in),
-	.rxn_in				(rxn_in),
+    .txp_out            (txp_out),
+    .txn_out            (txn_out),
+    .rxp_in             (rxp_in),
+    .rxn_in             (rxn_in),
 
     // to link layer
-	.ll_data_out		(phy2ll_data),
-	.ll_charisk_out		(phy2ll_isk),
+    .ll_data_out        (phy2ll_data),
+    .ll_charisk_out     (phy2ll_isk),
     .ll_err_out         (phy2ll_err),
 
     // from link layer
-	.ll_data_in			(ll2phy_data),
-	.ll_charisk_in		(ll2phy_charisk)
+    .ll_data_in         (ll2phy_data),
+    .ll_charisk_in      (ll2phy_isk)
 );
 
 endmodule

@@ -35,8 +35,8 @@ module top #(
     output  wire    TXN,
     output  wire    TXP,
 // sata clocking iface
-    input   wire    REFCLK_PAD_P_IN,
-    input   wire    REFCLK_PAD_N_IN
+    input   wire    EXTCLK_P,
+    input   wire    EXTCLK_N
 );
 parameter   REGISTERS_CNT = 20;
 wire [32*REGISTERS_CNT - 1:0] outmem;
@@ -285,8 +285,8 @@ sata_top sata_top(
     .RXN                        (RXN),
     .RXP                        (RXP),
 
-    .REFCLK_PAD_P_IN            (REFCLK_PAD_P_IN),
-    .REFCLK_PAD_N_IN            (REFCLK_PAD_N_IN)
+    .EXTCLK_P                   (EXTCLK_P),
+    .EXTCLK_N                   (EXTCLK_N)
 );
 
 PS7 ps7_i (

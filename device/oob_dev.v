@@ -24,80 +24,277 @@
  * data iface width or to change RXRATE/TXRATE)
  */
 // All references to doc = to SerialATA_Revision_2_6_Gold.pdf
-module oob #(
+module oob_dev #(
     parameter DATA_BYTE_WIDTH = 4,
-    parameter CLK_SPEED_GRADE = 1 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
+    parameter CLK_SPEED_GRADE = 2 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
 )
 (
     // sata clk = usrclk2
     input   wire    clk,
     // reset oob
     input   wire    rst,
+
+    input   wire    gtx_ready,
     // oob responces
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
     input   wire    rxelecidle_in,
     // oob issues
-    output  wire    txcominit,
-    output  wire    txcomwake,
-    output  wire    txelecidle,
+    output  reg     txcominit,
+    output  reg     txcomwake,
+    output  reg     txelecidle,
 
-    // input data stream (if any data during OOB setting => ignored)
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
-    input   wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_in,
     // output data stream to gtx
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,
     output  wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_out,
     // input data from gtx
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_in,
     input   wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_in,
-    // bypassed data from gtx
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_out,
-    output  wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_out,
 
-    // oob sequence needs to be issued
-    input   wire    oob_start,
-    // connection established, all further data is valid
-    output  wire    oob_done,
-    // oob can't handle new start request
-    output  wire    oob_busy,
-
-    // doc p265, link is established after 3back-to-back non-ALIGNp
-    output  wire    link_up,
-    // link goes down - if rxelecidle
-    output  wire    link_down,
-
-    // the device itself sends cominit
-    output  wire    cominit_req,
-    // allow to respond to cominit
-    input   wire    cominit_allow,
-
-    // status information to handle by a control block if any exists
-    // incompatible host-device speed grades (host cannot lock to alignp)
-    output  wire    oob_incompatible,
-    // timeout in an unexpected place
-    output  wire    oob_error,
-    // noone responds to our cominits
-    output  wire    oob_silence
-
-`ifdef OOB_MULTISPEED
-    //TODO
-    // !!Implement it later on, ref to gen.adjustment fsm in the notebook!!
-
-    // speed grade control
-    ,
-    // current speed grade, dynamic instead of static parameter
-    input   wire    [2:0]   speed_grade,
-    // clock to be adjusted to best speed
-    input   wire    adj_clk,
-    // ask for slower protocol clock
-    output  wire    speed_down_req,
-    input   wire    speed_down_ack,
-    // reset speedgrade to the fastest one
-    output  wire    speed_rst_req,
-    input   wire    speed_rst_ack
-`endif //OOB_MULTISPEED
+    output  wire    link_up
 );
+
+localparam  STATE_RESET             = 0;
+localparam  STATE_COMINIT           = 1;
+localparam  STATE_AWAITCOMWAKE      = 2;
+localparam  STATE_AWAITNOCOMWAKE    = 3;
+localparam  STATE_CALIBRATE         = 4;
+localparam  STATE_COMWAKE           = 5;
+localparam  STATE_SENDALIGN         = 6;
+localparam  STATE_READY             = 7;
+localparam  STATE_PARTIAL           = 8;
+localparam  STATE_SLUMBER           = 9;
+localparam  STATE_REDUCESPEED       = 10;
+localparam  STATE_ERROR             = 11;
+
+reg     [9:0]   state;
+wire    retry_interval_elapsed;
+wire    wait_interval_elapsed;
+wire    nocomwake;
+wire    [31:0]  align;
+wire    [31:0]  sync;
+
+assign  align = {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}; // {D27.3, D10.2, D10.2, K28.5}
+assign  sync  = {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}; // {D21.5, D21.5, D21.4, K28.3}
+
+reg [31:0]  nocomwake_timer;
+assign  nocomwake = nocomwake_timer == 32'd38;
+always @ (posedge clk)
+    nocomwake_timer <= rst | rxcomwakedet_in ? 32'h0 : nocomwake ? nocomwake_timer : nocomwake_timer + 1'b1;
+
+reg [31:0]  retry_timer;
+assign  retry_interval_elapsed = retry_timer == 32'd1000;
+always @ (posedge clk)
+    retry_timer <= rst | ~(state == STATE_AWAITCOMWAKE) ? 32'h0 : retry_timer + 1'b1;
+
+reg [31:0]  wait_timer;
+assign  wait_interval_elapsed = wait_timer == 32'd1000;
+always @ (posedge clk)
+    wait_timer <= rst | ~(state == STATE_SENDALIGN) ? 32'h0 : wait_timer + 1'b1;
+
+reg [31:0]  data;
+reg [3:0]   isk;
+
+assign  link_up = state == STATE_READY;
+
+assign  txdata_out      = data;
+assign  txcharisk_out   = isk;
+
+// buf inputs from gtx
+reg rxcominitdet;
+reg rxcomwakedet;
+reg rxelecidle;
+reg [31:0]  rxdata; 
+reg [3:0]   rxcharisk;
+always @ (posedge clk)
+begin
+    rxcominitdet <= rxcominitdet_in;
+    rxcomwakedet <= rxcomwakedet_in;
+    rxelecidle   <= rxelecidle_in;
+    rxdata       <= rxdata_in;
+    rxcharisk    <= rxcharisk_in;
+end
+
+assign  aligndet = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
+assign  syncdet  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
+
+always @ (posedge clk)
+    if (rst | ~gtx_ready)
+    begin
+        state       <= STATE_RESET;
+        txelecidle  <= 1'b1;
+        txcominit   <= 1'b0;
+        txcomwake   <= 1'b0;
+    end
+    else
+        case (state)
+        STATE_RESET:
+        begin
+            if (rxcominitdet_in)
+                state       <= STATE_COMINIT;
+                txelecidle  <= 1'b1;
+                txcominit   <= 1'b0;
+                txcomwake   <= 1'b0;
+        end
+        STATE_COMINIT:
+        begin
+            state       <= STATE_AWAITCOMWAKE;
+            txcominit   <= 1'b1;
+        end
+        STATE_AWAITCOMWAKE:
+        begin
+            txcominit   <= 1'b0;
+            if (rxcomwakedet_in)
+                state   <= STATE_AWAITNOCOMWAKE;
+            else 
+            if (retry_interval_elapsed)
+                state   <= STATE_RESET;
+            else
+                state   <= STATE_AWAITCOMWAKE;
+        end
+        STATE_AWAITNOCOMWAKE:
+        begin
+            if (nocomwake)
+            begin
+                state   <= STATE_CALIBRATE;
+            end
+        end
+        STATE_CALIBRATE:
+        begin
+            state   <= STATE_COMWAKE;
+        end
+        STATE_COMWAKE:
+        begin
+            txcomwake   <= 1'b1;
+            state       <= STATE_SENDALIGN;
+        end
+        STATE_SENDALIGN:
+        begin
+            txcomwake   <= 1'b0;
+            txelecidle  <= 1'b0;
+            data    <= align;
+            isk     <= 4'h1;
+            if (aligndet)
+                state   <= STATE_READY;
+            else 
+            if (wait_interval_elapsed)
+                state   <= STATE_ERROR;
+            else
+                state   <= STATE_SENDALIGN;
+        end
+        STATE_READY:
+        begin
+            data    <= sync;
+            isk     <= 4'h1;
+            if (rxelecidle_in)
+                state   <= STATE_ERROR;
+        end
+        STATE_ERROR:
+        begin
+            state   <= STATE_RESET;
+        end
+        endcase
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+
 
 // 873.8 us error timer
 // = 2621400 SATA2 serial ticks (period = 0.000333 us)
@@ -107,7 +304,7 @@ localparam  [19:0]  CLK_TO_TIMER_CONTRIB = CLK_SPEED_GRADE == 1 ? 20'h4 :
                                            CLK_SPEED_GRADE == 2 ? 20'h2 :
                                            CLK_SPEED_GRADE == 4 ? 20'h1 : 20'h1;
 `ifdef SIMULATION                                           
-localparam  [19:0]  TIMER_LIMIT = 19'd20000;
+localparam  [19:0]  TIMER_LIMIT = 19'd200;
 `else
 localparam  [19:0]  TIMER_LIMIT = 19'd262140;
 `endif
@@ -125,25 +322,6 @@ reg     [DATA_BYTE_WIDTH - 1:0]   rxcharisk;
 // primitives detection
 wire    detected_alignp;
 wire    detected_syncp;
-
-// wait until device's cominit is done
-reg     cominit_req_l;
-reg     rxcominitdet_l;
-reg     rxcomwakedet_l;
-wire    rxcominit_done;
-wire    rxcomwake_done;
-reg     [9:0]   rxcom_timer;
-// for 75MHz : period of cominit = 426.7 ns = 32 ticks => need to wait x6 pulses + 1 as an insurance => 224 clock cycles. Same thoughts for comwake
-localparam  COMINIT_DONE_TIME = 896; // 300Mhz cycles
-localparam  COMWAKE_DONE_TIME = 448; // 300Mhz cycles
-assign  rxcominit_done = rxcom_timer == COMINIT_DONE_TIME & state_wait_cominit;
-assign  rxcomwake_done = rxcom_timer == COMWAKE_DONE_TIME & state_wait_comwake;
-
-always @ (posedge clk) begin
-    cominit_req_l   <= rst | rxcominit_done | ~state_idle         ? 1'b0 : cominit_req    ? 1'b1 : cominit_req_l;
-    rxcominitdet_l  <= rst | rxcominit_done | ~state_wait_cominit ? 1'b0 : rxcominitdet   ? 1'b1 : rxcominitdet_l;
-    rxcomwakedet_l  <= rst | rxcomwake_done | ~state_wait_comwake ? 1'b0 : rxcomwakedet   ? 1'b1 : rxcomwakedet_l;
-end
 
 // fsm, doc p265,266
 wire    state_idle;
@@ -179,11 +357,11 @@ begin
 end
 
 assign  set_wait_cominit = state_idle & oob_start & ~cominit_req;
-assign  set_wait_comwake = state_idle & cominit_req_l & cominit_allow & rxcominit_done | state_wait_cominit & rxcominitdet_l & rxcominit_done;
-assign  set_wait_align   = state_wait_comwake & rxcomwakedet_l & rxcomwake_done;
+assign  set_wait_comwake = state_idle & cominit_req & cominit_allow | state_wait_cominit & rxcominitdet;
+assign  set_wait_align   = state_wait_comwake & rxcomwakedet;
 assign  set_wait_synp    = state_wait_align & detected_alignp;
 assign  set_wait_linkup  = state_wait_synp & detected_syncp;
-assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
+assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_wait_align | state_wait_synp);
 assign  clr_wait_cominit = set_wait_comwake | set_error;
 assign  clr_wait_comwake = set_wait_align | set_error;
 assign  clr_wait_align   = set_wait_synp | set_error;
@@ -215,7 +393,7 @@ assign  oob_busy = ~state_idle;
 // set gtx controls
 reg     txelecidle_r;
 always @ (posedge clk)
-    txelecidle_r <= rst ? 1'b1 : /*clr_wait_cominit */ clr_wait_comwake ? 1'b0 : set_wait_cominit ? 1'b1 : txelecidle_r;
+    txelecidle_r <= rst ? 1'b1 : clr_wait_cominit ? 1'b0 : set_wait_cominit ? 1'b1 : txelecidle_r;
 
 assign  txcominit  = set_wait_cominit;
 assign  txcomwake  = set_wait_comwake;
@@ -349,11 +527,8 @@ generate
         end
 endgenerate
 
-always @ (posedge clk)
-    rxcom_timer <= rst | rxcominit_done & state_wait_cominit | rxcomwake_done & state_wait_comwake | rxcominitdet & state_wait_cominit | rxcomwakedet & state_wait_comwake ? 10'h0 : cominit_req_l & state_idle | rxcominitdet_l & state_wait_cominit | rxcomwakedet_l & state_wait_comwake ? rxcom_timer + CLK_TO_TIMER_CONTRIB : 10'h0;
-
 // set data outputs to gtx
 assign  txdata_out    = txdata;
 assign  txcharisk_out = txcharisk;
-
+*/
 endmodule

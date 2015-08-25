@@ -19,9 +19,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
 `include "oob.v"
-module oob_ctrl #(
+module oob_ctrl_dev #(
     parameter DATA_BYTE_WIDTH = 4,
-    parameter CLK_SPEED_GRADE = 1 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
+    parameter CLK_SPEED_GRADE = 2 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
 )
 (
     // sata clk = usrclk2
@@ -103,23 +103,23 @@ always @ (posedge clk)
     link_state  <= (link_state | link_up) & ~link_down & ~rst; 
 
 always @ (posedge clk)
-    oob_state   <= (oob_state | oob_start | cominit_req & cominit_allow) & ~oob_error & ~oob_silence & ~(link_down & ~oob_busy & ~oob_start) & ~rst;
+    oob_state   <= (oob_state | oob_start | cominit_req & cominit_allow) & ~oob_error & ~oob_silence & link_down & ~rst;
 
 // decide when to issue oob: always when gtx is ready
 assign  oob_start = gtx_ready & ~oob_state & ~oob_busy;
 
 // set line to idle state before if we're waiting for a device to answer AND while oob sequence
 wire    txelecidle_inner;
-assign  txelecidle = /*~oob_state |*/ txelecidle_inner;
+assign  txelecidle = ~oob_state | txelecidle_inner;
 
 // let devices always begin oob sequence, if only it's not a glitch
 assign  cominit_allow = cominit_req & link_state;
 
-oob #(
+oob_dev #(
     .DATA_BYTE_WIDTH    (DATA_BYTE_WIDTH),
     .CLK_SPEED_GRADE    (CLK_SPEED_GRADE)
 )
-oob
+oob_dev
 (
 // sata clk = usrclk2
     .clk                            (clk),
