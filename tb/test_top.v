@@ -32,10 +32,12 @@ end
 
 integer i;
 integer status;
+integer id;
+reg [31:0] data;
 // write registers
 initial
 begin
-    CLK =1'b0;
+//    CLK =1'b0;
     RST = 1'bx;
     AR_SET_CMD_r = 1'b0;
     AW_SET_CMD_r = 1'b0;
@@ -47,20 +49,20 @@ begin
     NUM_WORDS_EXPECTED =0;
 //    #99000; // same as glbl
     #900; // same as glbl
-    repeat (20) @(posedge CLK) ;
+    repeat (20) @(posedge EXTCLK_P) ;
     RST =1'b0;
 
     @ (negedge dut.sata_top.sata_rst);
     repeat (20) 
-        @ (posedge CLK);
+        @ (posedge dev.clk);
 // test MAXI1 inface
     axi_set_rd_lag(0);
     axi_write_single(32'h4, 32'hdeadbeef);
-    axi_read_addr(12'h777, 32'h4, 4'h3, 2'b01);
+//    axi_read_addr(12'h777, 32'h4, 4'h3, 2'b01);
     repeat (7) 
-        @ (posedge CLK);
+        @ (posedge dev.clk);
     axi_write_single(32'h8, 32'hd34db33f);
-    axi_read_addr(12'h555, 32'h0, 4'h3, 2'b01);
+//    axi_read_addr(12'h555, 32'h0, 4'h3, 2'b01);
 
 
     for (i = 0; i < 2048; i = i + 1) begin
@@ -81,7 +83,7 @@ begin
     end
 
     if (dev.receive_status != 0) begin
-        $display("[Test] Failed step");
+        $display("[Test] Failed");
         $finish;
     end
 
@@ -98,7 +100,11 @@ begin
     dev.transmit_data[3] = 32'hdeadbeef; // whatever
     dev.transmit_data[4] = 32'hdeadbeef; // whatever
 
-    dev.linkTransmitFIS(66, 4, 0, status);
+    dev.linkTransmitFIS(66, 5, 0, status);
+    if (status != 0) begin
+        $display("[Test] Failed");
+        $finish;
+    end
     $display("[Test] Dev sent BSY flag");
 
     // checks if BSY is set up // only on waves TODO
@@ -106,20 +112,75 @@ begin
     repeat (50)
         @ (posedge dev.clk);
 
-    
+    $display("[Test] Device sends PIO Setup");
+    dev.transmit_data[0] = 32'h0080205f; // direction d2h, type = 5f
+    dev.transmit_data[1] = 32'hdeadbeef; // whatever
+    dev.transmit_data[2] = 32'hdeadbeef; // whatever
+    dev.transmit_data[3] = 32'h00adbeef; // whatever
+    dev.transmit_data[4] = 32'h00000014; // let it be 20 bytes to be transfered
+    dev.linkTransmitFIS(11, 5, 0, status);
+    if (status != 0) begin
+        $display("[Test] Failed");
+        $finish;
+    end
 
+    $display("[Test] Device sends data FIS");
+    dev.transmit_data[0] = 32'h00000046; // type = 46
+    dev.transmit_data[1] = 32'hfeeddeaf;
+    dev.transmit_data[2] = 32'ha114bea7;
+    dev.transmit_data[3] = 32'hca110911;
+    dev.transmit_data[4] = 32'hCA715F1E;
+    dev.transmit_data[5] = 32'hdeadbeef;
+    dev.linkTransmitFIS(22, 6, 0, status);
+    if (status != 0) begin
+        $display("[Test] Failed");
+        $finish;
+    end
 
-
-
-    
-
-
-    repeat (1000) 
+    repeat (20)
         @ (posedge dev.clk);
 
-    for (i = 0; i < 32; i = i + 1) begin
-        $display("data received : %h", dev.receive_data[i]);
+    // prepare monitor - clean it before actual usage
+    while (~maxiMonitorIsEmpty(0)) begin
+        maxiMonitorPop(data, id);
     end
+    
+    // imitating PIO reads
+    $display("[Test] Read data word 0");
+    axi_read_addr(12'h660, {30'h00, 2'b00}, 4'h0, 2'b01);
+
+    $display("[Test] Read data word 1");
+    axi_read_addr(12'h661, {30'h00, 2'b00}, 4'h0, 2'b01);
+
+    $display("[Test] Read data word 2");
+    axi_read_addr(12'h662, {30'h00, 2'b00}, 4'h0, 2'b01);
+
+    $display("[Test] Read data word 3");
+    axi_read_addr(12'h663, {30'h00, 2'b00}, 4'h0, 2'b01);
+
+    $display("[Test] Read data word 4");
+    axi_read_addr(12'h664, {30'h00, 2'b00}, 4'h0, 2'b01);
+
+    // check if all ok
+    i = 0;
+    while (~maxiMonitorIsEmpty(0)) begin
+        maxiMonitorPop(data, id);
+        if (dev.transmit_data[i] != data) begin
+            $display("[Test] Data check failed");
+            $finish;
+        end
+        i = i + 1;
+    end
+    $display("[Test] Data check OK");
+    
+
+
+    repeat (30) 
+        @ (posedge dev.clk);
+
+/*    for (i = 0; i < 32; i = i + 1) begin
+        $display("data received : %h", dev.receive_data[i]);
+    end*/
     $display("============= DONE =============");
     $finish;
     
@@ -174,6 +235,7 @@ end
 */
 initial begin
     #100000;
+    $display("[Test] Failed");
     $display("============= TIMELIMIT =============");
     $finish;
 end

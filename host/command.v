@@ -245,7 +245,7 @@ assign  tl_data_val_out = 1'b0;
 always @ (posedge clk)
     waddr   <= rst ? 1'b0 : ~tl_data_val_in ? waddr : (raddr == waddr + 1'b1) ? waddr : waddr + 1'b1;
 always @ (posedge clk)
-    raddr   <= rst ? 1'b0 : al_sh_data_strobe_in ? raddr + 1'b1 : waddr;
+    raddr   <= rst ? 1'b0 : al_sh_data_strobe_in ? raddr + 1'b1 : raddr;
 
 ram_1kx32_1kx32 rbuf(
       .rclk     (clk),      // clock for read port

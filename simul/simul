@@ -1,4 +1,6 @@
 #!/bin/bash
 LOGFILE_PATH="sim.log"
-/usr/local/bin/vvp a.out -v $1 #2>&1 | tee $LOGFILE_PATH
+/usr/local/bin/vvp a.out -v $1  | tee $LOGFILE_PATH
+
+#2>&1 | tee $LOGFILE_PATH
 

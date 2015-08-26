@@ -700,6 +700,7 @@ task linkTransmitFIS;
             $display("[Device] LINK: Transmission done with ERRORs, id = %d", id);
     // L_IDLE
         linkSendPrim("SYNC");
+        @ (posedge clk);
     end
 endtask
 

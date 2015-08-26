@@ -216,10 +216,10 @@ assign cmd_out          = wdata;
 
 
 
-assign sh_data_strobe   = bram_regen & bram_raddr_r == 8'h00;
+reg     [7:0]   bram_raddr_r;
+assign sh_data_strobe   = bram_ren & bram_raddr[7:0] == 8'h00;
 
 // read from registers. Interface's protocol assumes returning data with a delay
-reg     [7:0]   bram_raddr_r;
 reg     [31:0]  bram_rdata_r;
 always @ (posedge ACLK) begin
     bram_raddr_r <= bram_ren   ? bram_raddr[7:0] : bram_raddr_r;

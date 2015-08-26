@@ -525,7 +525,7 @@ begin
     data_out_r      <= scrambler_out;
     data_out_rr     <= data_out_r;
     data_val_out_r  <= inc_is_data;
-    data_val_out_rr <= data_val_out_r;
+    data_val_out_rr <= data_val_out_r & ~set_rcvr_eof; // means that @ previous clock cycle the delivered data was crc
 end
 assign  data_out        = data_out_rr;
 assign  data_mask_out   = 2'b11;//{DATA_BYTE_WIDTH/2{1'b1}};
@@ -657,9 +657,9 @@ begin
         $display("[Host] LINK: From device - received data = %h", data_out);
     end
 
-    if (inc_is_data) begin
-        $display("[Host] LINK: From device - received raw data = %h", phy_data_in);
-    end
+//    if (inc_is_data) begin
+//        $display("[Host] LINK: From device - received raw data = %h", phy_data_in);
+//    end
 end
     
 `endif

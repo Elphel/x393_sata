@@ -42,6 +42,7 @@ parameter   REGISTERS_CNT = 20;
 wire [32*REGISTERS_CNT - 1:0] outmem;
 wire clrstart;
 
+wire            sclk;
 wire    [3:0]   fclk;
 wire    [3:0]   frst;
 wire            axi_aclk;
@@ -157,12 +158,13 @@ wire            buf_rd;
 wire    [63:0]  buf_rdata;
 
 assign comb_rst=~frst[0] | frst[1];
-always @(posedge comb_rst or posedge axi_aclk) begin
+always @(posedge comb_rst or posedge axi_aclk0) begin
     if (comb_rst) axi_rst_pre <= 1'b1;
     else          axi_rst_pre <= 1'b0;
 end
 
-BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(fclk[0]));
+BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
+BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
 axi_hp_clk #(
     .CLKIN_PERIOD(20),
@@ -170,12 +172,13 @@ axi_hp_clk #(
     .CLKFBOUT_DIV_AXIHP(6)
 ) axi_hp_clk_i (
     .rst          (axi_rst), // input
-    .clk_in       (axi_aclk), // input
+    .clk_in       (axi_aclk0), // input
     .clk_axihp    (hclk), // output
     .locked_axihp () // output // not controlled?
 );
 
 sata_top sata_top(
+    .sclk                       (sclk),
     .ACLK                       (axi_aclk),
     .ARESETN                    (axi_rst),
 // AXI PS Master GP1: Read Address    

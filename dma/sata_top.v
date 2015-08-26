@@ -29,6 +29,7 @@
  * Takes commands from axi iface as a slave, transfers data with another axi iface as a master
  */
  module sata_top(
+    output  wire    sclk,
 /*
  * Commands interface
  */
@@ -224,7 +225,7 @@ wire                bram_regen;
 // sata logic reset
 wire            rst;
 // sata clk
-wire            sclk;
+//wire            sclk;
 // dma_regs <-> dma_control
 wire    [31:7]  mem_address;
 wire    [31:0]  lba;
@@ -612,7 +613,7 @@ sata_host sata_host(
     // sata rst
     .rst                        (sata_rst),
     // sata clk
-    .clk                        (clk),
+    .clk                        (sclk),
 // temporary
     .al_cmd_in                  (cmd_out), // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
     .al_cmd_val_in              (cmd_val_out),

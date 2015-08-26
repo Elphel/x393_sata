@@ -70,7 +70,8 @@ reg         SIMUL_AXI_FULL; // some data available
 wire        SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
 reg  [31:0] registered_rdata; // here read data from task
 
-reg        CLK;
+//reg        CLK;
+wire    CLK;
 reg        RST;
 reg        AR_SET_CMD_r;
 wire       AR_READY;
@@ -156,12 +157,13 @@ wire         #(AXI_TASK_HOLD) AR_SET_CMD = AR_SET_CMD_r;
 wire         #(AXI_TASK_HOLD) AW_SET_CMD = AW_SET_CMD_r;
 wire         #(AXI_TASK_HOLD) W_SET_CMD =  W_SET_CMD_r;
 
-always #(CLKIN_PERIOD/2) CLK = ~CLK;
+//always #(CLKIN_PERIOD/2) CLK = ~CLK;
+assign CLK = dut.axi_aclk;
 
 /*
  * connect axi ports to the dut
  */
-assign dut.ps7_i.FCLKCLK=        {4{CLK}};
+assign dut.ps7_i.FCLKCLK=        {4{EXTCLK_P}};
 assign dut.ps7_i.FCLKRESETN=     {RST,~RST,RST,~RST};
 // Read address
 assign dut.ps7_i.MAXIGP1ARADDR=  araddr;
@@ -536,6 +538,75 @@ simul_axi_hp_wr #(
 //tasks
 `include "includes/x393_tasks01.vh"
 `include "includes/x393_tasks_afi.vh"
+
+/*
+ * Monitor maxi bus read data. 
+ * No burst assumed, so we're interested only in 3 signals to monitor on.
+ * Every time something is on a bus, data and id of a transaction are pushed into a fifo
+ * Fifo can be read by maxiMonitorPop function. Check if fifo is empty by calling maxiMonitorIsEmpty()
+ */
+// path to these signals
+wire    [31:0] maxi_monitor_rdata;
+wire    [11:0] maxi_monitor_rid;
+wire           maxi_monitor_rvalid;
+assign maxi_monitor_rdata   = dut.ps7_i.MAXIGP1RDATA;
+assign maxi_monitor_rid     = dut.ps7_i.MAXIGP1RID;
+assign maxi_monitor_rvalid  = dut.ps7_i.MAXIGP1RVALID;
+
+localparam maxi_monitor_fifo_size = 2049;
+reg [43:0] maxi_monitor_fifo [maxi_monitor_fifo_size - 1:0];
+integer maxi_monitor_raddr  = 0;
+integer maxi_monitor_waddr  = 0;
+reg     maxi_monitor_fifo_empty = 1;
+
+function maxiMonitorIsEmpty(
+    input dummy
+    );
+    begin
+        maxiMonitorIsEmpty = maxi_monitor_fifo_empty;
+    end
+endfunction
+
+task maxiMonitorPop;
+    output reg [31:0] data;
+    output integer id;
+    begin
+        if ((maxi_monitor_waddr == maxi_monitor_raddr) && maxi_monitor_fifo_empty) begin
+            $display("[Testbench] maxiMonitorPop: Trying to pop from an empty fifo");
+            $finish;
+        end
+        data = maxi_monitor_fifo[maxi_monitor_raddr][31:0]; // RDATA
+        id = maxi_monitor_fifo[maxi_monitor_raddr][43:32]; // RID
+        maxi_monitor_raddr = (maxi_monitor_raddr + 1) % maxi_monitor_fifo_size;
+        if (maxi_monitor_waddr == maxi_monitor_raddr) begin
+            maxi_monitor_fifo_empty = 1;
+        end
+    end
+endtask
+
+task maxiMonitorPush;
+    input  [31:0] data;
+    input  [11:0] id;
+    begin
+        if (maxi_monitor_raddr == (maxi_monitor_waddr + 1)) begin
+            $display("[Testbench] maxiMonitorPush: trying to push to a full fifo");
+            $finish;
+        end
+        maxi_monitor_fifo[maxi_monitor_waddr][31:0]  = data;
+        maxi_monitor_fifo[maxi_monitor_waddr][43:32] = id;
+        maxi_monitor_fifo_empty = 1'b0;
+        $display("[Testbench] MAXI: Got data = %h, id = %h", data, id);
+        maxi_monitor_waddr = (maxi_monitor_waddr + 1) % maxi_monitor_fifo_size;
+    end
+endtask
+
+initial forever @ (posedge CLK) begin
+    if (~RST) begin
+        if (maxi_monitor_rvalid) begin
+            maxiMonitorPush(maxi_monitor_rdata, maxi_monitor_rid);
+        end
+    end
+end
 
 // testing itself
 `include  "test_top.v"
