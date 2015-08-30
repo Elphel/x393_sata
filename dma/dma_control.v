@@ -109,40 +109,6 @@ wire            adp_val_sclk;
 reg     [31:7]  current_addr;
 reg             current_type;
 
-// synchronize with host fsm
-reg     adp_done;
-wire    adp_done_clr;
-wire    adp_done_set;
-
-assign  dma_done_adp = adp_done;
-
-assign  adp_done_set = state_wait_done & clr_wait_done & ~set_wait_busy; // = state_wait_done & set_idle;
-assign  adp_done_clr = dma_done;
-always @ (posedge sclk)
-    adp_done <= (adp_done | adp_done_set) & ~adp_done_clr & ~rst;
-
-
-// calculate sent sector count
-// 1 sector = 512 bytes for now => 1 quarter_sector = 128 bytes
-always @ (posedge sclk)
-    quarter_sector_cnt <= ~set_wait_busy ? quarter_sector_cnt :
-                              state_idle ? 34'h0 :                    // new dma request
-                                           quarter_sector_cnt + 1'b1; // same dma request, next 128 bytes
-
-// flags if we're currently sending the last data piece of dma transaction
-assign  last_data = (sector_cnt == quarter_sector_cnt[33:2] + 1'b1) & (&quarter_sector_cnt[1:0]);
-
-// calculate outgoing address
-// increment every transaction to adapter
-always @ (posedge sclk)
-    current_addr <= ~set_wait_busy ? current_addr :
-                        state_idle ? mem_address :           // new dma request
-                                     current_addr + 1'b1; // same dma request, next 128 bytes
-
-always @ (posedge sclk)
-    current_type <= ~set_wait_busy ? current_type :
-                        state_idle ? dma_type :           // new dma request
-                                     current_type;        // same dma request, next 128 bytes
 
 // fsm itself
 wire    state_idle;
@@ -216,6 +182,40 @@ pulse_cross_clock adp_busy_clr_pulse(
     .busy       ()
 );
 
+// synchronize with host fsm
+reg     adp_done;
+wire    adp_done_clr;
+wire    adp_done_set;
+
+assign  dma_done_adp = adp_done;
+
+assign  adp_done_set = state_wait_done & clr_wait_done & ~set_wait_busy; // = state_wait_done & set_idle;
+assign  adp_done_clr = dma_done;
+always @ (posedge sclk)
+    adp_done <= (adp_done | adp_done_set) & ~adp_done_clr & ~rst;
+
+
+// calculate sent sector count
+// 1 sector = 512 bytes for now => 1 quarter_sector = 128 bytes
+always @ (posedge sclk)
+    quarter_sector_cnt <= ~set_wait_busy ? quarter_sector_cnt :
+                              state_idle ? 34'h0 :                    // new dma request
+                                           quarter_sector_cnt + 1'b1; // same dma request, next 128 bytes
+
+// flags if we're currently sending the last data piece of dma transaction
+assign  last_data = (sector_cnt == quarter_sector_cnt[33:2] + 1'b1) & (&quarter_sector_cnt[1:0]);
+
+// calculate outgoing address
+// increment every transaction to adapter
+always @ (posedge sclk)
+    current_addr <= ~set_wait_busy ? current_addr :
+                        state_idle ? mem_address :           // new dma request
+                                     current_addr + 1'b1; // same dma request, next 128 bytes
+
+always @ (posedge sclk)
+    current_type <= ~set_wait_busy ? current_type :
+                        state_idle ? dma_type :           // new dma request
+                                     current_type;        // same dma request, next 128 bytes
 
 //////////////////////////////////////////////////////////////////////////////////////
 //// DATA

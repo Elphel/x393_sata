@@ -39,6 +39,9 @@ module oob_ctrl #(
     output  wire    txcomwake,
     output  wire    txelecidle,
 
+    output  wire    txpcsreset_req,
+    input   wire    recal_tx_done,
+
     // input data stream (if any data during OOB setting => ignored)
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
     input   wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_in,
@@ -133,6 +136,9 @@ oob
     .txcominit                      (txcominit),
     .txcomwake                      (txcomwake),
     .txelecidle                     (txelecidle_inner),
+
+    .txpcsreset_req                 (txpcsreset_req),
+    .recal_tx_done                  (recal_tx_done),
 
 // input data stream (if any data during OOB setting => ignored)
     .txdata_in                      (txdata_in),

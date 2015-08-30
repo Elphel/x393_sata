@@ -69,6 +69,8 @@ wire            rxreset;
 wire            rxelecidle;
 wire            txelecidle;
 wire            rxbyteisaligned;
+wire            txpcsreset_req;
+wire            recal_tx_done;
 
 wire            gtx_ready;
 
@@ -88,6 +90,9 @@ oob_ctrl oob_ctrl(
     .txcominit          (txcominit),
     .txcomwake          (txcomwake),
     .txelecidle         (txelecidle),
+
+    .txpcsreset_req     (txpcsreset_req),
+    .recal_tx_done      (recal_tx_done),
 
     // input data stream (if any data during OOB setting => ignored)
     .txdata_in          (txdata_in),
@@ -115,6 +120,7 @@ wire    cpllreset;
 wire    gtrefclk;
 wire    rxresetdone;
 wire    txresetdone;
+wire    txpcsreset;
 wire    txreset;
 wire    txuserrdy;
 wire    rxuserrdy;
@@ -161,6 +167,17 @@ assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyerese
 assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmareset_done;
 
 assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
+
+// issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
+reg [3:0]   txpcsreset_cnt;
+wire        txpcsreset_stop;
+
+assign  txpcsreset_stop = txpcsreset_cnt[3];
+assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop;
+assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+
+always @ (posedge clk or posedge extrst)
+    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
 
 // generate internal reset after a clock is established
 // !!!ATTENTION!!!
@@ -271,7 +288,7 @@ GTXE2_CHANNEL #(
     .SIM_VERSION                            ("4.0"),
     .ALIGN_COMMA_DOUBLE                     ("FALSE"),
     .ALIGN_COMMA_ENABLE                     (10'b1111111111),
-    .ALIGN_COMMA_WORD                       (2),
+    .ALIGN_COMMA_WORD                       (1),
     .ALIGN_MCOMMA_DET                       ("TRUE"),
     .ALIGN_MCOMMA_VALUE                     (10'b1010000011),
     .ALIGN_PCOMMA_DET                       ("TRUE"),
@@ -330,7 +347,7 @@ GTXE2_CHANNEL #(
     .ES_QUAL_MASK                           (80'h00000000000000000000),
     .ES_SDATA_MASK                          (80'h00000000000000000000),
     .ES_VERT_OFFSET                         (9'b000000000),
-    .RX_DATA_WIDTH                          (20),
+    .RX_DATA_WIDTH                          (40),
     .OUTREFCLK_SEL_INV                      (2'b11),
     .PMA_RSV                                (32'h00018480),
     .PMA_RSV2                               (16'h2050),
@@ -681,7 +698,7 @@ gtx(
     .TXHEADER                       (3'd0),
     .TXSEQUENCE                     (7'd0),
     .TXSTARTSEQ                     (1'b0),
-    .TXPCSRESET                     (1'b0),
+    .TXPCSRESET                     (txpcsreset),
     .TXPMARESET                     (1'b0),
     .TXRESETDONE                    (txresetdone),
     .TXCOMFINISH                    (),
@@ -694,10 +711,10 @@ gtx(
     .TX8B10BBYPASS                  (8'd0),
     .TXPRBSSEL                      (3'd0),
     .TXQPISENN                      (),
-    .TXQPISENP                      (),
+    .TXQPISENP                      ()/*,
     .TXSYNCMODE                     (1'b0),
     .TXSYNCALLIN                    (1'b0),
-    .TXSYNCIN                       (1'b0)
+    .TXSYNCIN                       (1'b0)*/
 );
 
 /*

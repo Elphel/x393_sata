@@ -167,8 +167,8 @@ BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
 BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
 axi_hp_clk #(
-    .CLKIN_PERIOD(20),
-    .CLKFBOUT_MULT_AXIHP(18),
+    .CLKIN_PERIOD(6.666),
+    .CLKFBOUT_MULT_AXIHP(6),
     .CLKFBOUT_DIV_AXIHP(6)
 ) axi_hp_clk_i (
     .rst          (axi_rst), // input

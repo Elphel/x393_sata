@@ -51,6 +51,7 @@ module sata_phy_dev(
 
 parameter  CHIPSCOPE            = "FALSE";
 
+wire            txcomfinish;
 wire    [31:0]  txdata;
 wire    [31:0]  txdata_oob;
 wire    [3:0]   txcharisk;
@@ -71,6 +72,8 @@ wire            rxreset;
 wire            rxelecidle;
 wire            txelecidle;
 wire            rxbyteisaligned;
+wire            txpcsreset_req;
+wire            recal_tx_done;
 
 wire            gtx_ready;
 
@@ -97,6 +100,9 @@ oob_dev oob_dev(
     .txcomwake          (txcomwake),
     .txelecidle         (txelecidle),
 
+    .txpcsreset_req     (txpcsreset_req),
+    .recal_tx_done      (recal_tx_done),
+
     // output data stream to gtx
     .txdata_out         (txdata_oob),
     .txcharisk_out      (txcharisk_oob),
@@ -114,6 +120,7 @@ wire    cpllreset;
 wire    gtrefclk;
 wire    rxresetdone;
 wire    txresetdone;
+wire    txpcsreset;
 wire    txreset;
 wire    txuserrdy;
 wire    rxuserrdy;
@@ -161,6 +168,17 @@ assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmarese
 
 assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
 
+// issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
+reg [3:0]   txpcsreset_cnt;
+wire        txpcsreset_stop;
+
+assign  txpcsreset_stop = txpcsreset_cnt[3];
+assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop;
+assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+
+always @ (posedge clk or posedge extrst)
+    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
+
 // generate internal reset after a clock is established
 // !!!ATTENTION!!!
 // async rst block
@@ -173,6 +191,8 @@ always @ (posedge clk or posedge extrst)
 assign  rst = rst_r;
 always @ (posedge clk or posedge extrst)
     rst_r <= extrst | ~|rst_timer ? 1'b0 : rst_timer[3] ? 1'b0 : 1'b1;
+
+
 
 /*
  * USRCLKs generation. USRCLK @ 150MHz, same as TXOUTCLK; USRCLK2 @ 75Mhz -> sata_clk === sclk
@@ -329,7 +349,7 @@ GTXE2_CHANNEL #(
     .ES_QUAL_MASK                           (80'h00000000000000000000),
     .ES_SDATA_MASK                          (80'h00000000000000000000),
     .ES_VERT_OFFSET                         (9'b000000000),
-    .RX_DATA_WIDTH                          (20),
+    .RX_DATA_WIDTH                          (40),
     .OUTREFCLK_SEL_INV                      (2'b11),
     .PMA_RSV                                (32'h00018480),
     .PMA_RSV2                               (16'h2050),
@@ -680,10 +700,10 @@ gtx(
     .TXHEADER                       (3'd0),
     .TXSEQUENCE                     (7'd0),
     .TXSTARTSEQ                     (1'b0),
-    .TXPCSRESET                     (1'b0),
+    .TXPCSRESET                     (txpcsreset),
     .TXPMARESET                     (1'b0),
     .TXRESETDONE                    (txresetdone),
-    .TXCOMFINISH                    (),
+    .TXCOMFINISH                    (txcomfinish),
     .TXCOMINIT                      (txcominit),
     .TXCOMSAS                       (1'b0),
     .TXCOMWAKE                      (txcomwake),

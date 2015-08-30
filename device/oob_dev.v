@@ -44,6 +44,9 @@ module oob_dev #(
     output  reg     txcomwake,
     output  reg     txelecidle,
 
+    output  wire    txpcsreset_req,
+    input   wire    recal_tx_done,
+
     // output data stream to gtx
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,
     output  wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_out,
@@ -60,6 +63,7 @@ localparam  STATE_AWAITCOMWAKE      = 2;
 localparam  STATE_AWAITNOCOMWAKE    = 3;
 localparam  STATE_CALIBRATE         = 4;
 localparam  STATE_COMWAKE           = 5;
+localparam  STATE_RECAL             = 55;
 localparam  STATE_SENDALIGN         = 6;
 localparam  STATE_READY             = 7;
 localparam  STATE_PARTIAL           = 8;
@@ -115,26 +119,33 @@ begin
     rxcharisk    <= rxcharisk_in;
 end
 
+reg [9:0] txelecidle_cnt;
+
 assign  aligndet = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
 assign  syncdet  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
 
+assign  txpcsreset_req = state == STATE_RECAL & (txelecidle_cnt == 10'd160);
+
 always @ (posedge clk)
-    if (rst | ~gtx_ready)
+    if (rst | (~gtx_ready & ~(state == STATE_RECAL)))
     begin
         state       <= STATE_RESET;
         txelecidle  <= 1'b1;
         txcominit   <= 1'b0;
         txcomwake   <= 1'b0;
+        txelecidle_cnt <= 10'h0;
     end
     else
         case (state)
         STATE_RESET:
         begin
-            if (rxcominitdet_in)
+            if (rxcominitdet) begin
+                txelecidle_cnt <= 10'h0;
                 state       <= STATE_COMINIT;
                 txelecidle  <= 1'b1;
                 txcominit   <= 1'b0;
                 txcomwake   <= 1'b0;
+            end
         end
         STATE_COMINIT:
         begin
@@ -144,7 +155,7 @@ always @ (posedge clk)
         STATE_AWAITCOMWAKE:
         begin
             txcominit   <= 1'b0;
-            if (rxcomwakedet_in)
+            if (rxcomwakedet)
                 state   <= STATE_AWAITNOCOMWAKE;
             else 
             if (retry_interval_elapsed)
@@ -166,12 +177,27 @@ always @ (posedge clk)
         STATE_COMWAKE:
         begin
             txcomwake   <= 1'b1;
-            state       <= STATE_SENDALIGN;
+            state       <= STATE_RECAL;
+            txelecidle_cnt <= 10'h0;
+        end
+        STATE_RECAL:
+        begin
+            data    <= align;
+            isk     <= 4'h1;
+            txcomwake   <= 1'b0;
+            // txcomwake period = 213.333 ns times let's say 10 pulses => 2133.333 ns = 160 cycles of 75Mhz
+            if (txelecidle_cnt == 10'd160) begin
+                txelecidle  <= 1'b0;
+            end
+            else begin
+                txelecidle_cnt <= txelecidle_cnt + 1'b1;
+            end
+            if (recal_tx_done) begin
+                state   <= STATE_SENDALIGN;
+            end
         end
         STATE_SENDALIGN:
         begin
-            txcomwake   <= 1'b0;
-            txelecidle  <= 1'b0;
             data    <= align;
             isk     <= 4'h1;
             if (aligndet)
@@ -184,6 +210,7 @@ always @ (posedge clk)
         end
         STATE_READY:
         begin
+            txelecidle <= 1'b0;
             data    <= sync;
             isk     <= 4'h1;
             if (rxelecidle_in)
@@ -191,6 +218,7 @@ always @ (posedge clk)
         end
         STATE_ERROR:
         begin
+            txelecidle <= 1'b0;
             state   <= STATE_RESET;
         end
         endcase

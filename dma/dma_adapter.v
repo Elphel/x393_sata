@@ -71,6 +71,7 @@ module dma_adapter(
     // additinal wire to indicate if membridge recieved a packet
     input   wire                                rdata_done // = membridge.is_last_in_page & membridge.afi_rready;
 );
+reg     [2:0]   membr_state;
 // cmd handling
 // if not busy and got cmd with val => cmd recieved, assert busy, start a respective algorithm
 wire            wr_start;
@@ -299,7 +300,6 @@ reg     [32:0]  membr_data;
 reg     [15:0]  membr_addr;
 reg             membr_start;
 reg             membr_done;
-reg     [2:0]   membr_state;
 reg             membr_setup; // indicates the first tick of the state
 wire            membr_inprocess;
 
