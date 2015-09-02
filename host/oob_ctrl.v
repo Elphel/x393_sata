@@ -38,9 +38,12 @@ module oob_ctrl #(
     output  wire    txcominit,
     output  wire    txcomwake,
     output  wire    txelecidle,
-
+    // partial tx reset
     output  wire    txpcsreset_req,
     input   wire    recal_tx_done,
+    // rx reset (after rxelecidle -> 0)
+    output  wire    rxreset_req,
+    input   wire    rxreset_ack,
 
     // input data stream (if any data during OOB setting => ignored)
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
@@ -86,21 +89,12 @@ wire    oob_silence;
 // obvious
 wire    oob_busy;
 
-// for the resync sake
-reg rxbyteisaligned_r;
-reg rxbyteisaligned_rr;
-always @ (posedge clk)
-begin
-    rxbyteisaligned_rr  <= rxbyteisaligned_r;
-    rxbyteisaligned_r   <= rxbyteisaligned;
-end
-
 // 1 - link is up and running, 0 - probably not
 reg     link_state;
 // 1 - connection is being established OR already established, 0 - is not
 reg     oob_state;
 
-assign  phy_ready = link_state & gtx_ready & rxbyteisaligned_rr;
+assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
 
 always @ (posedge clk)
     link_state  <= (link_state | link_up) & ~link_down & ~rst; 
@@ -139,6 +133,9 @@ oob
 
     .txpcsreset_req                 (txpcsreset_req),
     .recal_tx_done                  (recal_tx_done),
+
+    .rxreset_req                    (rxreset_req),
+    .rxreset_ack                    (rxreset_ack),
 
 // input data stream (if any data during OOB setting => ignored)
     .txdata_in                      (txdata_in),

@@ -1,16 +1,16 @@
 /*******************************************************************************
- * Module: sata_phy
- * Date: 2015-07-11  
+ * Module: gtx_wrap
+ * Date: 2015-08-24
  * Author: Alexey     
- * Description: phy-level, including oob, clock generation and GTXE2 
+ * Description: shall replace gtx's PCS part functions, bypassing PCS itself in gtx
  *
  * Copyright (c) 2015 Elphel, Inc.
- * sata_phy.v is free software; you can redistribute it and/or modify
+ * gtx_wrap.v is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * sata_phy.v file is distributed in the hope that it will be useful,
+ * gtx_wrap.v file is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -18,272 +18,371 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "oob_dev.v"
-module sata_phy_dev #(
-    parameter DATA_BYTE_WIDTH = 4
+`include "gtx_8x10enc.v"
+`include "gtx_10x8dec.v"
+`include "gtx_comma_align.v"
+`include "gtx_elastic.v"
+// All computations have been done in assumption of GTX interface being 20 bits wide!
+module gtx_wrap #(
+    parameter DATA_BYTE_WIDTH     = 4,
+    parameter TXPMARESET_TIME     = 5'h1,
+    parameter RXPMARESET_TIME     = 5'h11,
+    parameter RXCDRPHRESET_TIME   = 5'h1,
+    parameter RXCDRFREQRESET_TIME = 5'h1,
+    parameter RXDFELPMRESET_TIME  = 7'hf,
+    parameter RXISCANRESET_TIME   = 5'h1,
+    parameter RXEYERESET_TIME     = 7'h25
 )
 (
-    // initial reset, resets PLL. After pll is locked, an internal sata reset is generated.
-    input   wire        extrst,
-    // sata clk, generated in pll as usrclk2
-    output  wire        clk,
-    output  wire        rst,
+    output  wire    cplllock,
+    input   wire    cplllockdetclk,
+    input   wire    cpllreset,
+    input   wire    gtrefclk,
+    input   wire    drpclk,
+    input   wire    rxuserrdy,
+    input   wire    txuserrdy,
+    input   wire    rxusrclk,
+    input   wire    rxusrclk2,
+    input   wire    rxp,
+    input   wire    rxn,
+    output  wire    rxbyteisaligned,
+    input   wire    rxreset,
+    output  wire    rxcomwakedet,
+    output  wire    rxcominitdet,
+    output  wire    rxelecidle,
+    output  wire    rxresetdone,
+    input   wire    txreset,
+    input   wire    txusrclk,
+    input   wire    txusrclk2,
+    input   wire    txelecidle,
+    output  wire    txp,
+    output  wire    txn,
+    output  wire    txoutclk,
+    input   wire    txpcsreset,
+    output  wire    txresetdone,
+    input   wire    txcominit,
+    input   wire    txcomwake,
+    // elastic buffer status
+    output  wire    rxelsfull,
+    output  wire    rxelsempty,
 
-    // state
-    output  wire        phy_ready,
-
-    // top-level ifaces
-    // ref clk from an external source, shall be connected to pads
-    input   wire        extclk_p, 
-    input   wire        extclk_n,
-    // sata link data pins
-    output  wire        txp_out,
-    output  wire        txn_out,
-    input   wire        rxp_in,
-    input   wire        rxn_in,
-
-    // to link layer
-    output  wire    [31:0]  ll_data_out,
-    output  wire    [3:0]   ll_charisk_out,
-    output  wire    [3:0]   ll_err_out, // TODO!!!
-
-    // from link layer
-    input   wire    [31:0]  ll_data_in,
-    input   wire    [3:0]   ll_charisk_in
+    input   wire    [DATA_BYTE_WIDTH * 8 - 1:0] txdata,
+    input   wire    [DATA_BYTE_WIDTH - 1:0]     txcharisk,
+    output  wire    [DATA_BYTE_WIDTH * 8 - 1:0] rxdata,
+    output  wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk,
+    output  wire    [DATA_BYTE_WIDTH - 1:0]     rxnotintable,
+    output  wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr
 );
 
-parameter  CHIPSCOPE            = "FALSE";
+wire    [63:0]  rxdata_gtx;
+wire    [7:0]   rxcharisk_gtx;
+wire    [7:0]   rxdisperr_gtx;
+wire    [63:0]  txdata_gtx;
+wire    [7:0]   txcharisk_gtx;
+wire    [7:0]   txchardispval_gtx;
+wire    [7:0]   txchardispmode_gtx;
+// 8/10 encoder ifaces
+wire    [19:0]  txdata_enc_out;
+wire    [15:0]  txdata_enc_in;
+wire    [1:0]   txcharisk_enc_in;
 
-wire            txcomfinish;
-wire    [31:0]  txdata;
-wire    [31:0]  txdata_oob;
-wire    [3:0]   txcharisk;
-wire    [3:0]   txcharisk_oob;
-wire    [63:0]  rxdata;
-wire    [3:0]   rxcharisk;
-wire    [31:0]  rxdata_out;
-wire    [31:0]  txdata_in;
-wire    [3:0]   txcharisk_in;
-wire    [3:0]   rxcharisk_out;
-               
-wire            rxcomwakedet;
-wire            rxcominitdet;
-wire            cplllock;
-wire            txcominit;
-wire            txcomwake;
-wire            rxreset;
-wire            rxelecidle;
-wire            txelecidle;
-wire            rxbyteisaligned;
-wire            txpcsreset_req;
-wire            recal_tx_done;
+/*
+ * TX PCS, minor changes: 8/10 encoder + user interface resync
+ */
+// assuming GTX interface width = 20 bits
+assign  txdata_gtx          = {48'h0, txdata_enc_out[17:10], txdata_enc_out[7:0]};
+assign  txcharisk_gtx       = 8'h0; // 8/10 encoder is bypassed in gtx
+assign  txchardispmode_gtx  = {6'h0, txdata_enc_out[19], txdata_enc_out[9]};
+assign  txchardispval_gtx   = {6'h0, txdata_enc_out[18], txdata_enc_out[8]};
 
-wire            gtx_ready;
+// Interface part
+/*
+    input   wire    cpllreset,  - async
+    input   wire    rxuserrdy,  - async
+    input   wire    txuserrdy,  - async
+    input   wire    rxreset,    - async
+    input   wire    txreset,    - async
+    input   wire    txelecidle, - txusrclk2 - need to resync to gtx iface clk - txusrclk
+    input   wire    txpcsreset, - async
+    input   wire    txcominit,  - txusrclk2 - need to resync to gtx iface clk - txusrclk
+    input   wire    txcomwake,  - txusrclk2 - need to resync to gtx iface clk - txusrclk
+*/
+// @ gtx iface clk
+wire    txcominit_gtx; 
+wire    txcomwake_gtx;
+wire    txelecidle_gtx;
 
-assign  txdata          = phy_ready ? ll_data_in : txdata_oob;
-assign  txcharisk       = phy_ready ? ll_charisk_in : txcharisk_oob;
-assign  ll_err_out      = 4'h0;
-assign  ll_charisk_out  = rxcharisk[3:0];
-assign  ll_data_out     = rxdata;
+// insert resync if it's necessary
+generate 
+if (DATA_BYTE_WIDTH == 4) begin
+    // resync to txusrclk
+    // 2*Fin = Fout => WIDTHin = 2*WIDTHout
+    wire    txdata_resync_nempty;
+    reg     txdata_resync_nempty_r;
+    reg     txdata_resync_nempty_rr;
+    reg     txdata_resync_strobe;
+    wire    [38:0] txdata_resync_out;
+    reg     [35:0] txdata_resync;
 
+    assign  txdata_enc_in       = {16{~txdata_resync_strobe}} & txdata_resync[15:0] | {16{txdata_resync_strobe}} & txdata_resync[33:18];
+    assign  txcharisk_enc_in   = {2{~txdata_resync_strobe}} & txdata_resync[17:16] | {2{txdata_resync_strobe}} & txdata_resync[35:34];
+    always @ (posedge txusrclk)
+    begin
+        txdata_resync        <= ~txuserrdy ? 36'h0 : txdata_resync_nempty & txdata_resync_strobe ? txdata_resync_out[35:0] : txdata_resync;
+        txdata_resync_strobe <= ~txuserrdy ? 1'b0  : ~txdata_resync_nempty ? txdata_resync_strobe : ~txdata_resync_strobe; // -> 1 once every resynced dword = signal to latch it
+    end
 
-oob_dev oob_dev(
-    // sata clk = usrclk2
-    .clk                (clk),
-    // reset oob
-    .rst                (rst),
-    // gtx is ready = all resets are done
-    .gtx_ready          (gtx_ready),
-    // oob responces
-    .rxcominitdet_in    (rxcominitdet),
-    .rxcomwakedet_in    (rxcomwakedet),
-    .rxelecidle_in      (rxelecidle),
-    // oob issues
-    .txcominit          (txcominit),
-    .txcomwake          (txcomwake),
-    .txelecidle         (txelecidle),
+    // nempty_rr & nempty => shall be at least 2 elements in fifo - safe to read
+    always @ (posedge txusrclk2) 
+    begin
+        txdata_resync_nempty_r  <= txdata_resync_nempty;
+        txdata_resync_nempty_rr <= txdata_resync_nempty_r;
+    end
 
-    .txpcsreset_req     (txpcsreset_req),
-    .recal_tx_done      (recal_tx_done),
+    fifo_cross_clocks #(
+      .DATA_WIDTH (39),
+      .DATA_DEPTH (4)
+    )
+    txdata_resynchro(
+        .rst        (txreset),
+        .rclk       (txusrclk),
+        .wclk       (txusrclk2),
+        .we         (1'b1),
+        .re         (txdata_resync_nempty & txdata_resync_nempty_rr & txdata_resync_strobe),
+        .data_in    ({txelecidle, txcominit, txcomwake, txcharisk, txdata}),
+        .data_out   (txdata_resync_out),
+        .nempty     (txdata_resync_nempty),
+        .half_empty ()
+    );
 
-    // output data stream to gtx
-    .txdata_out         (txdata_oob),
-    .txcharisk_out      (txcharisk_oob),
-    // input data from gtx
-    .rxdata_in          (rxdata[31:0]),
-    .rxcharisk_in       (rxcharisk[3:0]),
+    assign  txcominit_gtx  = txdata_resync_out[36];
+    assign  txcomwake_gtx  = txdata_resync_out[37];
+    assign  txelecidle_gtx = txdata_resync_out[38];
+end
+else
+if (DATA_BYTE_WIDTH == 2) begin
+    // no resync is needed => straightforward assignments
+    assign  txdata_enc_in       = txdata;
+    assign  txcharisk_enc_in    = txcharisk;
+    assign  txcominit_gtx       = txcominit;
+    assign  txcomwake_gtx       = txcomwake;
+    assign  txelecidle_gtx      = txelecidle;
+end
+else begin
+    // unconsidered case
+    always @ (posedge txusrclk)
+    begin
+        $display("Wrong width set in %m, value is %d", DATA_BYTE_WIDTH);
+    end
+end
+endgenerate
 
-    // shows if channel is ready
-    .link_up            (phy_ready)
+// 8/10 encoder @ txusrclk, 16 + 1 bits -> 20
+gtx_8x10enc gtx_8x10enc(
+    .rst        (~txuserrdy),
+    .clk        (txusrclk),
+    .indata     (txdata_enc_in),
+    .inisk      (txcharisk_enc_in),
+    .outdata    (txdata_enc_out)
 );
 
-wire    cplllockdetclk; // TODO
-wire    drpclk; // TODO
-wire    cpllreset;
-wire    gtrefclk;
-wire    rxresetdone;
-wire    txresetdone;
-wire    txpcsreset;
-wire    txreset;
-wire    txuserrdy;
-wire    rxuserrdy;
-wire    txusrclk;
-wire    txusrclk2;
-wire    rxusrclk;
-wire    rxusrclk2;
-wire    txp;
-wire    txn;
-wire    rxp;
-wire    rxn;
-wire    txoutclk;
-wire    txpmareset_done;
-wire    rxeyereset_done;
-
-// tx reset sequence; waves @ ug476 p67
-localparam  TXPMARESET_TIME = 5'h1;
-reg     [2:0]   txpmareset_cnt;
-assign  txpmareset_done = txpmareset_cnt == TXPMARESET_TIME;
-always @ (posedge gtrefclk)
-    txpmareset_cnt  <= txreset ? 3'h0 : txpmareset_done ? txpmareset_cnt : txpmareset_cnt + 1'b1;
-
-// rx reset sequence; waves @ ug476 p77
-localparam  RXPMARESET_TIME     = 5'h11;
-localparam  RXCDRPHRESET_TIME   = 5'h1;
-localparam  RXCDRFREQRESET_TIME = 5'h1;
-localparam  RXDFELPMRESET_TIME  = 7'hf;
-localparam  RXISCANRESET_TIME   = 5'h1;
-localparam  RXEYERESET_TIME     = 7'h0 + RXPMARESET_TIME + RXCDRPHRESET_TIME + RXCDRFREQRESET_TIME + RXDFELPMRESET_TIME + RXISCANRESET_TIME;
-reg     [6:0]   rxeyereset_cnt;
-assign  rxeyereset_done = rxeyereset_cnt == RXEYERESET_TIME;
-always @ (posedge gtrefclk)
-    rxeyereset_cnt  <= rxreset ? 3'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
-
 /*
- * Resets
+ * RX PCS part: comma detect + align module, 10/8 decoder, elastic buffer, interface resynchronisation
+ * all modules before elastic buffer shall work on a restored clock - xclk
  */
-wire    usrpll_locked;
+wire    xclk;
+// assuming GTX interface width = 20 bits
+// comma aligner
+wire    [19:0]  rxdata_comma_in;
+wire    [19:0]  rxdata_comma_out;
+assign  rxdata_comma_in = {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata[7:0]};
 
-assign  cpllreset = extrst;
-assign  rxreset = ~cplllock | cpllreset;
-assign  txreset = ~cplllock | cpllreset;
-assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyereset_done;
-assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmareset_done;
+// aligner status generation
+// if we detected comma & there was 1st realign after non-aligned state -> triggered, we wait until the next comma
+// if no realign would be issued, assumes, that we've aligned to the stream otherwise go back to non-aligned state
+wire    comma;
+wire    realign;
+wire    state_nonaligned;
+reg     state_aligned;
+reg     state_triggered;
+wire    set_aligned;
+wire    set_triggered;
+wire    clr_aligned;
+wire    clr_triggered;
 
-assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
+assign  state_nonaligned = ~state_aligned & ~state_triggered;
+assign  set_aligned     = state_triggered & comma & ~realign;
+assign  set_triggered   = state_nonaligned & comma;
+assign  clr_aligned     = realign;
+assign  clr_triggered   = realign;
 
-// issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
-reg [3:0]   txpcsreset_cnt;
-wire        txpcsreset_stop;
+always @ (posedge xclk)
+begin
+    state_aligned   <= (set_aligned   | state_aligned  ) & rxuserrdy & ~clr_aligned; 
+    state_triggered <= (set_triggered | state_triggered) & rxuserrdy & ~clr_triggered; 
+end
 
-assign  txpcsreset_stop = txpcsreset_cnt[3];
-assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop;
-assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+gtx_comma_align gtx_comma_align(
+    .rst        (~rxuserrdy),
+    .clk        (xclk),
+    .indata     (rxdata_comma_in),
+    .outdata    (rxdata_comma_out),
+    .comma      (comma),
+    .realign    (realign)
+);
 
-always @ (posedge clk or posedge extrst)
-    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
+//
 
-// generate internal reset after a clock is established
-// !!!ATTENTION!!!
-// async rst block
-reg [7:0]   rst_timer;
-reg         rst_r;
-localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
-always @ (posedge clk or posedge extrst)
-    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : rst_timer == RST_TIMER_LIMIT ? rst_timer : rst_timer + 1'b1;
+// 10x8 decoder
+wire    [15:0]  rxdata_dec_out;
+wire    [1:0]   rxcharisk_dec_out;
+wire    [1:0]   rxnotintable_dec_out;
+wire    [1:0]   rxdisperr_dec_out;
 
-assign  rst = rst_r;
-always @ (posedge clk or posedge extrst)
-    rst_r <= extrst | ~|rst_timer ? 1'b0 : rst_timer[3] ? 1'b0 : 1'b1;
+gtx_10x8dec gtx_10x8dec(
+    .rst        (~rxuserrdy),
+    .clk        (xclk),
+    .indata     (rxdata_comma_out),
+    .outdata    (rxdata_dec_out),
+    .outisk     (rxcharisk_dec_out),
+    .notintable (rxnotintable_dec_out),
+    .disperror  (rxdisperr_dec_out)
+);
 
+// elastic buffer: transition from xclk to rxusrclk
+wire    [15:0]  rxdata_els_out;
+wire    [1:0]   rxcharisk_els_out;
+wire    [1:0]   rxnotintable_els_out;
+wire    [1:0]   rxdisperr_els_out;
+wire            lword_strobe;
+wire            isaligned;
 
-
-/*
- * USRCLKs generation. USRCLK @ 150MHz, same as TXOUTCLK; USRCLK2 @ 75Mhz -> sata_clk === sclk
- * It's recommended to use MMCM instead of PLL, whatever
- */
-wire    usrpll_fb_clk;
-wire    usrclk;
-wire    usrclk2;
-
-assign  txusrclk  = usrclk;
-assign  txusrclk2 = usrclk2;
-assign  rxusrclk  = usrclk;
-assign  rxusrclk2 = usrclk2;
-
-PLLE2_ADV #(
-    .BANDWIDTH              ("OPTIMIZED"),
-    .CLKFBOUT_MULT          (8),
-    .CLKFBOUT_PHASE         (0.000),
-    .CLKIN1_PERIOD          (6.666),
-    .CLKIN2_PERIOD          (0.000),
-    .CLKOUT0_DIVIDE         (8),
-    .CLKOUT0_DUTY_CYCLE     (0.500),
-    .CLKOUT0_PHASE          (0.000),
-    .CLKOUT1_DIVIDE         (16),
-    .CLKOUT1_DUTY_CYCLE     (0.500),
-    .CLKOUT1_PHASE          (0.000),
-/*    .CLKOUT2_DIVIDE = 1,
-    .CLKOUT2_DUTY_CYCLE = 0.500,
-    .CLKOUT2_PHASE = 0.000,
-    .CLKOUT3_DIVIDE = 1,
-    .CLKOUT3_DUTY_CYCLE = 0.500,
-    .CLKOUT3_PHASE = 0.000,
-    .CLKOUT4_DIVIDE = 1,
-    .CLKOUT4_DUTY_CYCLE = 0.500,
-    .CLKOUT4_PHASE = 0.000,
-    .CLKOUT5_DIVIDE = 1,
-    .CLKOUT5_DUTY_CYCLE = 0.500,
-    .CLKOUT5_PHASE = 0.000,*/
-    .COMPENSATION           ("ZHOLD"),
-    .DIVCLK_DIVIDE          (1),
-    .IS_CLKINSEL_INVERTED   (1'b0),
-    .IS_PWRDWN_INVERTED     (1'b0),
-    .IS_RST_INVERTED        (1'b0),
-    .REF_JITTER1            (0.010),
-    .REF_JITTER2            (0.010),
-    .STARTUP_WAIT           ("FALSE")
+gtx_elastic #(
+    .DEPTH_LOG2 (3),
+    .OFFSET     (4)
 )
-usrclk_pll(
-  .CLKFBOUT (usrpll_fb_clk),
-  .CLKOUT0  (usrclk),
-  .CLKOUT1  (usrclk2),
-  .CLKOUT2  (),
-  .CLKOUT3  (),
-  .CLKOUT4  (),
-  .CLKOUT5  (),
-  .DO       (),
-  .DRDY     (),
-  .LOCKED   (usrpll_locked),
+gtx_elastic(
+    .rst            (~rxuserrdy),
+    .wclk           (xclk),
+    .rclk           (rxusrclk),
 
-  .CLKFBIN  (usrpll_fb_clk),
-  .CLKIN1   (txoutclk),
-  .CLKIN2   (1'b0),
-  .CLKINSEL (1'b1),
-  .DADDR    (7'h0),
-  .DCLK     (drpclk),
-  .DEN      (1'b0),
-  .DI       (16'h0),
-  .DWE      (1'b0),
-  .PWRDWN   (1'b0),
-  .RST      (~cplllock)
+    .isaligned_in   (state_aligned),
+    .charisk_in     (rxcharisk_dec_out),
+    .notintable_in  (rxnotintable_dec_out),
+    .disperror_in   (rxdisperr_dec_out),
+    .data_in        (rxdata_dec_out),
+
+    .isaligned_out  (isaligned),
+    .charisk_out    (rxcharisk_els_out),
+    .notintable_out (rxnotintable_els_out),
+    .disperror_out  (rxdisperr_els_out),
+    .data_out       (rxdata_els_out),
+
+    .lword_strobe   (lword_strobe),
+
+    .full           (elastic_full),
+    .empty          (elastic_empty)
 );
+
+// iface resync
 
 /*
- * Padding for an external input clock @ 150 MHz
- */
-localparam [1:0] CLKSWING_CFG = 2'b11;
-IBUFDS_GTE2 #(
-    .CLKRCV_TRST   ("TRUE"),
-    .CLKCM_CFG      ("TRUE"),
-    .CLKSWING_CFG   (CLKSWING_CFG)
-)
-ext_clock_buf(
-    .I      (extclk_p),
-    .IB     (extclk_n),
-    .CEB    (1'b0),
-    .O      (gtrefclk),
-    .ODIV2  ()
-);
+    output  wire    cplllock,       - async
+    output  wire    rxbyteisaligned,- rxusrclk2
+    output  wire    rxcomwakedet,   - rxusrclk2
+    output  wire    rxcominitdet,   - rxusrclk2
+    output  wire    rxelecidle,     - async
+    output  wire    rxresetdone,    - rxusrclk2
+    output  wire    txresetdone,    - txusrclk2
+*/
+wire    rxcomwakedet_gtx;
+wire    rxcominitdet_gtx;
+wire    rxresetdone_gtx; 
+wire    txresetdone_gtx; 
+
+
+// insert resync if it's necessary
+generate 
+if (DATA_BYTE_WIDTH == 4) begin
+    // resync to rxusrclk
+    // Fin = 2*Fout => 2*WIDTHin = WIDTHout
+    wire    rxdata_resync_nempty;
+    reg     rxdata_resync_nempty_r;
+    wire    rxdata_resync_strobe;
+    wire    [50:0] rxdata_resync_in;
+    wire    [50:0] rxdata_resync_out;
+    reg     [23:0] rxdata_resync_buf;
+
+    assign  rxdata_resync_strobe = lword_strobe;
+    assign  rxdata_resync_in = {
+                                isaligned,                             // 1
+                                rxcomwakedet_gtx,                      // 1
+                                rxcominitdet_gtx,                      // 1
+                                rxresetdone_gtx,                       // 1 
+                                txresetdone_gtx,                       // 1
+                                elastic_full  | rxdata_resync_buf[23], // 1 
+                                elastic_empty | rxdata_resync_buf[22], // 1
+                                rxdisperr_els_out,                     // 2
+                                rxnotintable_els_out,                  // 2
+                                rxcharisk_els_out,                     // 2
+                                rxdata_els_out,                        // 16
+                                rxdata_resync_buf[21:0]};              // 22 / 51 total
+    always @ (posedge rxusrclk)
+        rxdata_resync_buf    <= ~rxuserrdy ? 36'h0 : rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
+
+    always @ (posedge rxusrclk2)
+        rxdata_resync_nempty_r <= rxdata_resync_nempty;
+
+    fifo_cross_clocks #(
+      .DATA_WIDTH (51),
+      .DATA_DEPTH (4)
+    )
+    rxdata_resynchro(
+        .rst        (~rxuserrdy),
+        .rclk       (rxusrclk2),
+        .wclk       (rxusrclk),
+        .we         (1'b1),
+        .re         (rxdata_resync_nempty & rxdata_resync_nempty_r),
+        .data_in    (rxdata_resync_in),
+        .data_out   (rxdata_resync_out),
+        .nempty     (rxdata_resync_nempty),
+        .half_empty ()
+    );
+    assign  rxbyteisaligned = rxdata_resync_out[50];
+    assign  rxcomwakedet    = rxdata_resync_out[49];
+    assign  rxcominitdet    = rxdata_resync_out[48];
+    assign  rxresetdone     = rxdata_resync_out[47];
+    assign  txresetdone     = rxdata_resync_out[46];
+    assign  rxelsfull       = rxdata_resync_out[45];
+    assign  rxelsempty      = rxdata_resync_out[44];
+    assign  rxdisperr       = {rxdata_resync_out[43:42], rxdata_resync_out[21:20]};
+    assign  rxnotintable    = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
+    assign  rxcharisk       = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
+    assign  rxdata          = {rxdata_resync_out[37:22], rxdata_resync_out[15:0]};
+end
+else
+if (DATA_BYTE_WIDTH == 2) begin
+    // no resync is needed => straightforward assignments
+    assign  rxbyteisaligned = isaligned;
+    assign  rxcomwakedet    = rxcomwakedet_gtx;
+    assign  rxcominitdet    = rxcominitdet_gtx;
+    assign  rxresetdone     = rxresetdone_gtx;
+    assign  txresetdone     = txresetdone_gtx;
+    assign  rxelsfull       = elastic_full;
+    assign  rxelsempty      = elastic_empty;
+    assign  rxdisperr       = rxdisperr_els_out;
+    assign  rxnotintable    = rxnotintable_els_out;
+    assign  rxcharisk       = rxcharisk_els_out;
+    assign  rxdata          = rxdata_els_out;
+end
+else begin
+    // unconsidered case
+    always @ (posedge txusrclk)
+    begin
+        $display("Wrong width set in %m, value is %d", DATA_BYTE_WIDTH);
+    end
+end
+endgenerate
 
 GTXE2_CHANNEL #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
@@ -352,7 +451,7 @@ GTXE2_CHANNEL #(
     .ES_QUAL_MASK                           (80'h00000000000000000000),
     .ES_SDATA_MASK                          (80'h00000000000000000000),
     .ES_VERT_OFFSET                         (9'b000000000),
-    .RX_DATA_WIDTH                          (40),
+    .RX_DATA_WIDTH                          (20),
     .OUTREFCLK_SEL_INV                      (2'b11),
     .PMA_RSV                                (32'h00018480),
     .PMA_RSV2                               (16'h2050),
@@ -413,7 +512,7 @@ GTXE2_CHANNEL #(
     .PD_TRANS_TIME_TO_P2                    (8'h64),
     .SAS_MAX_COM                            (64),
     .SAS_MIN_COM                            (36),
-    .SATA_BURST_SEQ_LEN                     (4'b0111),
+    .SATA_BURST_SEQ_LEN                     (4'b0110),
     .SATA_BURST_VAL                         (3'b110),
     .SATA_EIDLE_VAL                         (3'b110),
     .SATA_MAX_BURST                         (8),
@@ -432,7 +531,7 @@ GTXE2_CHANNEL #(
     .TXPHDLY_CFG                            (24'h084020),
     .TXPH_MONITOR_SEL                       (5'b00000),
     .TX_XCLK_SEL                            ("TXOUT"),
-    .TX_DATA_WIDTH                          (40),
+    .TX_DATA_WIDTH                          (20),
     .TX_DEEMPH0                             (5'b00000),
     .TX_DEEMPH1                             (5'b00000),
     .TX_EIDLE_ASSERT_DELAY                  (3'b110),
@@ -523,7 +622,7 @@ gtx(
     .RXSYSCLKSEL                    (2'b00),
     .TXSYSCLKSEL                    (2'b00),
     .DMONITOROUT                    (),
-    .TX8B10BEN                      (1'b1),
+    .TX8B10BEN                      (1'b0),
     .LOOPBACK                       (3'd0),
     .PHYSTATUS                      (),
     .RXRATE                         (3'd0),
@@ -543,17 +642,17 @@ gtx(
     .RXCDRRESET                     (1'b0),
     .RXCDRRESETRSV                  (1'b0),
     .RXCLKCORCNT                    (),
-    .RX8B10BEN                      (1'b1),
+    .RX8B10BEN                      (1'b0),
     .RXUSRCLK                       (rxusrclk),
     .RXUSRCLK2                      (rxusrclk2),
-    .RXDATA                         (rxdata),
+    .RXDATA                         (rxdata_gtx),
     .RXPRBSERR                      (),
     .RXPRBSSEL                      (3'd0),
     .RXPRBSCNTRESET                 (1'b0),
     .RXDFEXYDEN                     (1'b1),
     .RXDFEXYDHOLD                   (1'b0),
     .RXDFEXYDOVRDEN                 (1'b0),
-    .RXDISPERR                      (),
+    .RXDISPERR                      (rxdisperr_gtx),
     .RXNOTINTABLE                   (),
     .GTXRXP                         (rxp),
     .GTXRXN                         (rxn),
@@ -574,7 +673,7 @@ gtx(
     .RXPHOVRDEN                     (1'b0),
     .RXPHSLIPMONITOR                (),
     .RXSTATUS                       (),
-    .RXBYTEISALIGNED                (rxbyteisaligned),
+    .RXBYTEISALIGNED                (),
     .RXBYTEREALIGN                  (),
     .RXCOMMADET                     (),
     .RXCOMMADETEN                   (1'b1),
@@ -616,7 +715,7 @@ gtx(
     .RXOSHOLD                       (1'b0),
     .RXOSOVRDEN                     (1'b0),
     .RXRATEDONE                     (),
-    .RXOUTCLK                       (),
+    .RXOUTCLK                       (xclk),
     .RXOUTCLKFABRIC                 (),
     .RXOUTCLKPCS                    (),
     .RXOUTCLKSEL                    (3'b010),
@@ -631,16 +730,16 @@ gtx(
     .RXPMARESET                     (1'b0),//rxreset), // p78
     .RXLPMEN                        (1'b0),
     .RXCOMSASDET                    (),
-    .RXCOMWAKEDET                   (rxcomwakedet),
-    .RXCOMINITDET                   (rxcominitdet),
+    .RXCOMWAKEDET                   (rxcomwakedet_gtx),
+    .RXCOMINITDET                   (rxcominitdet_gtx),
     .RXELECIDLE                     (rxelecidle),
     .RXELECIDLEMODE                 (2'b00),
     .RXPOLARITY                     (1'b0),
     .RXSLIDE                        (1'b0),
     .RXCHARISCOMMA                  (),
-    .RXCHARISK                      (rxcharisk),
+    .RXCHARISK                      (rxcharisk_gtx),
     .RXCHBONDI                      (5'b00000),
-    .RXRESETDONE                    (rxresetdone),
+    .RXRESETDONE                    (rxresetdone_gtx),
     .RXQPIEN                        (1'b0),
     .RXQPISENN                      (),
     .RXQPISENP                      (),
@@ -658,10 +757,10 @@ gtx(
     .TXUSERRDY                      (txuserrdy),
     .GTRESETSEL                     (1'b0),
     .RESETOVRD                      (1'b0),
-    .TXCHARDISPMODE                 (8'd0),
-    .TXCHARDISPVAL                  (8'd0),
+    .TXCHARDISPMODE                 (txchardispmode_gtx),
+    .TXCHARDISPVAL                  (txchardispval_gtx),
     .TXUSRCLK                       (txusrclk),
-    .TXUSRCLK2                      (txusrclk2),
+    .TXUSRCLK2                      (txusrclk),
     .TXELECIDLE                     (txelecidle),
     .TXMARGIN                       (3'd0),
     .TXRATE                         (3'd0),
@@ -690,7 +789,7 @@ gtx(
     .TXINHIBIT                      (1'b0),
     .TXMAINCURSOR                   (7'b0000000),
     .TXPISOPD                       (1'b0),
-    .TXDATA                         ({32'h0, txdata}),
+    .TXDATA                         (txdata_gtx),
     .GTXTXN                         (txn),
     .GTXTXP                         (txp),
     .TXOUTCLK                       (txoutclk),
@@ -698,44 +797,25 @@ gtx(
     .TXOUTCLKPCS                    (),
     .TXOUTCLKSEL                    (3'b010),
     .TXRATEDONE                     (),
-    .TXCHARISK                      ({4'b0, txcharisk}),
+    .TXCHARISK                      (txcharisk_gtx),
     .TXGEARBOXREADY                 (),
     .TXHEADER                       (3'd0),
     .TXSEQUENCE                     (7'd0),
     .TXSTARTSEQ                     (1'b0),
     .TXPCSRESET                     (txpcsreset),
     .TXPMARESET                     (1'b0),
-    .TXRESETDONE                    (txresetdone),
-    .TXCOMFINISH                    (txcomfinish),
-    .TXCOMINIT                      (txcominit),
+    .TXRESETDONE                    (txresetdone_gtx),
+    .TXCOMFINISH                    (),
+    .TXCOMINIT                      (txcominit_gtx),
     .TXCOMSAS                       (1'b0),
-    .TXCOMWAKE                      (txcomwake),
+    .TXCOMWAKE                      (txcomwake_gtx),
     .TXPDELECIDLEMODE               (1'b0),
     .TXPOLARITY                     (1'b0),
     .TXDETECTRX                     (1'b0),
     .TX8B10BBYPASS                  (8'd0),
     .TXPRBSSEL                      (3'd0),
     .TXQPISENN                      (),
-    .TXQPISENP                      ()/*,
-    .TXSYNCMODE                     (1'b0),
-    .TXSYNCALLIN                    (1'b0),
-    .TXSYNCIN                       (1'b0)*/
+    .TXQPISENP                      ()
 );
-
-/*
- * Interfaces
- */
-assign  cplllockdetclk  = gtrefclk; //TODO
-assign  drpclk          = gtrefclk;
-
-assign  clk             = usrclk2;
-assign  rxn             = rxn_in;
-assign  rxp             = rxp_in;
-assign  txn_out         = txn;
-assign  txp_out         = txp;
-assign  ll_data_out     = rxdata_out;
-assign  ll_charisk_out  = rxcharisk_out;
-assign  txdata_in       = ll_data_in;
-assign  txcharisk_in    = ll_charisk_in;
 
 endmodule

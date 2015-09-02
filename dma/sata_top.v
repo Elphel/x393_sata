@@ -537,7 +537,8 @@ V    .MEMBRIDGE_ADDR         (),
     .FRAME_HEIGHT_BITS      (),
     .FRAME_WIDTH_BITS       ()
 )*/ membridge(
-    .rst                    (rst), // input
+    .mrst                   (rst), // input
+    .hrst                   (rst), // input
     .mclk                   (hclk), // input
     .hclk                   (hclk), // input
     .cmd_ad                 (cmd_ad),
@@ -604,9 +605,10 @@ V    .MEMBRIDGE_ADDR         (),
     .afi_rresp              (afi_rresp), // input[2:0] 
     .afi_rcount             (afi_rcount), // input[7:0] 
     .afi_racount            (afi_racount), // input[2:0] 
-    .afi_rdissuecap1en      (afi_rdissuecap1en), // output
-    .rdata_done             (rdata_done)
+    .afi_rdissuecap1en      (afi_rdissuecap1en)/*, // output
+    .rdata_done             (rdata_done)*/
 );
+assign rdata_done = 1'b0;
 
 sata_host sata_host(
     .extrst                     (rst),

@@ -88,7 +88,7 @@ axibram_write #(
 )
 axibram_write(
     .aclk           (ACLK),
-    .rst            (ARESETN),
+    .arst           (ARESETN),
     .awaddr         (AWADDR),
     .awvalid        (AWVALID),
     .awready        (AWREADY),
@@ -120,7 +120,7 @@ axibram_read #(
 )
 axibram_read(
     .aclk           (ACLK),
-    .rst            (ARESETN),
+    .arst           (ARESETN),
     .araddr         (ARADDR),
     .arvalid        (ARVALID),
     .arready        (ARREADY),

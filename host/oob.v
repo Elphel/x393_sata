@@ -41,9 +41,12 @@ module oob #(
     output  wire    txcominit,
     output  wire    txcomwake,
     output  wire    txelecidle,
-
+    // partial tx reset
     output  wire    txpcsreset_req,
     input   wire    recal_tx_done,
+    // rx reset (after rxelecidle -> 0)
+    output  wire    rxreset_req,
+    input   wire    rxreset_ack,
 
     // input data stream (if any data during OOB setting => ignored)
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
@@ -140,11 +143,21 @@ reg     [9:0]   rxcom_timer;
 localparam  COMINIT_DONE_TIME = 896; // 300Mhz cycles
 localparam  COMWAKE_DONE_TIME = 448; // 300Mhz cycles
 
+// wait until rxelecidle is not stable (more or less) deasserted
+// let's say, if rxelecidle = 0 longer, than 2 comwake burst duration (2 * 106.7 ns), elecidle is stable and we're receiving some data
+// 2 * 106.7ns = 64 clock cycles @ 300 MHz, 32 @ 150, 16 @ 75
+// rxelecidle is synchronous to sata host clk, sooo some idle raises can occur insensibly. Still, it means line issues, 
+// not affecting the fact, oob was done and a stage when device sends alignps started
+reg [7:0]   eidle_timer;
+wire        eidle_timer_done;
+
 // fsm, doc p265,266
 wire    state_idle;
 reg     state_wait_cominit;
 reg     state_wait_comwake;
 reg     state_recal_tx;
+reg     state_wait_eidle;
+reg     state_wait_rxrst;
 reg     state_wait_align;
 reg     state_wait_synp;
 reg     state_wait_linkup;
@@ -153,6 +166,8 @@ reg     state_error;
 wire    set_wait_cominit;
 wire    set_wait_comwake;
 wire    set_recal_tx;
+wire    set_wait_eidle;
+wire    set_wait_rxrst;
 wire    set_wait_align;
 wire    set_wait_synp;
 wire    set_wait_linkup;
@@ -160,6 +175,8 @@ wire    set_error;
 wire    clr_wait_cominit;
 wire    clr_wait_comwake;
 wire    clr_recal_tx;
+wire    clr_wait_eidle;
+wire    clr_wait_rxrst;
 wire    clr_wait_align;
 wire    clr_wait_synp;
 wire    clr_wait_linkup;
@@ -171,6 +188,8 @@ begin
     state_wait_cominit  <= (state_wait_cominit | set_wait_cominit) & ~clr_wait_cominit & ~rst;
     state_wait_comwake  <= (state_wait_comwake | set_wait_comwake) & ~clr_wait_comwake & ~rst;
     state_recal_tx      <= (state_recal_tx     | set_recal_tx    ) & ~clr_recal_tx     & ~rst;
+    state_wait_eidle    <= (state_wait_eidle   | set_wait_eidle  ) & ~clr_wait_eidle   & ~rst;
+    state_wait_rxrst    <= (state_wait_rxrst   | set_wait_rxrst  ) & ~clr_wait_rxrst   & ~rst;
     state_wait_align    <= (state_wait_align   | set_wait_align  ) & ~clr_wait_align   & ~rst;
     state_wait_synp     <= (state_wait_synp    | set_wait_synp   ) & ~clr_wait_synp    & ~rst;
     state_wait_linkup   <= (state_wait_linkup  | set_wait_linkup ) & ~clr_wait_linkup  & ~rst;
@@ -180,13 +199,17 @@ end
 assign  set_wait_cominit = state_idle & oob_start & ~cominit_req;
 assign  set_wait_comwake = state_idle & cominit_req_l & cominit_allow & rxcominit_done | state_wait_cominit & rxcominitdet_l & rxcominit_done;
 assign  set_recal_tx     = state_wait_comwake & rxcomwakedet_l & rxcomwake_done;
-assign  set_wait_align   = state_recal_tx & recal_tx_done;
+assign  set_wait_eidle   = state_recal_tx & recal_tx_done;
+assign  set_wait_rxrst   = state_wait_eidle & eidle_timer_done;
+assign  set_wait_align   = state_wait_rxrst & rxreset_ack;
 assign  set_wait_synp    = state_wait_align & detected_alignp;
 assign  set_wait_linkup  = state_wait_synp & detected_syncp;
-assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
+assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_recal_tx | state_wait_eidle | state_wait_rxrst | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
 assign  clr_wait_cominit = set_wait_comwake | set_error;
 assign  clr_wait_comwake = set_recal_tx | set_error;
-assign  clr_recal_tx     = set_wait_align | set_error;
+assign  clr_recal_tx     = set_wait_eidle | set_error;
+assign  clr_wait_eidle   = set_wait_rxrst | set_error;
+assign  clr_wait_rxrst   = set_wait_align | set_error;
 assign  clr_wait_align   = set_wait_synp | set_error;
 assign  clr_wait_synp    = set_wait_linkup | set_error;
 assign  clr_wait_linkup  = state_wait_linkup; //TODO not so important, but still have to trace 3 back-to-back non alignp primitives
@@ -215,6 +238,9 @@ assign  oob_busy = ~state_idle;
 
 // ask for recalibration
 assign  txpcsreset_req = state_recal_tx;
+
+// ask for rxreset
+assign  rxreset_req = state_wait_rxrst;
 
 // set gtx controls
 reg     txelecidle_r;
@@ -371,5 +397,11 @@ always @ (posedge clk)
 // set data outputs to gtx
 assign  txdata_out    = txdata;
 assign  txcharisk_out = txcharisk;
+
+// rxelectidle timer logic
+assign  eidle_timer_done = eidle_timer == 64;
+always @ (posedge clk)
+    eidle_timer <= rst | rxelecidle | ~state_wait_eidle ? 8'b0 : eidle_timer + CLK_TO_TIMER_CONTRIB;
+
 
 endmodule
