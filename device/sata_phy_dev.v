@@ -60,7 +60,15 @@ wire    [31:0]  txdata_oob;
 wire    [3:0]   txcharisk;
 wire    [3:0]   txcharisk_oob;
 wire    [63:0]  rxdata;
-wire    [3:0]   rxcharisk;
+wire    [63:0]  rxdata_gtx;
+wire    [7:0]   rxcharisk;
+wire    [7:0]   rxcharisk_gtx;
+wire    [7:0]   rxchariscomma;
+wire    [7:0]   rxchariscomma_gtx;
+wire    [7:0]   rxdisperr;
+wire    [7:0]   rxdisperr_gtx;
+wire    [7:0]   rxnotintable;
+wire    [7:0]   rxnotintable_gtx;
 wire    [31:0]  rxdata_out;
 wire    [31:0]  txdata_in;
 wire    [3:0]   txcharisk_in;
@@ -546,15 +554,15 @@ gtx(
     .RX8B10BEN                      (1'b1),
     .RXUSRCLK                       (rxusrclk),
     .RXUSRCLK2                      (rxusrclk2),
-    .RXDATA                         (rxdata),
+    .RXDATA                         (rxdata_gtx),
     .RXPRBSERR                      (),
     .RXPRBSSEL                      (3'd0),
     .RXPRBSCNTRESET                 (1'b0),
     .RXDFEXYDEN                     (1'b1),
     .RXDFEXYDHOLD                   (1'b0),
     .RXDFEXYDOVRDEN                 (1'b0),
-    .RXDISPERR                      (),
-    .RXNOTINTABLE                   (),
+    .RXDISPERR                      (rxdisperr_gtx),
+    .RXNOTINTABLE                   (rxnotintable_gtx),
     .GTXRXP                         (rxp),
     .GTXRXN                         (rxn),
     .RXBUFRESET                     (1'b0),
@@ -637,8 +645,8 @@ gtx(
     .RXELECIDLEMODE                 (2'b00),
     .RXPOLARITY                     (1'b0),
     .RXSLIDE                        (1'b0),
-    .RXCHARISCOMMA                  (),
-    .RXCHARISK                      (rxcharisk),
+    .RXCHARISCOMMA                  (rxchariscomma_gtx),
+    .RXCHARISK                      (rxcharisk_gtx),
     .RXCHBONDI                      (5'b00000),
     .RXRESETDONE                    (rxresetdone),
     .RXQPIEN                        (1'b0),
@@ -721,6 +729,16 @@ gtx(
     .TXSYNCALLIN                    (1'b0),
     .TXSYNCIN                       (1'b0)*/
 );
+
+// align to 4-byte boundary
+reg twobytes_shift;
+always @ (posedge clk)
+    twobytes_shift <= rst ? 1'b0 : rxchariscomma_gtx[0] === 1'bx ? 1'b0 : rxchariscomma_gtx[2] === 1'bx ? 1'b0 : rxchariscomma_gtx[2] ? 1'b1 : rxchariscomma_gtx[0] ? 1'b0 : twobytes_shift;
+assign  rxdata          = twobytes_shift ? {rxdata_gtx[63:32]     , rxdata_gtx[15:0]      , rxdata_gtx[31:16]     } : rxdata_gtx;
+assign  rxcharisk       = twobytes_shift ? {rxcharisk_gtx[7:4]    , rxcharisk_gtx[1:0]    , rxcharisk_gtx[3:2]    } : rxcharisk_gtx;
+assign  rxchariscomma   = twobytes_shift ? {rxchariscomma_gtx[7:4], rxchariscomma_gtx[1:0], rxchariscomma_gtx[3:2]} : rxchariscomma_gtx;
+assign  rxdisperr       = twobytes_shift ? {rxdisperr_gtx[7:4]    , rxdisperr_gtx[1:0]    , rxdisperr_gtx[3:2]    } : rxdisperr_gtx;
+assign  rxnotintable    = twobytes_shift ? {rxnotintable_gtx[7:4] , rxnotintable_gtx[1:0] , rxnotintable_gtx[3:2] } : rxnotintable_gtx;
 
 /*
  * Interfaces

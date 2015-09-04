@@ -30,6 +30,8 @@
  */
  module sata_top(
     output  wire    sclk,
+    output  wire    sata_rst,
+    input   wire    extrst,
 /*
  * Commands interface
  */
@@ -146,7 +148,7 @@
     input   wire            EXTCLK_N
  );
 
-wire    sata_rst;
+//wire    sata_rst;
 // dma_regs <-> sata host
 // tmp to cmd control
 wire            cmd_val_out;
@@ -223,7 +225,7 @@ wire                bram_wen;
 wire                bram_ren;
 wire                bram_regen;
 // sata logic reset
-wire            rst;
+//wire            rst;
 // sata clk
 //wire            sclk;
 // dma_regs <-> dma_control
@@ -284,7 +286,7 @@ wire    [63:0]  buf_rdata;
 // additional adapter <-> membridge wire
 wire            rdata_done; // = membridge.is_last_in_page & membridge.afi_rready;
 
-assign  rst = ARESETN;
+//assign  rst = ARESETN;
 
 
 axi_regs axi_regs(
@@ -344,7 +346,7 @@ axi_regs axi_regs(
  * Programmable sata controller registers
  */
 dma_regs dma_regs(
-    .rst            (rst),
+    .rst            (sata_rst),
     .ACLK           (ACLK),
     .sclk           (sclk),
 // control iface
@@ -436,7 +438,7 @@ dma_regs dma_regs(
 dma_control dma_control(
     .sclk               (sclk),
     .hclk               (hclk),
-    .rst                (rst),
+    .rst                (sata_rst),
 
     // registers iface
     .mem_address        (mem_address),
@@ -484,7 +486,7 @@ dma_control dma_control(
 
 dma_adapter dma_adapter(
     .clk                    (hclk),
-    .rst                    (rst),
+    .rst                    (sata_rst),
 // command iface                            
     .cmd_type               (adp_type),
     .cmd_val                (adp_val),
@@ -537,8 +539,8 @@ V    .MEMBRIDGE_ADDR         (),
     .FRAME_HEIGHT_BITS      (),
     .FRAME_WIDTH_BITS       ()
 )*/ membridge(
-    .mrst                   (rst), // input
-    .hrst                   (rst), // input
+    .mrst                   (sata_rst), // input
+    .hrst                   (ARESETN), // input
     .mclk                   (hclk), // input
     .hclk                   (hclk), // input
     .cmd_ad                 (cmd_ad),
@@ -611,7 +613,7 @@ V    .MEMBRIDGE_ADDR         (),
 assign rdata_done = 1'b0;
 
 sata_host sata_host(
-    .extrst                     (rst),
+    .extrst                     (extrst),
     // sata rst
     .rst                        (sata_rst),
     // sata clk

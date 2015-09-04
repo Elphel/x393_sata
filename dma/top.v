@@ -43,6 +43,8 @@ wire [32*REGISTERS_CNT - 1:0] outmem;
 wire clrstart;
 
 wire            sclk;
+wire            sata_rst;
+wire            extrst;
 wire    [3:0]   fclk;
 wire    [3:0]   frst;
 wire            axi_aclk;
@@ -166,6 +168,7 @@ end
 BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
 BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
+BUFG bufg_extrst_i    (.O(extrst),.I(axi_rst_pre));
 axi_hp_clk #(
     .CLKIN_PERIOD(6.666),
     .CLKFBOUT_MULT_AXIHP(6),
@@ -179,8 +182,10 @@ axi_hp_clk #(
 
 sata_top sata_top(
     .sclk                       (sclk),
+    .sata_rst                   (sata_rst),
+    .extrst                     (extrst),
     .ACLK                       (axi_aclk),
-    .ARESETN                    (axi_rst),
+    .ARESETN                    (axi_rst | sata_rst),
 // AXI PS Master GP1: Read Address    
     .ARADDR                     (ARADDR),
     .ARVALID                    (ARVALID),

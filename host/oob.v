@@ -182,7 +182,7 @@ wire    clr_wait_synp;
 wire    clr_wait_linkup;
 wire    clr_error;
 
-assign  state_idle = ~state_wait_cominit & ~state_wait_comwake & ~state_wait_align & ~state_wait_synp & ~state_wait_linkup & ~state_error & ~state_recal_tx;
+assign  state_idle = ~state_wait_cominit & ~state_wait_comwake & ~state_wait_align & ~state_wait_synp & ~state_wait_linkup & ~state_error & ~state_recal_tx & ~state_wait_rxrst & ~state_wait_eidle;
 always @ (posedge clk)
 begin
     state_wait_cominit  <= (state_wait_cominit | set_wait_cominit) & ~clr_wait_cominit & ~rst;
@@ -390,6 +390,24 @@ generate
             $finish;
         end
 endgenerate
+
+`ifdef SIMULATION
+// info msgs
+always @ (posedge clk) 
+begin
+    if (txcominit) begin
+        $display("[Host] OOB: Issued cominit");
+    end
+    if (txcomwake) begin
+        $display("[Host] OOB: Issued comwake");
+    end
+    if (state_wait_linkup) begin
+        $display("[Host] OOB: Link is up");
+    end
+    if (set_wait_synp) begin
+        $display("[Host] OOB: Started continious align sending");
+    end
+end
 
 always @ (posedge clk)
     rxcom_timer <= rst | rxcominit_done & state_wait_cominit | rxcomwake_done & state_wait_comwake | rxcominitdet & state_wait_cominit | rxcomwakedet & state_wait_comwake ? 10'h0 : cominit_req_l & state_idle | rxcominitdet_l & state_wait_cominit | rxcomwakedet_l & state_wait_comwake ? rxcom_timer + CLK_TO_TIMER_CONTRIB : 10'h0;

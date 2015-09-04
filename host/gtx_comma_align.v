@@ -21,6 +21,10 @@
 module gtx_comma_align(
     input   wire            rst,
     input   wire            clk,
+    // input data comes this way (standart 8/10 bit notation)
+    // cycle 0: {[hgfedcba]=1st byte,[hgfedcba]=0st byte}
+    // cycle 1: {[hgfedcba]=3rd byte,[hgfedcba]=2dn byte}
+    // => {[cycle1 data], [cycle0 data]} = as if we were reading by dwords
     input   wire    [19:0]  indata,
     output  wire    [19:0]  outdata,
     // outdata contains comma
@@ -67,7 +71,7 @@ reg     [19:0] indata_r;
 wire    [38:0] window;
 always @ (posedge clk)
     indata_r <= indata;
-assign  window = {indata_r, indata};
+assign  window = {indata, indata_r};
 
 // there is only 1 matched subwindow due to 20-bit comma's non-repetative pattern
 wire    [19:0]  subwindow [19:0];
@@ -81,7 +85,9 @@ generate
     for (ii = 0; ii < 20; ii = ii + 1)
     begin: look_for_comma
         assign  subwindow[ii]   = window[ii + 19:ii];
-        assign  comma_match[ii] = subwindow[ii] == 20'b01010101010011111010;
+//        assign  comma_match[ii] = subwindow[ii] == 20'b01010101010011111010 | subwindow[ii] == 20'b01010101011100000101;
+        // stream comes inverted
+        assign  comma_match[ii] = subwindow[ii] == 20'b10101010100101111100 | subwindow[ii] == 20'b10101010101010000011;
     end
 endgenerate
 
@@ -89,7 +95,7 @@ assign  comma_detected = |comma_match;
 
 // save the shift count
 always @ (posedge clk)
-    comma_match_prev <= rst ? 20'h0 : comma_detected ? comma_match : comma_match_prev;
+    comma_match_prev <= rst ? 20'h1 : comma_detected ? comma_match : comma_match_prev;
 // shift
 wire    [38:0] shifted_window;
 assign  shifted_window = comma_detected ? {window >> (comma_match - 1)} : {window >> (comma_match_prev - 1)};

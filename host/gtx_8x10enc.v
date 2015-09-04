@@ -65,8 +65,8 @@ always @ (posedge clk)
 
 
 // select encoded bytes depending on a previous disparity
-assign  enc0 = ~disparity & table0[19:10] | disparity & table0[9:0];
-assign  enc1 = ~disparity_interm & table1[19:10] | disparity_interm & table1[9:0];
+assign  enc0 = {10{~disparity}} & table0[19:10] | {10{disparity}} & table0[9:0];
+assign  enc1 = {10{~disparity_interm}} & table1[19:10] | {10{disparity_interm}} & table1[9:0];
 
 // latch output data
 reg [19:0]  outdata_l;

@@ -74,6 +74,10 @@ module gtx_wrap #(
     output  wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr
 );
 
+// resets while PCS resets
+assign  wrap_rxreset_ = rxuserrdy & rxresetdone_gtx;
+assign  wrap_txreset_ = txuserrdy & txresetdone_gtx;
+
 wire    [63:0]  rxdata_gtx;
 wire    [7:0]   rxcharisk_gtx;
 wire    [7:0]   rxdisperr_gtx;
@@ -98,8 +102,8 @@ assign  txchardispval_gtx   = {6'h0, txdata_enc_out[18], txdata_enc_out[8]};
 // Interface part
 /*
     input   wire    cpllreset,  - async
-    input   wire    rxuserrdy,  - async
-    input   wire    txuserrdy,  - async
+    input   wire    wrap_rxreset_,  - async
+    input   wire    wrap_txreset_,  - async
     input   wire    rxreset,    - async
     input   wire    txreset,    - async
     input   wire    txelecidle, - txusrclk2 - need to resync to gtx iface clk - txusrclk
@@ -124,12 +128,12 @@ if (DATA_BYTE_WIDTH == 4) begin
     wire    [38:0] txdata_resync_out;
     reg     [35:0] txdata_resync;
 
-    assign  txdata_enc_in       = {16{~txdata_resync_strobe}} & txdata_resync[15:0] | {16{txdata_resync_strobe}} & txdata_resync[33:18];
-    assign  txcharisk_enc_in   = {2{~txdata_resync_strobe}} & txdata_resync[17:16] | {2{txdata_resync_strobe}} & txdata_resync[35:34];
+    assign  txdata_enc_in       = {16{~txdata_resync_strobe}} & txdata_resync[15:0] | {16{txdata_resync_strobe}} & txdata_resync[31:16];
+    assign  txcharisk_enc_in   = {2{~txdata_resync_strobe}} & txdata_resync[33:32] | {2{txdata_resync_strobe}} & txdata_resync[35:34];
     always @ (posedge txusrclk)
     begin
-        txdata_resync        <= ~txuserrdy ? 36'h0 : txdata_resync_nempty & txdata_resync_strobe ? txdata_resync_out[35:0] : txdata_resync;
-        txdata_resync_strobe <= ~txuserrdy ? 1'b0  : ~txdata_resync_nempty ? txdata_resync_strobe : ~txdata_resync_strobe; // -> 1 once every resynced dword = signal to latch it
+        txdata_resync        <= ~wrap_txreset_ ? 36'h0 : txdata_resync_nempty & txdata_resync_strobe ? txdata_resync_out[35:0] : txdata_resync;
+        txdata_resync_strobe <= ~wrap_txreset_ ? 1'b0  : ~txdata_resync_nempty ? txdata_resync_strobe : ~txdata_resync_strobe; // -> 1 once every resynced dword = signal to latch it
     end
 
     // nempty_rr & nempty => shall be at least 2 elements in fifo - safe to read
@@ -155,8 +159,8 @@ if (DATA_BYTE_WIDTH == 4) begin
         .half_empty ()
     );
 
-    assign  txcominit_gtx  = txdata_resync_out[36];
-    assign  txcomwake_gtx  = txdata_resync_out[37];
+    assign  txcomwake_gtx  = txdata_resync_out[36];
+    assign  txcominit_gtx  = txdata_resync_out[37];
     assign  txelecidle_gtx = txdata_resync_out[38];
 end
 else
@@ -179,7 +183,7 @@ endgenerate
 
 // 8/10 encoder @ txusrclk, 16 + 1 bits -> 20
 gtx_8x10enc gtx_8x10enc(
-    .rst        (~txuserrdy),
+    .rst        (~wrap_txreset_),
     .clk        (txusrclk),
     .indata     (txdata_enc_in),
     .inisk      (txcharisk_enc_in),
@@ -195,7 +199,7 @@ wire    xclk;
 // comma aligner
 wire    [19:0]  rxdata_comma_in;
 wire    [19:0]  rxdata_comma_out;
-assign  rxdata_comma_in = {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata[7:0]};
+assign  rxdata_comma_in = {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata_gtx[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata_gtx[7:0]};
 
 // aligner status generation
 // if we detected comma & there was 1st realign after non-aligned state -> triggered, we wait until the next comma
@@ -218,12 +222,12 @@ assign  clr_triggered   = realign;
 
 always @ (posedge xclk)
 begin
-    state_aligned   <= (set_aligned   | state_aligned  ) & rxuserrdy & ~clr_aligned; 
-    state_triggered <= (set_triggered | state_triggered) & rxuserrdy & ~clr_triggered; 
+    state_aligned   <= (set_aligned   | state_aligned  ) & wrap_rxreset_ & ~clr_aligned; 
+    state_triggered <= (set_triggered | state_triggered) & wrap_rxreset_ & ~clr_triggered; 
 end
 
 gtx_comma_align gtx_comma_align(
-    .rst        (~rxuserrdy),
+    .rst        (~wrap_rxreset_),
     .clk        (xclk),
     .indata     (rxdata_comma_in),
     .outdata    (rxdata_comma_out),
@@ -240,7 +244,7 @@ wire    [1:0]   rxnotintable_dec_out;
 wire    [1:0]   rxdisperr_dec_out;
 
 gtx_10x8dec gtx_10x8dec(
-    .rst        (~rxuserrdy),
+    .rst        (~wrap_rxreset_),
     .clk        (xclk),
     .indata     (rxdata_comma_out),
     .outdata    (rxdata_dec_out),
@@ -262,7 +266,7 @@ gtx_elastic #(
     .OFFSET     (4)
 )
 gtx_elastic(
-    .rst            (~rxuserrdy),
+    .rst            (~wrap_rxreset_),
     .wclk           (xclk),
     .rclk           (rxusrclk),
 
@@ -306,6 +310,8 @@ generate
 if (DATA_BYTE_WIDTH == 4) begin
     // resync to rxusrclk
     // Fin = 2*Fout => 2*WIDTHin = WIDTHout
+    // first data word arrived = last word of a primitive, second arrived - first one
+    // lword_strobe indicates that second data word is arrived
     wire    rxdata_resync_nempty;
     reg     rxdata_resync_nempty_r;
     wire    rxdata_resync_strobe;
@@ -328,7 +334,7 @@ if (DATA_BYTE_WIDTH == 4) begin
                                 rxdata_els_out,                        // 16
                                 rxdata_resync_buf[21:0]};              // 22 / 51 total
     always @ (posedge rxusrclk)
-        rxdata_resync_buf    <= ~rxuserrdy ? 36'h0 : rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
+        rxdata_resync_buf    <= ~wrap_rxreset_ ? 36'h0 : ~rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
 
     always @ (posedge rxusrclk2)
         rxdata_resync_nempty_r <= rxdata_resync_nempty;
@@ -338,10 +344,10 @@ if (DATA_BYTE_WIDTH == 4) begin
       .DATA_DEPTH (4)
     )
     rxdata_resynchro(
-        .rst        (~rxuserrdy),
+        .rst        (~wrap_rxreset_),
         .rclk       (rxusrclk2),
         .wclk       (rxusrclk),
-        .we         (1'b1),
+        .we         (rxdata_resync_strobe),
         .re         (rxdata_resync_nempty & rxdata_resync_nempty_r),
         .data_in    (rxdata_resync_in),
         .data_out   (rxdata_resync_out),
@@ -355,10 +361,10 @@ if (DATA_BYTE_WIDTH == 4) begin
     assign  txresetdone     = rxdata_resync_out[46];
     assign  rxelsfull       = rxdata_resync_out[45];
     assign  rxelsempty      = rxdata_resync_out[44];
-    assign  rxdisperr       = {rxdata_resync_out[43:42], rxdata_resync_out[21:20]};
+    assign  rxdisperr       = {rxdata_resync_out[43:42], rxdata_resync_out[20:20]};
     assign  rxnotintable    = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
     assign  rxcharisk       = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
-    assign  rxdata          = {rxdata_resync_out[37:22], rxdata_resync_out[15:0]};
+    assign  rxdata          = {rxdata_resync_out[37:22], rxdata_resync_out[15:0] };
 end
 else
 if (DATA_BYTE_WIDTH == 2) begin
@@ -474,7 +480,7 @@ GTXE2_CHANNEL #(
     .RXBUF_ADDR_MODE                        ("FAST"),
     .RXBUF_EIDLE_HI_CNT                     (4'b1000),
     .RXBUF_EIDLE_LO_CNT                     (4'b0000),
-    .RXBUF_EN                               ("TRUE"),
+    .RXBUF_EN                               ("FALSE"),
     .RX_BUFFER_CFG                          (6'b000000),
     .RXBUF_RESET_ON_CB_CHANGE               ("TRUE"),
     .RXBUF_RESET_ON_COMMAALIGN              ("FALSE"),
@@ -644,7 +650,7 @@ gtx(
     .RXCLKCORCNT                    (),
     .RX8B10BEN                      (1'b0),
     .RXUSRCLK                       (rxusrclk),
-    .RXUSRCLK2                      (rxusrclk2),
+    .RXUSRCLK2                      (rxusrclk),
     .RXDATA                         (rxdata_gtx),
     .RXPRBSERR                      (),
     .RXPRBSSEL                      (3'd0),
@@ -676,9 +682,9 @@ gtx(
     .RXBYTEISALIGNED                (),
     .RXBYTEREALIGN                  (),
     .RXCOMMADET                     (),
-    .RXCOMMADETEN                   (1'b1),
-    .RXMCOMMAALIGNEN                (1'b1),
-    .RXPCOMMAALIGNEN                (1'b1),
+    .RXCOMMADETEN                   (1'b0),
+    .RXMCOMMAALIGNEN                (1'b0),
+    .RXPCOMMAALIGNEN                (1'b0),
     .RXCHANBONDSEQ                  (),
     .RXCHBONDEN                     (1'b0),
     .RXCHBONDLEVEL                  (3'd0),

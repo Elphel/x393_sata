@@ -51,9 +51,9 @@ wire    [22:0]  indata;
 wire    [22:0]  outdata;
 assign  indata          = {isaligned_in, notintable_in, disperror_in, charisk_in, data_in};
 assign  isaligned_out   = outdata[22];
-assign  charisk_out     = outdata[21:20];
-assign  notintable_out  = outdata[19:18];
-assign  disperror_out   = outdata[17:16];
+assign  notintable_out  = outdata[21:20];
+assign  disperror_out   = outdata[19:18];
+assign  charisk_out     = outdata[17:16];
 assign  data_out        = outdata[15:0];
 
 localparam HI = DEPTH_LOG2 - 1; // hi bus index
@@ -61,7 +61,7 @@ localparam HI = DEPTH_LOG2 - 1; // hi bus index
  * buffer itself
  */
 // data storage
-reg     [22:0]  ram [HI:0];
+reg     [22:0]  ram [(1 << DEPTH_LOG2) - 1:0];
 // data to/from fifo
 wire    [22:0]  inram;
 wire    [22:0]  outram;
@@ -105,26 +105,26 @@ end
 // write address -> rclk (rd) domain to compare 
 always @ (posedge rclk)
 begin
-    wr_addr_gr_r   <= rst ? {DEPTH_LOG2{1'b0}} : wr_addr;
+    wr_addr_gr_r   <= rst ? {DEPTH_LOG2{1'b0}} : wr_addr_gr;
     wr_addr_gr_rr  <= rst ? {DEPTH_LOG2{1'b0}} : wr_addr_gr_r;
 end
 // read address -> wclk (wr) domain to compare 
 always @ (posedge wclk)
 begin
-    rd_addr_gr_r   <= rst ? {DEPTH_LOG2{1'b0}} : rd_addr;
+    rd_addr_gr_r   <= rst ? {DEPTH_LOG2{1'b0}} : rd_addr_gr;
     rd_addr_gr_rr  <= rst ? {DEPTH_LOG2{1'b0}} : rd_addr_gr_r;
 end
 // translate resynced write address into ordinary (non-gray) address
 genvar ii;
 generate
-for (ii = 0; ii < HI; ii = ii + 1)
+for (ii = 0; ii <= HI; ii = ii + 1)
 begin: wr_antigray
     assign  wr_addr_r[ii] = ^wr_addr_gr_rr[HI:ii];
 end
 endgenerate
 // translate resynced read address into ordinary (non-gray) address
 generate
-for (ii = 0; ii < HI; ii = ii + 1)
+for (ii = 0; ii <= HI; ii = ii + 1)
 begin: rd_antigray
     assign  rd_addr_r[ii] = ^rd_addr_gr_rr[HI:ii];
 end
@@ -310,7 +310,7 @@ begin
     state_send_ack    <= (state_send_ack    | set_send_ack   ) & ~clr_send_ack    & ~rst;
 end
 
-assign  skip_write  = ~set_skip1_align & ~state_skip1_align;
+assign  skip_write  = set_skip1_align | state_skip1_align;
 assign  inram       = indata_r;
 assign  we          = ~skip_write;
 
@@ -387,12 +387,22 @@ always @ (posedge rclk)
 
 // choose 1 of 2 words of ALIGNP
 wire    [22:0]  align_word;
-assign  align_word = {outram[22], 22'h007B4A} & ~align_altern | {outram[22], 22'h014ABC} & align_altern;
+assign  align_word = {outram[22], 22'h007B4A} & {23{~align_altern}} | {outram[22], 22'h014ABC} & {23{align_altern}};
 
 // read when compensation is not issued and when fifo gets required fullfillment
 assign  re = ~pause_read & fifo_stable;
 assign  outdata = {23{~pause_read}} & outram | {23{pause_read}} & align_word;
 // indicates last cycle before the next primitive
-assign  lword_strobe = align_1st & align_2nd;
+wire    fword_strobe_correction;
+reg     fword_strobe;
+`ifdef SIMULATION
+assign  fword_strobe_correction = (align_1st === 1'bx || align_2nd === 1'bx) ? 1'b0 : align_1st & align_2nd ;
+`else
+assign  fword_strobe_correction = align_1st & align_2nd;
+`endif
+always @ (posedge rclk)
+    fword_strobe <= rst ? 1'b0 : fword_strobe_correction ? 1'b1 : lword_strobe;
+
+assign  lword_strobe = ~fword_strobe;
 
 endmodule
