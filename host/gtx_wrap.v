@@ -197,9 +197,10 @@ gtx_8x10enc gtx_8x10enc(
 wire    xclk;
 // assuming GTX interface width = 20 bits
 // comma aligner
-wire    [19:0]  rxdata_comma_in;
+reg     [19:0]  rxdata_comma_in;
 wire    [19:0]  rxdata_comma_out;
-assign  rxdata_comma_in = {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata_gtx[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata_gtx[7:0]};
+always @ (posedge xclk) 
+    rxdata_comma_in <= {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata_gtx[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata_gtx[7:0]};
 
 // aligner status generation
 // if we detected comma & there was 1st realign after non-aligned state -> triggered, we wait until the next comma

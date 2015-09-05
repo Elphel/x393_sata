@@ -92,7 +92,7 @@ always @ (posedge clk)
     retry_timer <= rst | ~(state == STATE_AWAITCOMWAKE) ? 32'h0 : retry_timer + 1'b1;
 
 reg [31:0]  wait_timer;
-assign  wait_interval_elapsed = wait_timer == 32'd1000;
+assign  wait_interval_elapsed = wait_timer == 32'd4096;
 always @ (posedge clk)
     wait_timer <= rst | ~(state == STATE_SENDALIGN) ? 32'h0 : wait_timer + 1'b1;
 

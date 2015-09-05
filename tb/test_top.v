@@ -234,7 +234,7 @@ begin
 end
 */
 initial begin
-    #100000;
+    #150000;
     $display("[Test] Failed");
     $display("============= TIMELIMIT =============");
     $finish;

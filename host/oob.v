@@ -408,6 +408,7 @@ begin
         $display("[Host] OOB: Started continious align sending");
     end
 end
+`endif
 
 always @ (posedge clk)
     rxcom_timer <= rst | rxcominit_done & state_wait_cominit | rxcomwake_done & state_wait_comwake | rxcominitdet & state_wait_cominit | rxcomwakedet & state_wait_comwake ? 10'h0 : cominit_req_l & state_idle | rxcominitdet_l & state_wait_cominit | rxcomwakedet_l & state_wait_comwake ? rxcom_timer + CLK_TO_TIMER_CONTRIB : 10'h0;

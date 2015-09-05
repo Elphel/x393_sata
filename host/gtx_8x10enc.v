@@ -37,15 +37,22 @@ assign  addr1 = {inisk[1], indata[15:8]};
 // table[i] [9:0] in case of current disparity +, [19:10] in case of -
 wire    [31:0]  table0_out;
 wire    [31:0]  table1_out;
+reg     [19:0]  table0_r;
+reg     [19:0]  table1_r;
 wire    [19:0]  table0;
 wire    [19:0]  table1;
 assign  table0 = table0_out[19:0];
 assign  table1 = table1_out[19:0];
+always @ (posedge clk)
+begin
+    table0_r <= table0;
+    table1_r <= table1;
+end
 // encoded bytes
 wire    [9:0]   enc0;
 wire    [9:0]   enc1;
-reg     [9:0]   enc0_r;
-reg     [9:0]   enc1_r;
+//reg     [9:0]   enc0_r;
+//reg     [9:0]   enc1_r;
 
 // running displarity, 0 = -, 1 = +
 reg     disparity;
@@ -65,8 +72,8 @@ always @ (posedge clk)
 
 
 // select encoded bytes depending on a previous disparity
-assign  enc0 = {10{~disparity}} & table0[19:10] | {10{disparity}} & table0[9:0];
-assign  enc1 = {10{~disparity_interm}} & table1[19:10] | {10{disparity_interm}} & table1[9:0];
+assign  enc0 = {10{~disparity}} & table0_r[19:10] | {10{disparity}} & table0_r[9:0];
+assign  enc1 = {10{~disparity_interm}} & table1_r[19:10] | {10{disparity_interm}} & table1_r[9:0];
 
 // latch output data
 reg [19:0]  outdata_l;
