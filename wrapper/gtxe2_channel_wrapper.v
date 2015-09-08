@@ -553,9 +553,9 @@ parameter   RX_CLK25_DIV                 = 6;
 parameter   TX_CLK25_DIV                 = 6;
 
 `ifdef OPEN_SOURCE_ONLY
-GTXE2_CPL gtx_gpl #(
+GTXE2_CPL #(
 `else // OPEN_SOURCE_ONLY
-GTXE2_CHANNEL gtx_unisims #(
+GTXE2_CHANNEL #(
 `endif // OPEN_SOURCE_ONLY
 // simulation common attributes, UG476 p.28
     .SIM_RESET_SPEEDUP                                          (SIM_RESET_SPEEDUP),
@@ -807,7 +807,11 @@ GTXE2_CHANNEL gtx_unisims #(
     .RX_CLK25_DIV                                               (RX_CLK25_DIV),
     .TX_CLK25_DIV                                               (TX_CLK25_DIV)
 )
-(
+`ifdef OPEN_SOURCE_ONLY
+gtx_gpl(
+`else // OPEN_SOURCE_ONLY
+gtx_unisims(
+`endif // OPEN_SOURCE_ONLY
 // clocking ports, UG476 p.37
     .CPLLREFCLKSEL                                              (CPLLREFCLKSEL),
     .GTGREFCLK                                                  (GTGREFCLK),
