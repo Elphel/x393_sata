@@ -293,7 +293,7 @@ ext_clock_buf(
     .ODIV2  ()
 );
 
-GTXE2_CHANNEL #(
+gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
     .SIM_TX_EIDLE_DRIVE_LEVEL               ("X"),
     .SIM_RESET_SPEEDUP                      ("FALSE"),
@@ -494,7 +494,7 @@ GTXE2_CHANNEL #(
     .RX_DFE_XYD_CFG                         (13'b0000000000000),
     .TX_PREDRIVER_MODE                      (1'b0)
 ) 
-gtx(
+gtx_wrapper(
     .CPLLFBCLKLOST                  (),
     .CPLLLOCK                       (cplllock),
     .CPLLLOCKDETCLK                 (cplllockdetclk),

@@ -18,6 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
+`define OPEN_SOURCE_ONLY
 module gtxe2_channel_wrapper(
 // clocking ports, UG476 p.37
     input   [2:0]       CPLLREFCLKSEL,
@@ -553,7 +554,7 @@ parameter   RX_CLK25_DIV                 = 6;
 parameter   TX_CLK25_DIV                 = 6;
 
 `ifdef OPEN_SOURCE_ONLY
-GTXE2_CPL #(
+GTXE2_GPL #(
 `else // OPEN_SOURCE_ONLY
 GTXE2_CHANNEL #(
 `endif // OPEN_SOURCE_ONLY
