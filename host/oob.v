@@ -299,8 +299,8 @@ generate
     else
     if (DATA_BYTE_WIDTH == 8)
     begin
-        assign detected_alignp = ~|(rxdata ^ {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}) & ~|(rxcharisk ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
-        assign detected_syncp  = ~|(rxdata ^ {2{8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}}) & ~|(rxcharisk ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
+        assign detected_alignp = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100, 8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
+        assign detected_syncp  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100, 8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
     end
     else
     begin
@@ -381,7 +381,7 @@ generate
     if (DATA_BYTE_WIDTH == 8)
     begin
         assign txcharisk_align  = 8'h11;
-        assign txdata_align     = {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}; // 2x{D27.3, D10.2, D10.2, K28.5}
+        assign txdata_align     = {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100, 8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}; // 2x{D27.3, D10.2, D10.2, K28.5}
     end
     else
         always @ (posedge clk)

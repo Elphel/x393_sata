@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "gtx_8x10enc.v"
-`include "gtx_10x8dec.v"
-`include "gtx_comma_align.v"
-`include "gtx_elastic.v"
+//`include "gtx_8x10enc.v"
+//`include "gtx_10x8dec.v"
+//`include "gtx_comma_align.v"
+//`include "gtx_elastic.v"
 // All computations have been done in assumption of GTX interface being 20 bits wide!
 module gtx_wrap #(
     parameter DATA_BYTE_WIDTH     = 4,
@@ -391,7 +391,7 @@ else begin
 end
 endgenerate
 
-GTXE2_CHANNEL #(
+gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
     .SIM_TX_EIDLE_DRIVE_LEVEL               ("X"),
     .SIM_RESET_SPEEDUP                      ("FALSE"),
@@ -592,7 +592,7 @@ GTXE2_CHANNEL #(
     .RX_DFE_XYD_CFG                         (13'b0000000000000),
     .TX_PREDRIVER_MODE                      (1'b0)
 ) 
-gtx(
+gtxe2_channel_wrapper(
     .CPLLFBCLKLOST                  (),
     .CPLLLOCK                       (cplllock),
     .CPLLLOCKDETCLK                 (cplllockdetclk),

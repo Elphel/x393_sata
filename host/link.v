@@ -18,8 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "scrambler.v"
-`include "crc.v"
+//`include "scrambler.v"
+//`include "crc.v"
 module link #(
     // 4 = dword. 4-bytes aligned data transfers TODO 2 = word - easy, 8 = qword - difficult
     parameter DATA_BYTE_WIDTH = 4

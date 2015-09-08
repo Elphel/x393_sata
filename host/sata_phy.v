@@ -18,8 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "oob_ctrl.v"
-`include "gtx_wrap.v"
+//`include "oob_ctrl.v"
+//`include "gtx_wrap.v"
 module sata_phy #(
     parameter   DATA_BYTE_WIDTH = 4
 )

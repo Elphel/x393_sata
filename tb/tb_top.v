@@ -18,12 +18,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
+// set of global defines
+`define SIMULATION
+`define CHECKERS_ENABLED
+`define OPEN_SOURCE_ONLY
+
 /*
  * using x393_testbench01.tf style, contains a lot of copy-pasted code from there
  */
 `timescale 1ns/1ps
-`include "top.v"
-`include "sata_device.v"
+//`include "top.v"
+//`include "sata_device.v"
 
 module tb #(
 `include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - not used
@@ -31,10 +36,16 @@ module tb #(
 )
 (
 );
+`ifdef IVERILOG
+    `include "IVERILOG_INCLUDE.v"
+`else // IVERILOG
+    parameter lxtname = "x393.lxt";
+`endif // IVERILOG
+
 initial #1 $display("HI THERE");
 initial
 begin
-    $dumpfile("test.vcd");
+    $dumpfile(lxtname);
     $dumpvars(0,tb);
 end
 

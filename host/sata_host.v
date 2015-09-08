@@ -18,10 +18,10 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "sata_phy.v"
-`include "link.v"
-`include "transport.v"
-`include "command.v"
+//`include "sata_phy.v"
+//`include "link.v"
+//`include "transport.v"
+//`include "command.v"
 
 module sata_host(
     input   wire    extrst,

@@ -19,12 +19,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
 `timescale 1ns/1ps
-`include "axi_regs.v"
-`include "dma_regs.v"
-`include "sata_host.v"
-`include "dma_adapter.v"
-`include "dma_control.v"
-`include "membridge.v"
+//`include "axi_regs.v"
+//`include "dma_regs.v"
+//`include "sata_host.v"
+//`include "dma_adapter.v"
+//`include "dma_control.v"
+//`include "membridge.v"
 /*
  * Takes commands from axi iface as a slave, transfers data with another axi iface as a master
  */

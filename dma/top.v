@@ -24,7 +24,7 @@
  * what is called now 'axi_regs' and connect it
  */
 `include "system_defines.vh" 
-`include "sata_top.v"
+//`include "sata_top.v"
 module top #(
 `include "includes/x393_parameters.vh"
 )

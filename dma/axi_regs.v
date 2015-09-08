@@ -18,8 +18,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "axibram_read.v"
-`include "axibram_write.v"
+//`include "axibram_read.v"
+//`include "axibram_write.v"
 module axi_regs #(
     parameter REGISTERS_CNT = 20
 )

@@ -18,7 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`include "sata_phy_dev.v"
+//`include "sata_phy_dev.v"
 module sata_device(
     input   wire    rst,
     input   wire    RXN,
