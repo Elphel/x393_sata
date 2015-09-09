@@ -20,10 +20,7 @@
  *******************************************************************************/
 //`include "axibram_read.v"
 //`include "axibram_write.v"
-module axi_regs #(
-    parameter REGISTERS_CNT = 20
-)
-(
+module axi_regs(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
@@ -31,13 +28,9 @@ module axi_regs #(
     input   wire                ARVALID,           // AXI PS Master GP1 ARVALID, output
     output  wire                ARREADY,           // AXI PS Master GP1 ARREADY, input
     input   wire    [11:0]      ARID,              // AXI PS Master GP1 ARID[11:0], output
-    input   wire    [1:0]       ARLOCK,            // AXI PS Master GP1 ARLOCK[1:0], output
-    input   wire    [3:0]       ARCACHE,           // AXI PS Master GP1 ARCACHE[3:0], output
-    input   wire    [2:0]       ARPROT,            // AXI PS Master GP1 ARPROT[2:0], output
     input   wire    [3:0]       ARLEN,             // AXI PS Master GP1 ARLEN[3:0], output
     input   wire    [1:0]       ARSIZE,            // AXI PS Master GP1 ARSIZE[1:0], output
     input   wire    [1:0]       ARBURST,           // AXI PS Master GP1 ARBURST[1:0], output
-    input   wire    [3:0]       ARQOS,             // AXI PS Master GP1 ARQOS[3:0], output
 // AXI PS Master GP1: Read Data
     output  wire    [31:0]      RDATA,             // AXI PS Master GP1 RDATA[31:0], input
     output  wire                RVALID,            // AXI PS Master GP1 RVALID, input
@@ -50,13 +43,9 @@ module axi_regs #(
     input   wire                AWVALID,           // AXI PS Master GP1 AWVALID, output
     output  wire                AWREADY,           // AXI PS Master GP1 AWREADY, input
     input   wire    [11:0]      AWID,              // AXI PS Master GP1 AWID[11:0], output
-    input   wire    [1:0]       AWLOCK,            // AXI PS Master GP1 AWLOCK[1:0], output
-    input   wire    [3:0]       AWCACHE,           // AXI PS Master GP1 AWCACHE[3:0], output
-    input   wire    [2:0]       AWPROT,            // AXI PS Master GP1 AWPROT[2:0], output
     input   wire    [3:0]       AWLEN,             // AXI PS Master GP1 AWLEN[3:0], outpu:t
     input   wire    [1:0]       AWSIZE,            // AXI PS Master GP1 AWSIZE[1:0], output
     input   wire    [1:0]       AWBURST,           // AXI PS Master GP1 AWBURST[1:0], output
-    input   wire    [3:0]       AWQOS,             // AXI PS Master GP1 AWQOS[3:0], output
 // AXI PS Master GP1: Write Data
     input   wire    [31:0]      WDATA,             // AXI PS Master GP1 WDATA[31:0], output
     input   wire                WVALID,            // AXI PS Master GP1 WVALID, output

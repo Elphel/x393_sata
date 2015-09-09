@@ -18,10 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-module dma_regs #(
-    parameter REGISTERS_CNT = 20
-)
-(
+module dma_regs(
     input   wire            rst,
     input   wire            ACLK,
     input   wire            sclk,
@@ -190,27 +187,27 @@ assign sh_autoact_val   = bram_wen & (bram_waddr[7:0] == 8'hc);
 assign sh_inter_val     = bram_wen & (bram_waddr[7:0] == 8'hd);
 assign sh_dir_val       = bram_wen & (bram_waddr[7:0] == 8'he);
 assign cmd_val_out      = bram_wen & (bram_waddr[7:0] == 8'hf);
-assign sh_port          = bram_wen & (bram_waddr[7:0] == 8'h13);
+assign sh_port_val      = bram_wen & (bram_waddr[7:0] == 8'h13);
 assign sh_dma_cnt_val   = bram_wen & (bram_waddr[7:0] == 8'h14);
 assign sh_notif_val     = bram_wen & (bram_waddr[7:0] == 8'h15);
 
 assign sh_data          = wdata;
-assign sh_feature       = wdata;
-assign sh_lba_lo        = wdata;
-assign sh_lba_hi        = wdata;
-assign sh_count         = wdata;
-assign sh_command       = wdata;
-assign sh_dev           = wdata;
-assign sh_control       = wdata;
+assign sh_feature       = wdata[15:0];
+assign sh_lba_lo        = wdata[23:0];
+assign sh_lba_hi        = wdata[23:0];
+assign sh_count         = wdata[15:0];
+assign sh_command       = wdata[7:0];
+assign sh_dev           = wdata[7:0];
+assign sh_control       = wdata[7:0];
 assign sh_dma_id_lo     = wdata;
 assign sh_dma_id_hi     = wdata;
 assign sh_buf_off       = wdata;
-assign sh_tran_cnt      = wdata;
-assign sh_autoact       = wdata;
-assign sh_inter         = wdata;
-assign sh_dir           = wdata;
-assign sh_port          = wdata;
-assign sh_notif         = wdata;
+assign sh_tran_cnt      = wdata[15:0];
+assign sh_autoact       = wdata[0];
+assign sh_inter         = wdata[0];
+assign sh_dir           = wdata[0];
+assign sh_port          = wdata[3:0];
+assign sh_notif         = wdata[0];
 assign sh_dma_cnt       = wdata;
 assign cmd_out          = wdata;
 
@@ -231,27 +228,27 @@ always @ (posedge ACLK) begin
                     bram_raddr_r == 8'hf4 ? reg10 :
                     bram_raddr_r == 8'hf5 ? reg14 :
                     bram_raddr_r == 8'h00 ? sh_data_in :
-                    bram_raddr_r == 8'h01 ? sh_feature_in :
-                    bram_raddr_r == 8'h02 ? sh_lba_in[23:0] :
-                    bram_raddr_r == 8'h03 ? sh_lba_in[47:24] :
-                    bram_raddr_r == 8'h04 ? sh_count_in :
-                    bram_raddr_r == 8'h05 ? sh_command_in :
-                    bram_raddr_r == 8'h06 ? sh_dev_in :
-                    bram_raddr_r == 8'h07 ? sh_control_in :
+                    bram_raddr_r == 8'h01 ? {16'h0, sh_feature_in} :
+                    bram_raddr_r == 8'h02 ? {8'h0, sh_lba_in[23:0]} :
+                    bram_raddr_r == 8'h03 ? {8'h0, sh_lba_in[47:24]} :
+                    bram_raddr_r == 8'h04 ? {16'h0, sh_count_in} :
+                    bram_raddr_r == 8'h05 ? {24'h0, sh_command_in} :
+                    bram_raddr_r == 8'h06 ? {24'h0, sh_dev_in} :
+                    bram_raddr_r == 8'h07 ? {24'h0, sh_control_in} :
                     bram_raddr_r == 8'h08 ? sh_dma_id_in[31:0] :
                     bram_raddr_r == 8'h09 ? sh_dma_id_in[63:32] :
                     bram_raddr_r == 8'h0a ? sh_dma_off_in :
-                    bram_raddr_r == 8'h0b ? sh_tran_cnt_in : // Transfer Count
-                    bram_raddr_r == 8'h0c ? sh_autoact_in :
-                    bram_raddr_r == 8'h0d ? sh_inter_in :
-                    bram_raddr_r == 8'h0e ? sh_dir_in :
+                    bram_raddr_r == 8'h0b ? {16'h0, sh_tran_cnt_in} : // Transfer Count
+                    bram_raddr_r == 8'h0c ? {31'h0, sh_autoact_in} :
+                    bram_raddr_r == 8'h0d ? {31'h0, sh_inter_in} :
+                    bram_raddr_r == 8'h0e ? {31'h0, sh_dir_in} :
                     bram_raddr_r == 8'h0f ? cmd_in :
-                    bram_raddr_r == 8'h10 ? sh_err_in :
-                    bram_raddr_r == 8'h11 ? sh_status_in :
-                    bram_raddr_r == 8'h12 ? sh_estatus_in : // E_Status
-                    bram_raddr_r == 8'h13 ? sh_port_in :
+                    bram_raddr_r == 8'h10 ? {24'h0, sh_err_in} :
+                    bram_raddr_r == 8'h11 ? {24'h0, sh_status_in} :
+                    bram_raddr_r == 8'h12 ? {24'h0, sh_estatus_in} : // E_Status
+                    bram_raddr_r == 8'h13 ? {28'h0, sh_port_in} :
                     bram_raddr_r == 8'h14 ? sh_dma_cnt_in :
-                    bram_raddr_r == 8'h15 ? sh_notif_in :
+                    bram_raddr_r == 8'h15 ? {31'h0, sh_notif_in} :
                                             32'hd34db33f;
 end
 assign  bram_rdata = bram_rdata_r;

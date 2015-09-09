@@ -1,0 +1,4 @@
+`define SIMULATION 1
+`define CHECKERS_ENABLED 1
+`define OPEN_SOURCE_ONLY 1
+`define PRELOAD_BRAMS

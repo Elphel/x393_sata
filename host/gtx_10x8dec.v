@@ -80,6 +80,7 @@ begin
 end
 // overall expected disparity when the table values would apper - disp0_r. 
 // disp1_rr shows expected after 0st byte would be considered
+reg     correct_table_disp;
 wire    expected_disparity;
 wire    expected_disparity_interm;
 
@@ -99,7 +100,6 @@ always @ (posedge clk)
     disparity <= rst ? 1'b0 : inv_disp1 ^ inv_disp0 ? ~disparity : disparity;
 
 // to correct disparity if once an error occured
-reg     correct_table_disp;
 always @ (posedge clk)
     correct_table_disp   <= rst ? 1'b0 : disperror[1] ? ~correct_table_disp : correct_table_disp;
 

@@ -52,9 +52,6 @@ module sata_phy_dev #(
     input   wire    [3:0]   ll_charisk_in
 );
 
-parameter  CHIPSCOPE            = "FALSE";
-
-wire            txcomfinish;
 wire    [31:0]  txdata;
 wire    [31:0]  txdata_oob;
 wire    [3:0]   txcharisk;
@@ -92,7 +89,7 @@ assign  txdata          = phy_ready ? ll_data_in : txdata_oob;
 assign  txcharisk       = phy_ready ? ll_charisk_in : txcharisk_oob;
 assign  ll_err_out      = 4'h0;
 assign  ll_charisk_out  = rxcharisk[3:0];
-assign  ll_data_out     = rxdata;
+assign  ll_data_out     = rxdata[31:0];
 
 
 oob_dev oob_dev(
@@ -164,7 +161,7 @@ localparam  RXEYERESET_TIME     = 7'h0 + RXPMARESET_TIME + RXCDRPHRESET_TIME + R
 reg     [6:0]   rxeyereset_cnt;
 assign  rxeyereset_done = rxeyereset_cnt == RXEYERESET_TIME;
 always @ (posedge gtrefclk)
-    rxeyereset_cnt  <= rxreset ? 3'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
+    rxeyereset_cnt  <= rxreset ? 7'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
 
 /*
  * Resets
@@ -503,12 +500,12 @@ gtx_wrapper(
     .CPLLREFCLKLOST                 (),
     .CPLLREFCLKSEL                  (3'b001),
     .CPLLRESET                      (cpllreset),
-    .GTRSVD                         (1'b0),
-    .PCSRSVDIN                      (1'b0),
-    .PCSRSVDIN2                     (1'b0),
-    .PMARSVDIN                      (1'b0),
-    .PMARSVDIN2                     (1'b0),
-    .TSTIN                          (1'b1),
+    .GTRSVD                         (16'b0),
+    .PCSRSVDIN                      (16'b0),
+    .PCSRSVDIN2                     (5'b0),
+    .PMARSVDIN                      (5'b0),
+    .PMARSVDIN2                     (5'b0),
+    .TSTIN                          (20'b1),
     .TSTOUT                         (),
     .CLKRSVD                        (4'b0000),
     .GTGREFCLK                      (1'b0),
@@ -714,7 +711,7 @@ gtx_wrapper(
     .TXPCSRESET                     (txpcsreset),
     .TXPMARESET                     (1'b0),
     .TXRESETDONE                    (txresetdone),
-    .TXCOMFINISH                    (txcomfinish),
+    .TXCOMFINISH                    (),
     .TXCOMINIT                      (txcominit),
     .TXCOMSAS                       (1'b0),
     .TXCOMWAKE                      (txcomwake),
@@ -739,6 +736,8 @@ assign  rxcharisk       = twobytes_shift ? {rxcharisk_gtx[7:4]    , rxcharisk_gt
 assign  rxchariscomma   = twobytes_shift ? {rxchariscomma_gtx[7:4], rxchariscomma_gtx[1:0], rxchariscomma_gtx[3:2]} : rxchariscomma_gtx;
 assign  rxdisperr       = twobytes_shift ? {rxdisperr_gtx[7:4]    , rxdisperr_gtx[1:0]    , rxdisperr_gtx[3:2]    } : rxdisperr_gtx;
 assign  rxnotintable    = twobytes_shift ? {rxnotintable_gtx[7:4] , rxnotintable_gtx[1:0] , rxnotintable_gtx[3:2] } : rxnotintable_gtx;
+
+assign  ll_err_out      = rxdisperr[3:0] | rxnotintable[3:0];
 
 /*
  * Interfaces

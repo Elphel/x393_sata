@@ -30,8 +30,7 @@ module gtx_wrap #(
     parameter RXCDRPHRESET_TIME   = 5'h1,
     parameter RXCDRFREQRESET_TIME = 5'h1,
     parameter RXDFELPMRESET_TIME  = 7'hf,
-    parameter RXISCANRESET_TIME   = 5'h1,
-    parameter RXEYERESET_TIME     = 7'h25
+    parameter RXISCANRESET_TIME   = 5'h1
 )
 (
     output  wire    cplllock,
@@ -74,7 +73,11 @@ module gtx_wrap #(
     output  wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr
 );
 
-// resets while PCS resets
+wire    rxresetdone_gtx; 
+wire    txresetdone_gtx; 
+wire    wrap_rxreset_;
+wire    wrap_txreset_;
+// resets while PCS resets, active low
 assign  wrap_rxreset_ = rxuserrdy & rxresetdone_gtx;
 assign  wrap_txreset_ = txuserrdy & txresetdone_gtx;
 
@@ -149,6 +152,8 @@ if (DATA_BYTE_WIDTH == 4) begin
     )
     txdata_resynchro(
         .rst        (txreset),
+        .rrst       (txreset),
+        .wrst       (txreset),
         .rclk       (txusrclk),
         .wclk       (txusrclk2),
         .we         (1'b1),
@@ -166,8 +171,8 @@ end
 else
 if (DATA_BYTE_WIDTH == 2) begin
     // no resync is needed => straightforward assignments
-    assign  txdata_enc_in       = txdata;
-    assign  txcharisk_enc_in    = txcharisk;
+    assign  txdata_enc_in       = txdata[15:0];
+    assign  txcharisk_enc_in    = txcharisk[1:0];
     assign  txcominit_gtx       = txcominit;
     assign  txcomwake_gtx       = txcomwake;
     assign  txelecidle_gtx      = txelecidle;
@@ -261,6 +266,8 @@ wire    [1:0]   rxnotintable_els_out;
 wire    [1:0]   rxdisperr_els_out;
 wire            lword_strobe;
 wire            isaligned;
+wire            elastic_full;
+wire            elastic_empty;
 
 gtx_elastic #(
     .DEPTH_LOG2 (3),
@@ -302,8 +309,6 @@ gtx_elastic(
 */
 wire    rxcomwakedet_gtx;
 wire    rxcominitdet_gtx;
-wire    rxresetdone_gtx; 
-wire    txresetdone_gtx; 
 
 
 // insert resync if it's necessary
@@ -335,7 +340,7 @@ if (DATA_BYTE_WIDTH == 4) begin
                                 rxdata_els_out,                        // 16
                                 rxdata_resync_buf[21:0]};              // 22 / 51 total
     always @ (posedge rxusrclk)
-        rxdata_resync_buf    <= ~wrap_rxreset_ ? 36'h0 : ~rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
+        rxdata_resync_buf    <= ~wrap_rxreset_ ? 24'h0 : ~rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
 
     always @ (posedge rxusrclk2)
         rxdata_resync_nempty_r <= rxdata_resync_nempty;
@@ -346,6 +351,8 @@ if (DATA_BYTE_WIDTH == 4) begin
     )
     rxdata_resynchro(
         .rst        (~wrap_rxreset_),
+        .rrst       (~wrap_rxreset_),
+        .wrst       (~wrap_rxreset_),
         .rclk       (rxusrclk2),
         .wclk       (rxusrclk),
         .we         (rxdata_resync_strobe),
@@ -362,10 +369,10 @@ if (DATA_BYTE_WIDTH == 4) begin
     assign  txresetdone     = rxdata_resync_out[46];
     assign  rxelsfull       = rxdata_resync_out[45];
     assign  rxelsempty      = rxdata_resync_out[44];
-    assign  rxdisperr       = {rxdata_resync_out[43:42], rxdata_resync_out[20:20]};
-    assign  rxnotintable    = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
-    assign  rxcharisk       = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
-    assign  rxdata          = {rxdata_resync_out[37:22], rxdata_resync_out[15:0] };
+    assign  rxdisperr[3:0]      = {rxdata_resync_out[43:42], rxdata_resync_out[21:20]};
+    assign  rxnotintable[3:0]   = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
+    assign  rxcharisk[3:0]      = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
+    assign  rxdata[31:0]        = {rxdata_resync_out[37:22], rxdata_resync_out[15:0] };
 end
 else
 if (DATA_BYTE_WIDTH == 2) begin
@@ -375,12 +382,12 @@ if (DATA_BYTE_WIDTH == 2) begin
     assign  rxcominitdet    = rxcominitdet_gtx;
     assign  rxresetdone     = rxresetdone_gtx;
     assign  txresetdone     = txresetdone_gtx;
-    assign  rxelsfull       = elastic_full;
-    assign  rxelsempty      = elastic_empty;
-    assign  rxdisperr       = rxdisperr_els_out;
-    assign  rxnotintable    = rxnotintable_els_out;
-    assign  rxcharisk       = rxcharisk_els_out;
-    assign  rxdata          = rxdata_els_out;
+    assign  rxelsfull           = elastic_full;
+    assign  rxelsempty          = elastic_empty;
+    assign  rxdisperr[1:0]      = rxdisperr_els_out;
+    assign  rxnotintable[1:0]   = rxnotintable_els_out;
+    assign  rxcharisk[1:0]      = rxcharisk_els_out;
+    assign  rxdata[15:0]        = rxdata_els_out;
 end
 else begin
     // unconsidered case
@@ -601,12 +608,12 @@ gtxe2_channel_wrapper(
     .CPLLREFCLKLOST                 (),
     .CPLLREFCLKSEL                  (3'b001),
     .CPLLRESET                      (cpllreset),
-    .GTRSVD                         (1'b0),
-    .PCSRSVDIN                      (1'b0),
-    .PCSRSVDIN2                     (1'b0),
-    .PMARSVDIN                      (1'b0),
-    .PMARSVDIN2                     (1'b0),
-    .TSTIN                          (1'b1),
+    .GTRSVD                         (16'b0),
+    .PCSRSVDIN                      (16'b0),
+    .PCSRSVDIN2                     (5'b0),
+    .PMARSVDIN                      (5'b0),
+    .PMARSVDIN2                     (5'b0),
+    .TSTIN                          (20'h1),
     .TSTOUT                         (),
     .CLKRSVD                        (4'b0000),
     .GTGREFCLK                      (1'b0),
@@ -768,7 +775,7 @@ gtxe2_channel_wrapper(
     .TXCHARDISPVAL                  (txchardispval_gtx),
     .TXUSRCLK                       (txusrclk),
     .TXUSRCLK2                      (txusrclk),
-    .TXELECIDLE                     (txelecidle),
+    .TXELECIDLE                     (txelecidle_gtx),
     .TXMARGIN                       (3'd0),
     .TXRATE                         (3'd0),
     .TXSWING                        (1'b0),

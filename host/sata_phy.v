@@ -61,6 +61,10 @@ wire    [DATA_BYTE_WIDTH - 1:0]     txcharisk;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk;
 wire    [DATA_BYTE_WIDTH - 1:0]     txcharisk_in;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk_out;
+wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr;
+wire    [DATA_BYTE_WIDTH - 1:0]     rxnotintable;
+
+assign  ll_err_out = rxdisperr | rxnotintable;
 
 // once gtx_ready -> 1, gtx_configured latches
 // after this point it's possible to perform additional resets and reconfigurations by higher-level logic
@@ -170,7 +174,7 @@ localparam  RXEYERESET_TIME     = 7'h0 + RXPMARESET_TIME + RXCDRPHRESET_TIME + R
 reg     [6:0]   rxeyereset_cnt;
 assign  rxeyereset_done = rxeyereset_cnt == RXEYERESET_TIME;
 always @ (posedge gtrefclk)
-    rxeyereset_cnt  <= rxreset ? 3'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
+    rxeyereset_cnt  <= rxreset ? 7'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
 
 /*
  * Resets
@@ -322,8 +326,7 @@ gtx_wrap #(
     .RXCDRPHRESET_TIME      (RXCDRPHRESET_TIME),
     .RXCDRFREQRESET_TIME    (RXCDRFREQRESET_TIME),
     .RXDFELPMRESET_TIME     (RXDFELPMRESET_TIME),
-    .RXISCANRESET_TIME      (RXISCANRESET_TIME),
-    .RXEYERESET_TIME        (RXEYERESET_TIME)
+    .RXISCANRESET_TIME      (RXISCANRESET_TIME)
 )
 gtx_wrap
 (
@@ -360,7 +363,9 @@ gtx_wrap
     .txdata             (txdata),
     .txcharisk          (txcharisk),
     .rxdata             (rxdata),
-    .rxcharisk          (rxcharisk)
+    .rxcharisk          (rxcharisk),
+    .rxdisperr          (rxdisperr),
+    .rxnotintable       (rxnotintable)
 );
 /*
  * Interfaces

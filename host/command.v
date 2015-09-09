@@ -185,7 +185,7 @@ begin
     sh_inter         <= rst ? 1'h0  : al_sh_inter_val_in      ? al_sh_inter_in     : tl_sh_inter_val_in      ? tl_sh_inter_in     : sh_inter;
     sh_dir           <= rst ? 1'h0  : al_sh_dir_val_in        ? al_sh_dir_in       : tl_sh_dir_val_in        ? tl_sh_dir_in       : sh_dir;
     sh_dma_id[31:0]  <= rst ? 32'h0 : al_sh_dma_id_lo_val_in  ? al_sh_dma_id_lo_in : tl_sh_dma_id_val_in ? tl_sh_dma_id_in[31:0]  : sh_dma_id[31:0];
-    sh_dma_id[63:32] <= rst ? 32'h0 : al_sh_dma_id_lo_val_in  ? al_sh_dma_id_hi_in : tl_sh_dma_id_val_in ? tl_sh_dma_id_in[63:32] : sh_dma_id[63:32];
+    sh_dma_id[63:32] <= rst ? 32'h0 : al_sh_dma_id_hi_val_in  ? al_sh_dma_id_hi_in : tl_sh_dma_id_val_in ? tl_sh_dma_id_in[63:32] : sh_dma_id[63:32];
     sh_dma_off       <= rst ? 32'h0 : al_sh_buf_off_val_in    ? al_sh_buf_off_in   : tl_sh_dma_off_val_in    ? tl_sh_dma_off_in   : sh_dma_off;
     sh_dma_cnt       <= rst ? 32'h0 : al_sh_dma_cnt_val_in    ? al_sh_dma_cnt_in   : tl_sh_dma_cnt_val_in    ? tl_sh_dma_cnt_in   : sh_dma_cnt;
     sh_tran_cnt      <= rst ? 16'h0 : al_sh_tran_cnt_val_in   ? al_sh_tran_cnt_in  : tl_sh_tran_cnt_val_in   ? tl_sh_tran_cnt_in  : sh_tran_cnt;
@@ -243,9 +243,9 @@ assign  tl_data_last_out = 1'b0;
 assign  tl_data_val_out = 1'b0;
 
 always @ (posedge clk)
-    waddr   <= rst ? 1'b0 : ~tl_data_val_in ? waddr : (raddr == waddr + 1'b1) ? waddr : waddr + 1'b1;
+    waddr   <= rst ? 10'b0 : ~tl_data_val_in ? waddr : (raddr == waddr + 1'b1) ? waddr : waddr + 1'b1;
 always @ (posedge clk)
-    raddr   <= rst ? 1'b0 : al_sh_data_strobe_in ? raddr + 1'b1 : raddr;
+    raddr   <= rst ? 10'b0 : al_sh_data_strobe_in ? raddr + 1'b1 : raddr;
 
 ram_1kx32_1kx32 rbuf(
       .rclk     (clk),      // clock for read port

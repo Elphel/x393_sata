@@ -96,7 +96,7 @@ always @ (posedge sclk)
 
 // drive iface signals
 assign  host_new_cmd        = host_issued_set;
-assign  host_cmd_type       = dma_type;
+assign  host_cmd_type       = {1'b0, dma_type};
 assign  host_sector_count   = sector_cnt;
 assign  host_sector_addr    = lba;
 
@@ -134,6 +134,7 @@ begin
     state_wait_done <= (state_wait_done | set_wait_done) & ~clr_wait_done & ~rst;
 end
 
+assign  adp_val_sclk = set_wait_busy;
 // conrol signals resync
 reg             adp_val_r;
 reg             adp_val_rr;
@@ -143,7 +144,7 @@ begin
     adp_val_rr  <= adp_val_r;
 end
 
-assign  adp_addr = current_addr;
+assign  adp_addr = current_addr[31:7];
 assign  adp_type = current_type;
 assign  adp_val  = adp_val_rr;
 
@@ -208,9 +209,9 @@ assign  last_data = (sector_cnt == quarter_sector_cnt[33:2] + 1'b1) & (&quarter_
 // calculate outgoing address
 // increment every transaction to adapter
 always @ (posedge sclk)
-    current_addr <= ~set_wait_busy ? current_addr :
-                        state_idle ? mem_address :           // new dma request
-                                     current_addr + 1'b1; // same dma request, next 128 bytes
+    current_addr <= ~set_wait_busy ? current_addr[31:7] :
+                        state_idle ? mem_address[31:7] :           // new dma request
+                                     current_addr[31:7] + 1'b1; // same dma request, next 128 bytes
 
 always @ (posedge sclk)
     current_type <= ~set_wait_busy ? current_type :
@@ -262,13 +263,13 @@ end
 // write address -> sclk (rd) domain to compare 
 always @ (posedge sclk)
 begin
-    from_wr_addr_gr_r   <= rst ?  9'h0 : from_wr_addr;
+    from_wr_addr_gr_r   <= rst ?  9'h0 : from_wr_addr_gr;
     from_wr_addr_gr_rr  <= rst ?  9'h0 : from_wr_addr_gr_r;
 end
 // read address -> hclk (wr) domain to compare 
 always @ (posedge hclk)
 begin
-    from_rd_addr_gr_r   <= rst ? 10'h0 : from_rd_addr;
+    from_rd_addr_gr_r   <= rst ? 10'h0 : from_rd_addr_gr;
     from_rd_addr_gr_rr  <= rst ? 10'h0 : from_rd_addr_gr_r;
 end
 // translate resynced write address into ordinary (non-gray) address
@@ -367,13 +368,13 @@ end
 // write address -> hclk (rd) domain to compare 
 always @ (posedge hclk)
 begin
-    to_wr_addr_gr_r   <= rst ? 10'h0 : to_wr_addr;
+    to_wr_addr_gr_r   <= rst ? 10'h0 : to_wr_addr_gr;
     to_wr_addr_gr_rr  <= rst ? 10'h0 : to_wr_addr_gr_r;
 end
 // read address -> sclk (wr) domain to compare 
 always @ (posedge sclk)
 begin
-    to_rd_addr_gr_r   <= rst ?  9'h0 : to_rd_addr;
+    to_rd_addr_gr_r   <= rst ?  9'h0 : to_rd_addr_gr;
     to_rd_addr_gr_rr  <= rst ?  9'h0 : to_rd_addr_gr_r;
 end
 // translate resynced write address into ordinary (non-gray) address
@@ -400,8 +401,8 @@ endgenerate
 //              to_wr_addr_r - write address some hclk ticks ago
 //  => we can say if the fifo have the possibility to be empty
 //     since actual to_wr_addr could only be incremented
-assign  to_full   = {to_wr_addr, 1'b0}  == to_rd_addr_r + 1'b1;
-assign  to_empty  = {to_wr_addr_r, 1'b0} == to_rd_addr; // overflows must never be achieved
+assign  to_full   = to_wr_addr  == {to_rd_addr_r, 1'b0} + 1'b1;
+assign  to_empty  = to_wr_addr_r == {to_rd_addr, 1'b0}; // overflows must never be achieved
 // calculate bus responses in order to fifo status:
 assign  to_val    = ~to_empty;
 assign  in_val    = ~in_busy & ~to_full;

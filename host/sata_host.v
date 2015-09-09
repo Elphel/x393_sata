@@ -147,7 +147,6 @@ wire    [7:0]   tl2cl_sh_status;
 wire    [7:0]   tl2cl_sh_estatus; // E_Status
 wire    [7:0]   tl2cl_sh_dev;
 wire    [3:0]   tl2cl_sh_port;
-wire            tl2cl_shter_in;
 wire            tl2cl_sh_dir;
 wire            tl2cl_sh_inter;
 wire    [63:0]  tl2cl_sh_dma_id;
@@ -164,7 +163,6 @@ wire            tl2cl_sh_status_val;
 wire            tl2cl_sh_estatus_val; // E_Status
 wire            tl2cl_sh_dev_val;
 wire            tl2cl_sh_port_val;
-wire            tl2cl_shter_val_in;
 wire            tl2cl_sh_dir_val;
 wire            tl2cl_sh_inter_val;
 wire            tl2cl_sh_dma_id_val;
@@ -560,7 +558,7 @@ transport transport(
 
 
 // oob sequence is reinitiated and link now is not established or rxelecidle
-wire    link_reset;
+//wire    link_reset; // use ~phy_ready instead
 
 // phy is ready - link is established
 wire    phy_ready;

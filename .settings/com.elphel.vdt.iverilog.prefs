@@ -3,7 +3,6 @@ eclipse.preferences.version=1
 iverilog_101_TopModulesOther=glbl<-@\#\#@->
 iverilog_103_ExtraFiles=x393/glbl.v<-@\#\#@->
 iverilog_104_IncludeDir=${verilog_project_loc}/x393<-@\#\#@->${verilog_project_loc}/x393/includes<-@\#\#@->${verilog_project_loc}/host<-@\#\#@->${verilog_project_loc}/tb<-@\#\#@->
-iverilog_122_IVerilogOther=-D OPEN_SOURCE_ONLY
 iverilog_77_Param_Exe=/usr/local/bin/iverilog
 iverilog_78_VVP_Exe=/usr/local/bin/vvp
 iverilog_79_GtkWave_Exe=/usr/local/bin/gtkwave

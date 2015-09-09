@@ -139,8 +139,8 @@ endgenerate
 //              wr_addr_r - write address some rclk ticks ago
 //  => we can say if the fifo have the possibility to be empty
 //     since actual wr_addr could only be incremented
-assign  full   = {wr_addr, 1'b0}  == rd_addr_r + 1'b1;
-assign  empty  = {wr_addr_r, 1'b0} == rd_addr;
+assign  full   = wr_addr   == rd_addr_r + 1'b1;
+assign  empty  = wr_addr_r == rd_addr;
 
 assign  outram = ram[rd_addr];
 
@@ -262,8 +262,6 @@ wire    skip_write;
 wire    rmv1_req_wclk;
 wire    rmv2_req_wclk;
 reg     next_prim_loaded;
-always @ (wclk)
-    next_prim_loaded <= state_wait_next_p;
 
 wire    state_bypass_rmv;
 reg     state_wait1_align;
@@ -284,6 +282,9 @@ wire    clr_wait2_align;
 wire    clr_skip2_align;
 wire    clr_wait_next_p;
 wire    clr_send_ack;
+
+always @ (wclk)
+    next_prim_loaded <= state_wait_next_p;
 
 assign  state_bypass_rmv = ~state_wait1_align & ~state_skip1_align & ~state_wait2_align & ~state_skip2_align & ~state_wait_next_p & ~state_send_ack;
 
@@ -372,13 +373,13 @@ assign  align_2nd = outram[15:0]  == 16'h7B4A
                   & outram[21:20] == 2'b00;
 // whole align primitive is the last thing we read from fifo
 reg     read_align;
+wire    pause_read;
 always @ (posedge rclk)
     read_align  <= rst ? 1'b0 : pause_read | align_1st & align_2nd;
 
 
 // just to alternate alignp's words, = 0 => 1st word, = 1 => 2nd word
 reg     align_altern;
-wire    pause_read;
 
 // also pause when offset gets ok, but only 1st word of alignp is sent - need to send 2nd word
 assign  pause_read = read_align & offset_less & fifo_stable | align_altern;

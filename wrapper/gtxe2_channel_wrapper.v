@@ -41,12 +41,12 @@ module gtxe2_channel_wrapper(
     output              CPLLLOCK,
     output              CPLLREFCLKLOST,
     output              TSTOUT,
-    input               GTRSVD,
-    input               PCSRSVDIN,
-    input               PCSRSVDIN2,
-    input               PMARSVDIN,
-    input               PMARSVDIN2,
-    input               TSTIN,
+    input   [15:0]      GTRSVD,
+    input   [15:0]      PCSRSVDIN,
+    input   [4:0]       PCSRSVDIN2,
+    input   [4:0]       PMARSVDIN,
+    input   [4:0]       PMARSVDIN2,
+    input   [19:0]      TSTIN,
 // Reset Mode ports, ug476 p.62
     input               GTRESETSEL,
     input               RESETOVRD,
@@ -122,11 +122,11 @@ module gtxe2_channel_wrapper(
     output              TXPHALIGNDONE,
     output              TXPHINITDONE,
     output              TXDLYSRESETDONE,
-    input               TXSYNCMODE,
+/*    input               TXSYNCMODE,
     input               TXSYNCALLIN,
     input               TXSYNCIN,
     output              TXSYNCOUT,
-    output              TXSYNCDONE,
+    output              TXSYNCDONE,*/
 // TX Pattern Generator, ug476 p.147
     input   [2:0]       TXPRBSSEL,
     input               TXPRBSFORCEERR,
@@ -455,11 +455,6 @@ parameter   ES_QUAL_MASK                 = 80'h0;
 parameter   ES_EYE_SCAN_EN               = 1'b1;
 parameter   ES_ERRDET_EN                 = 1'b0;
 parameter   ES_CONTROL                   = 6'h0;
-parameter   es_control_status            = 4'b000;
-parameter   es_rdata                     = 80'h0;
-parameter   es_sdata                     = 80'h0;
-parameter   es_error_count               = 16'h0;
-parameter   es_sample_count              = 16'h0;
 parameter   RX_DATA_WIDTH                = 20;
 parameter   RX_INT_DATAWIDTH             = 0;
 parameter   ES_PMA_CFG                   = 10'h0;
@@ -915,11 +910,11 @@ gtx_unisims(
     .TXPHALIGNDONE                                              (TXPHALIGNDONE),
     .TXPHINITDONE                                               (TXPHINITDONE),
     .TXDLYSRESETDONE                                            (TXDLYSRESETDONE),
-    .TXSYNCMODE                                                 (TXSYNCMODE),
+/*    .TXSYNCMODE                                                 (TXSYNCMODE),
     .TXSYNCALLIN                                                (TXSYNCALLIN),
     .TXSYNCIN                                                   (TXSYNCIN),
     .TXSYNCOUT                                                  (TXSYNCOUT),
-    .TXSYNCDONE                                                 (TXSYNCDONE),
+    .TXSYNCDONE                                                 (TXSYNCDONE),*/
 // TX Pattern Generator, ug476 p.147
     .TXPRBSSEL                                                  (TXPRBSSEL),
     .TXPRBSFORCEERR                                             (TXPRBSFORCEERR),

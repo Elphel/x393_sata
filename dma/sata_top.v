@@ -42,13 +42,9 @@
     input   wire                ARVALID,           // AXI PS Master GP1 ARVALID, output
     output  wire                ARREADY,           // AXI PS Master GP1 ARREADY, input
     input   wire    [11:0]      ARID,              // AXI PS Master GP1 ARID[11:0], output
-    input   wire    [1:0]       ARLOCK,            // AXI PS Master GP1 ARLOCK[1:0], output
-    input   wire    [3:0]       ARCACHE,           // AXI PS Master GP1 ARCACHE[3:0], output
-    input   wire    [2:0]       ARPROT,            // AXI PS Master GP1 ARPROT[2:0], output
     input   wire    [3:0]       ARLEN,             // AXI PS Master GP1 ARLEN[3:0], output
     input   wire    [1:0]       ARSIZE,            // AXI PS Master GP1 ARSIZE[1:0], output
     input   wire    [1:0]       ARBURST,           // AXI PS Master GP1 ARBURST[1:0], output
-    input   wire    [3:0]       ARQOS,             // AXI PS Master GP1 ARQOS[3:0], output
 // AXI PS Master GP1: Read Data
     output  wire    [31:0]      RDATA,             // AXI PS Master GP1 RDATA[31:0], input
     output  wire                RVALID,            // AXI PS Master GP1 RVALID, input
@@ -61,13 +57,9 @@
     input   wire                AWVALID,           // AXI PS Master GP1 AWVALID, output
     output  wire                AWREADY,           // AXI PS Master GP1 AWREADY, input
     input   wire    [11:0]      AWID,              // AXI PS Master GP1 AWID[11:0], output
-    input   wire    [1:0]       AWLOCK,            // AXI PS Master GP1 AWLOCK[1:0], output
-    input   wire    [3:0]       AWCACHE,           // AXI PS Master GP1 AWCACHE[3:0], output
-    input   wire    [2:0]       AWPROT,            // AXI PS Master GP1 AWPROT[2:0], output
     input   wire    [3:0]       AWLEN,             // AXI PS Master GP1 AWLEN[3:0], outpu:t
     input   wire    [1:0]       AWSIZE,            // AXI PS Master GP1 AWSIZE[1:0], output
     input   wire    [1:0]       AWBURST,           // AXI PS Master GP1 AWBURST[1:0], output
-    input   wire    [3:0]       AWQOS,             // AXI PS Master GP1 AWQOS[3:0], output
 // AXI PS Master GP1: Write Data
     input   wire    [31:0]      WDATA,             // AXI PS Master GP1 WDATA[31:0], output
     input   wire                WVALID,            // AXI PS Master GP1 WVALID, output
@@ -141,8 +133,8 @@
  */
     output  wire            TXN,
     output  wire            TXP,
-    output  wire            RXN,
-    output  wire            RXP,
+    input   wire            RXN,
+    input   wire            RXP,
 
     input   wire            EXTCLK_P,
     input   wire            EXTCLK_N
@@ -288,6 +280,9 @@ wire            rdata_done; // = membridge.is_last_in_page & membridge.afi_rread
 
 //assign  rst = ARESETN;
 
+// TODO
+assign hclk = ACLK;
+
 
 axi_regs axi_regs(
 // axi iface
@@ -297,13 +292,9 @@ axi_regs axi_regs(
     .ARVALID            (ARVALID),
     .ARREADY            (ARREADY),
     .ARID               (ARID),
-    .ARLOCK             (ARLOCK),
-    .ARCACHE            (ARCACHE),
-    .ARPROT             (ARPROT),
     .ARLEN              (ARLEN),
     .ARSIZE             (ARSIZE),
     .ARBURST            (ARBURST),
-    .ARQOS              (ARQOS),
     .RDATA              (RDATA),
     .RVALID             (RVALID),
     .RREADY             (RREADY),
@@ -314,13 +305,9 @@ axi_regs axi_regs(
     .AWVALID            (AWVALID),
     .AWREADY            (AWREADY),
     .AWID               (AWID),
-    .AWLOCK             (AWLOCK),
-    .AWCACHE            (AWCACHE),
-    .AWPROT             (AWPROT),
     .AWLEN              (AWLEN),
     .AWSIZE             (AWSIZE),
     .AWBURST            (AWBURST),
-    .AWQOS              (AWQOS),
     .WDATA              (WDATA),
     .WVALID             (WVALID),
     .WREADY             (WREADY),
@@ -350,7 +337,7 @@ dma_regs dma_regs(
     .ACLK           (ACLK),
     .sclk           (sclk),
 // control iface
-    .mem_address    (mem_address),
+    .mem_address    (mem_address[31:7]),
     .lba            (lba),
     .sector_cnt     (sector_cnt),
     .dma_type       (dma_type),
@@ -441,7 +428,7 @@ dma_control dma_control(
     .rst                (sata_rst),
 
     // registers iface
-    .mem_address        (mem_address),
+    .mem_address        (mem_address[31:7]),
     .lba                (lba),
     .sector_cnt         (sector_cnt),
     .dma_type           (dma_type),
@@ -450,7 +437,7 @@ dma_control dma_control(
 
     // adapter command iface
     .adp_busy           (adp_busy),
-    .adp_addr           (adp_addr),
+    .adp_addr           (adp_addr[31:7]),
     .adp_type           (adp_type),
     .adp_val            (adp_val),
 
@@ -490,7 +477,7 @@ dma_adapter dma_adapter(
 // command iface                            
     .cmd_type               (adp_type),
     .cmd_val                (adp_val),
-    .cmd_addr               (adp_addr),
+    .cmd_addr               (adp_addr[31:7]),
     .cmd_busy               (adp_busy),
 // data iface                            
     .wr_data_in             (to_data),

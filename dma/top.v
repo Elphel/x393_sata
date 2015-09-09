@@ -23,10 +23,10 @@
  * to make the final integration easier - just to make an instance of 
  * what is called now 'axi_regs' and connect it
  */
-`include "system_defines.vh" 
+//`include "system_defines.vh" 
 //`include "sata_top.v"
 module top #(
-`include "includes/x393_parameters.vh"
+`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
 (
 // sata serial data iface
@@ -38,10 +38,8 @@ module top #(
     input   wire    EXTCLK_P,
     input   wire    EXTCLK_N
 );
-parameter   REGISTERS_CNT = 20;
-wire [32*REGISTERS_CNT - 1:0] outmem;
-wire clrstart;
 
+wire            axi_aclk0;
 wire            sclk;
 wire            sata_rst;
 wire            extrst;
@@ -55,13 +53,9 @@ wire    [31:0]  ARADDR;
 wire            ARVALID;
 wire            ARREADY;
 wire    [11:0]  ARID;
-wire    [1:0]   ARLOCK;
-wire    [3:0]   ARCACHE;
-wire    [2:0]   ARPROT;
 wire    [3:0]   ARLEN;
 wire    [1:0]   ARSIZE;
 wire    [1:0]   ARBURST;
-wire    [3:0]   ARQOS;
 wire    [31:0]  RDATA;
 wire            RVALID;
 wire            RREADY;
@@ -72,13 +66,9 @@ wire    [31:0]  AWADDR;
 wire            AWVALID;
 wire            AWREADY;
 wire    [11:0]  AWID;
-wire    [1:0]   AWLOCK;
-wire    [3:0]   AWCACHE;
-wire    [2:0]   AWPROT;
 wire    [3:0]   AWLEN;
 wire    [1:0]   AWSIZE;
 wire    [1:0]   AWBURST;
-wire    [3:0]   AWQOS;
 wire    [31:0]  WDATA;
 wire            WVALID;
 wire            WREADY;
@@ -137,28 +127,6 @@ wire [ 7:0] afi0_rcount;     // input[7:0]
 wire [ 2:0] afi0_racount;     // input[2:0] 
 wire        afi0_rdissuecap1en; // output
 
-// send_dma
-wire    [7:0]   cmd_ad;
-wire            cmd_stb;
-wire    [7:0]   status_ad;
-wire            status_rq;
-wire            status_start;
-wire            frame_start_chn;
-wire            next_page_chn;
-wire            cmd_wrmem;
-wire            page_ready_chn;
-wire            frame_done_chn;
-wire    [15:0]  line_unfinished_chn1;
-wire            suspend_chn1;
-wire            xfer_reset_page_rd;
-wire            buf_wpage_nxt;
-wire            buf_wr;
-wire    [63:0]  buf_wdata;
-wire            xfer_reset_page_wr;
-wire            buf_rpage_nxt;
-wire            buf_rd;
-wire    [63:0]  buf_rdata;
-
 assign comb_rst=~frst[0] | frst[1];
 always @(posedge comb_rst or posedge axi_aclk0) begin
     if (comb_rst) axi_rst_pre <= 1'b1;
@@ -191,13 +159,9 @@ sata_top sata_top(
     .ARVALID                    (ARVALID),
     .ARREADY                    (ARREADY),
     .ARID                       (ARID),
-    .ARLOCK                     (ARLOCK),
-    .ARCACHE                    (ARCACHE),
-    .ARPROT                     (ARPROT),
     .ARLEN                      (ARLEN),
     .ARSIZE                     (ARSIZE),
     .ARBURST                    (ARBURST),
-    .ARQOS                      (ARQOS),
 // AXI PS Master GP1: Read Data
     .RDATA                      (RDATA),
     .RVALID                     (RVALID),
@@ -210,13 +174,9 @@ sata_top sata_top(
     .AWVALID                    (AWVALID),
     .AWREADY                    (AWREADY),
     .AWID                       (AWID),
-    .AWLOCK                     (AWLOCK),
-    .AWCACHE                    (AWCACHE),
-    .AWPROT                     (AWPROT),
     .AWLEN                      (AWLEN),
     .AWSIZE                     (AWSIZE),
     .AWBURST                    (AWBURST),
-    .AWQOS                      (AWQOS),
 // AXI PS Master GP1: Write Data
     .WDATA                      (WDATA),
     .WVALID                     (WVALID),
@@ -615,13 +575,13 @@ PS7 ps7_i (
     .MAXIGP1ARVALID (ARVALID),          // AXI PS Master GP1 ARVALID, output
     .MAXIGP1ARREADY (ARREADY),          // AXI PS Master GP1 ARREADY, input
     .MAXIGP1ARID    (ARID),             // AXI PS Master GP1 ARID[11:0], output
-    .MAXIGP1ARLOCK  (ARLOCK),           // AXI PS Master GP1 ARLOCK[1:0], output
-    .MAXIGP1ARCACHE (ARCACHE),          // AXI PS Master GP1 ARCACHE[3:0], output
-    .MAXIGP1ARPROT  (ARPROT),           // AXI PS Master GP1 ARPROT[2:0], output
+    .MAXIGP1ARLOCK  (),           // AXI PS Master GP1 ARLOCK[1:0], output
+    .MAXIGP1ARCACHE (),          // AXI PS Master GP1 ARCACHE[3:0], output
+    .MAXIGP1ARPROT  (),           // AXI PS Master GP1 ARPROT[2:0], output
     .MAXIGP1ARLEN   (ARLEN),            // AXI PS Master GP1 ARLEN[3:0], output
     .MAXIGP1ARSIZE  (ARSIZE),           // AXI PS Master GP1 ARSIZE[1:0], output
     .MAXIGP1ARBURST (ARBURST),          // AXI PS Master GP1 ARBURST[1:0], output
-    .MAXIGP1ARQOS   (ARQOS),            // AXI PS Master GP1 ARQOS[3:0], output
+    .MAXIGP1ARQOS   (),            // AXI PS Master GP1 ARQOS[3:0], output
 // AXI PS Master GP1: Read Data
     .MAXIGP1RDATA   (RDATA),            // AXI PS Master GP1 RDATA[31:0], input
     .MAXIGP1RVALID  (RVALID),           // AXI PS Master GP1 RVALID, input
@@ -634,13 +594,13 @@ PS7 ps7_i (
     .MAXIGP1AWVALID (AWVALID),          // AXI PS Master GP1 AWVALID, output
     .MAXIGP1AWREADY (AWREADY),          // AXI PS Master GP1 AWREADY, input
     .MAXIGP1AWID    (AWID),             // AXI PS Master GP1 AWID[11:0], output
-    .MAXIGP1AWLOCK  (AWLOCK),           // AXI PS Master GP1 AWLOCK[1:0], output
-    .MAXIGP1AWCACHE (AWCACHE),          // AXI PS Master GP1 AWCACHE[3:0], output
-    .MAXIGP1AWPROT  (AWPROT),           // AXI PS Master GP1 AWPROT[2:0], output
+    .MAXIGP1AWLOCK  (),           // AXI PS Master GP1 AWLOCK[1:0], output
+    .MAXIGP1AWCACHE (),          // AXI PS Master GP1 AWCACHE[3:0], output
+    .MAXIGP1AWPROT  (),           // AXI PS Master GP1 AWPROT[2:0], output
     .MAXIGP1AWLEN   (AWLEN),            // AXI PS Master GP1 AWLEN[3:0], output
     .MAXIGP1AWSIZE  (AWSIZE),           // AXI PS Master GP1 AWSIZE[1:0], output
     .MAXIGP1AWBURST (AWBURST),          // AXI PS Master GP1 AWBURST[1:0], output
-    .MAXIGP1AWQOS   (AWQOS),            // AXI PS Master GP1 AWQOS[3:0], output
+    .MAXIGP1AWQOS   (),            // AXI PS Master GP1 AWQOS[3:0], output
 // AXI PS Master GP1: Write Data
     .MAXIGP1WDATA   (WDATA),            // AXI PS Master GP1 WDATA[31:0], output
     .MAXIGP1WVALID  (WVALID),           // AXI PS Master GP1 WVALID, output

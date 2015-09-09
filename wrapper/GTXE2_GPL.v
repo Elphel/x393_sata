@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Module: GTXE2_GPL
- * Date: 2015-09-07
+ * Date: 2015-09-08
  * Author: Alexey     
  * Description: emulates GTXE2_CHANNEL primitive behaviour. 
  *              The file is gathered from multiple files
@@ -82,13 +82,13 @@ module gtxe2_chnl_cpll(
     output  wire    CPLLLOCK,
     output  wire    CPLLREFCLKLOST,
 
-    input   wire    GTRSVD,
-    input   wire    PCSRSVDIN,
-    input   wire    PCSRSVDIN2,
-    input   wire    PMARSVDIN,
-    input   wire    PMARSVDIN2,
-    input   wire    TSTIN,
-    output  wire    TSTOUT,
+    input   wire    [15:0]  GTRSVD,
+    input   wire    [15:0]  PCSRSVDIN,
+    input   wire    [4:0]   PCSRSVDIN2,
+    input   wire    [4:0]   PMARSVDIN,
+    input   wire    [4:0]   PMARSVDIN2,
+    input   wire    [19:0]  TSTIN,
+    output  wire            TSTOUT,
 
 // internal
     input   wire    ref_clk,
@@ -284,7 +284,16 @@ module gtxe2_chnl_clocking(
     output  wire            RXOUTCLK,
     output  wire            RXOUTCLKFABRIC,
     output  wire            rx_serial_clk,
-    output  wire            tx_sipo_clk
+    output  wire            rx_sipo_clk,
+
+// additional ports to cpll
+    output              TSTOUT,
+    input   [15:0]      GTRSVD,
+    input   [15:0]      PCSRSVDIN,
+    input   [4:0]       PCSRSVDIN2,
+    input   [4:0]       PMARSVDIN,
+    input   [4:0]       PMARSVDIN2,
+    input   [19:0]      TSTIN
 );
 // CPLL
 parameter   [23:0]  CPLL_CFG        = 29'h00BC07DC;
@@ -365,7 +374,6 @@ tx_toserialclk_div(
 
     .div        (tx_serial_divider)
 );
-wire    rx_sipo_clk;
 clock_divider #(
 //    .divide_by  (rx_serial_divider),
     .divide_by_param (0)
@@ -385,6 +393,7 @@ clock_divider #(
     .divide_by (tx_pma_divider1)
 )
 tx_pma_div1(
+    .div        (1),
     .clk_in     (tx_piso_clk),
     .clk_out    (tx_pma_div1_clk)
 );
@@ -393,6 +402,7 @@ clock_divider #(
     .divide_by (tx_pma_divider2)
 )
 tx_pma_div2(
+    .div        (1),
     .clk_in     (tx_pma_div1_clk),
     .clk_out    (TXOUTCLKPMA)
 );
@@ -404,6 +414,7 @@ clock_divider #(
     .divide_by  (rx_pma_divider1)
 )
 rx_pma_div1(
+    .div        (1),
     .clk_in     (rx_sipo_clk),
     .clk_out    (rx_pma_div1_clk)
 );
@@ -412,6 +423,7 @@ clock_divider #(
     .divide_by  (rx_pma_divider2)
 )
 rx_pma_div2(
+    .div        (1),
     .clk_in     (rx_pma_div1_clk),
     .clk_out    (RXOUTCLKPMA)
 );
@@ -421,6 +433,7 @@ clock_divider #(
     .divide_by  (2)
 )
 txpllrefclk_div2(
+    .div        (1),
     .clk_in     (TXPLLREFCLK_DIV1),
     .clk_out    (TXPLLREFCLK_DIV2)
 );
@@ -428,6 +441,7 @@ clock_divider #(
     .divide_by  (2)
 )
 rxpllrefclk_div2(
+    .div        (1),
     .clk_in     (RXPLLREFCLK_DIV1),
     .clk_out    (RXPLLREFCLK_DIV2)
 );
@@ -491,7 +505,7 @@ cpll(
     
     .ref_clk            (clk_mux_out),
     .clk_out            (cpll_clk_out),
-    .pll_locked         (pll_locked)
+    .pll_locked         ()
 );
 
 endmodule
@@ -1030,6 +1044,7 @@ wire [internal_data_width - 1:0]    dataiface_data_out;
 wire [interface_data_width - 1:0]   dataiface_data_in;
 
 //assign  dataiface_data_in  = {TXCHARDISPMODE[interface_isk_width - 1:0], TXCHARDISPVAL[interface_isk_width - 1:0], TXDATA[iface_databus_width - 1:0]};
+genvar ii;
 localparam outdiv = interface_data_width / internal_data_width;
 generate
 for (ii = 1; ii < (outdiv + 1); ii = ii + 1)
@@ -1066,7 +1081,6 @@ dataiface
 wire    [internal_data_width - 1:0] polarized_data;
 
 // invert data (get words as [abdceifghj] after 8/10, each word shall be transmitter in a reverse bit order)
-genvar ii;
 genvar jj;
 generate
     for (ii = 0; ii < internal_data_width; ii = ii + 10)
@@ -1230,6 +1244,7 @@ wire                    full_wr;
 wire                    val_wr;
 wire                    val_rd;
 wire                    bitcounter_limit;
+wire                    almost_empty_rd;
 
 assign  bitcounter_limit = trim ? bitcounter == (trimmed_width - 1) : bitcounter == (width - 1);
 
@@ -1665,27 +1680,6 @@ always @ (posedge clk)
 wire    [comma_width - 1:0] comma_window [window_size - 1:0];
 //initial
 //  for (idx = 0; idx < window_size; idx = idx + 1) $dumpvars(0, comma_width[idx]);
-wire    [comma_width - 1:0] comma_window0 = comma_window[0];
-wire    [comma_width - 1:0] comma_window1 = comma_window[1];
-wire    [comma_width - 1:0] comma_window2 = comma_window[2];
-wire    [comma_width - 1:0] comma_window3 = comma_window[3];
-wire    [comma_width - 1:0] comma_window4 = comma_window[4];
-wire    [comma_width - 1:0] comma_window5 = comma_window[5];
-wire    [comma_width - 1:0] comma_window6 = comma_window[6];
-wire    [comma_width - 1:0] comma_window7 = comma_window[7];
-wire    [comma_width - 1:0] comma_window8 = comma_window[8];
-wire    [comma_width - 1:0] comma_window9 = comma_window[9];
-wire    [comma_width - 1:0] comma_window10 = comma_window[10];
-wire    [comma_width - 1:0] comma_window11 = comma_window[11];
-wire    [comma_width - 1:0] comma_window12 = comma_window[12];
-wire    [comma_width - 1:0] comma_window13 = comma_window[13];
-wire    [comma_width - 1:0] comma_window14 = comma_window[14];
-wire    [comma_width - 1:0] comma_window15 = comma_window[15];
-wire    [comma_width - 1:0] comma_window16 = comma_window[16];
-wire    [comma_width - 1:0] comma_window17 = comma_window[17];
-wire    [comma_width - 1:0] comma_window18 = comma_window[18];
-wire    [comma_width - 1:0] comma_window19 = comma_window[19];
-
 wire    [window_size - 1:0] comma_match; // shows all matches
 wire    [window_size - 1:0] comma_pos; // shows the first match
 wire    [window_size - 1:0] pcomma_match;
@@ -1763,7 +1757,7 @@ assign  RXBYTEREALIGN = RXCOMMADETEN & is_aligned & pointer_set;
 always @ (posedge clk)
 begin
     is_aligned      <= rst | pointer_set === 1'bx | rxelecidle ? 1'b0 : ~is_aligned & pointer_set | is_aligned;
-    pointer_latched <= rst ? 1'b0 : pointer_set ? pointer : pointer_latched;
+    pointer_latched <= rst ? {pwidth{1'b0}} : pointer_set ? pointer : pointer_latched;
 end
 
 endmodule
@@ -1801,23 +1795,24 @@ wire                    empty_rd;
 wire                    full_wr;
 wire                    val_wr;
 wire                    val_rd;
+wire                    almost_empty_rd;
 
 always @ (posedge usrclk)
-    wordcounter  <= reset ? 32'h0 : realign & ~(div == 0) ? 31'b1 : wordcounter == (div - 1) ? 32'h0 : wordcounter + 1'b1;
+    wordcounter  <= reset ? 32'h0 : realign & ~(div == 0) ? 32'd1 : wordcounter == (div - 1) ? 32'h0 : wordcounter + 1'b1;
 
 genvar ii;
 generate
 for (ii = 0; ii < div; ii = ii + 1)
 begin: splicing
     always @ (posedge usrclk)
-        inbuffer_data[(ii + 1) * internal_data_width - 1 -: internal_data_width] <= reset ? {interface_data_width{1'b0}} : ((wordcounter == ii) | realign & (0 == ii)) ? indata : inbuffer_data[(ii + 1) * internal_data_width - 1 -: internal_data_width];
+        inbuffer_data[(ii + 1) * internal_data_width - 1 -: internal_data_width] <= reset ? {internal_data_width{1'b0}} : ((wordcounter == ii) | realign & (0 == ii)) ? indata : inbuffer_data[(ii + 1) * internal_data_width - 1 -: internal_data_width];
 end
 endgenerate
 generate
 for (ii = 0; ii < div; ii = ii + 1)
 begin: splicing2
     always @ (posedge usrclk)
-        inbuffer_isk[(ii + 1) * internal_isk_width - 1 -: internal_isk_width] <= reset ? {interface_isk_width{1'b0}} : ((wordcounter == ii) | realign & (0 == ii)) ? inisk : inbuffer_isk[(ii + 1) * internal_isk_width - 1 -: internal_isk_width];
+        inbuffer_isk[(ii + 1) * internal_isk_width - 1 -: internal_isk_width] <= reset ? {internal_isk_width{1'b0}} : ((wordcounter == ii) | realign & (0 == ii)) ? inisk : inbuffer_isk[(ii + 1) * internal_isk_width - 1 -: internal_isk_width];
 end
 endgenerate
 
@@ -2067,10 +2062,10 @@ begin: asdadfdsf
 end
 endgenerate
 assign  RXDATA[63:iface_databus_width]       = {64 - iface_databus_width{1'bx}};
-assign  RXDISPERR[7:interface_isk_width]     = {7 - interface_isk_width{1'bx}};
-assign  RXCHARISK[7:interface_isk_width]     = {7 - interface_isk_width{1'bx}};
-assign  RXCHARISCOMMA[7:interface_isk_width] = {7 - interface_isk_width{1'bx}};
-assign  RXNOTINTABLE[7:interface_isk_width]  = {7 - interface_isk_width{1'bx}};
+assign  RXDISPERR[7:interface_isk_width]     = {8 - interface_isk_width{1'bx}};
+assign  RXCHARISK[7:interface_isk_width]     = {8 - interface_isk_width{1'bx}};
+assign  RXCHARISCOMMA[7:interface_isk_width] = {8 - interface_isk_width{1'bx}};
+assign  RXNOTINTABLE[7:interface_isk_width]  = {8 - interface_isk_width{1'bx}};
 
 gtxe2_chnl_rx_dataiface #(
     .internal_data_width    (internal_data_width + internal_data_extra),
@@ -2210,7 +2205,16 @@ module gtxe2_chnl(
     output  wire            RXOUTCLKPCS,
     output  wire            RXOUTCLK,
     output  wire            RXOUTCLKFABRIC,
-    output  wire            rx_serial_clk
+    output  wire            rx_serial_clk,
+
+// additional ports to pll
+    output              TSTOUT,
+    input   [15:0]      GTRSVD,
+    input   [15:0]      PCSRSVDIN,
+    input   [4:0]       PCSRSVDIN2,
+    input   [4:0]       PMARSVDIN,
+    input   [4:0]       PMARSVDIN2,
+    input   [19:0]      TSTIN
 );
 parameter   [23:0]  CPLL_CFG        = 29'h00BC07DC;
 parameter   integer CPLL_FBDIV      = 4;
@@ -2383,12 +2387,22 @@ clocking(
     .TXOUTCLK           (TXOUTCLK),
     .TXOUTCLKFABRIC     (TXOUTCLKFABRIC),
     .tx_serial_clk      (tx_serial_clk),
+    .tx_piso_clk        (),
 
+    .GTRSVD             (GTRSVD),
+    .PCSRSVDIN          (PCSRSVDIN),
+    .PCSRSVDIN2         (PCSRSVDIN2),
+    .PMARSVDIN          (PMARSVDIN),
+    .PMARSVDIN2         (PMARSVDIN2),
+    .TSTIN              (TSTIN),
+    .TSTOUT             (TSTOUT),
+    
     .RXOUTCLKPMA        (RXOUTCLKPMA),
     .RXOUTCLKPCS        (RXOUTCLKPCS),
     .RXOUTCLK           (RXOUTCLK),
     .RXOUTCLKFABRIC     (RXOUTCLKFABRIC),
-    .rx_serial_clk      (rx_serial_clk)
+    .rx_serial_clk      (rx_serial_clk),
+    .rx_sipo_clk        ()
 );
 
 endmodule
@@ -2415,12 +2429,12 @@ module GTXE2_GPL(
     output              CPLLLOCK,
     output              CPLLREFCLKLOST,
     output              TSTOUT,
-    input               GTRSVD,
-    input               PCSRSVDIN,
-    input               PCSRSVDIN2,
-    input               PMARSVDIN,
-    input               PMARSVDIN2,
-    input               TSTIN,
+    input   [15:0]      GTRSVD,
+    input   [15:0]      PCSRSVDIN,
+    input   [4:0]       PCSRSVDIN2,
+    input   [4:0]       PMARSVDIN,
+    input   [4:0]       PMARSVDIN2,
+    input   [19:0]      TSTIN,
 // Reset Mode ports, ug476 p.62
     input               GTRESETSEL,
     input               RESETOVRD,
@@ -2496,11 +2510,11 @@ module GTXE2_GPL(
     output              TXPHALIGNDONE,
     output              TXPHINITDONE,
     output              TXDLYSRESETDONE,
-    input               TXSYNCMODE,
+/*    input               TXSYNCMODE,
     input               TXSYNCALLIN,
     input               TXSYNCIN,
     output              TXSYNCOUT,
-    output              TXSYNCDONE,
+    output              TXSYNCDONE,*/
 // TX Pattern Generator, ug476 p.147
     input   [2:0]       TXPRBSSEL,
     input               TXPRBSFORCEERR,
@@ -3079,17 +3093,27 @@ channel(
     .CPLLLOCK               (CPLLLOCK),
     .CPLLREFCLKLOST         (CPLLREFCLKLOST),
 
-    .TXOUTCLKPMA            (TXOUTCLKPMA),
+    .GTRSVD                 (GTRSVD),
+    .PCSRSVDIN              (PCSRSVDIN),
+    .PCSRSVDIN2             (PCSRSVDIN2),
+    .PMARSVDIN              (PMARSVDIN),
+    .PMARSVDIN2             (PMARSVDIN2),
+    .TSTIN                  (TSTIN),
+    .TSTOUT                 (TSTOUT),
+    
+    .TXOUTCLKPMA            (),
     .TXOUTCLKPCS            (TXOUTCLKPCS),
     .TXOUTCLK               (TXOUTCLK),
     .TXOUTCLKFABRIC         (TXOUTCLKFABRIC),
     .tx_serial_clk          (),
 
-    .RXOUTCLKPMA            (RXOUTCLKPMA),
+    .RXOUTCLKPMA            (),
     .RXOUTCLKPCS            (RXOUTCLKPCS),
     .RXOUTCLK               (RXOUTCLK),
     .RXOUTCLKFABRIC         (RXOUTCLKFABRIC),
-    .rx_serial_clk          ()
+    .rx_serial_clk          (),
+
+    .RXDLYBYPASS            (RXDLYBYPASS)
 );
 
 

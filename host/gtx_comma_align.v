@@ -71,7 +71,7 @@ reg     [19:0] indata_r;
 wire    [38:0] window;
 always @ (posedge clk)
     indata_r <= indata;
-assign  window = {indata, indata_r};
+assign  window = {indata[18:0], indata_r};
 
 // there is only 1 matched subwindow due to 20-bit comma's non-repetative pattern
 wire    [19:0]  subwindow [19:0];

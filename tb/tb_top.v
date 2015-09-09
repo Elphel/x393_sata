@@ -18,11 +18,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-// set of global defines
+// global defines
 `define SIMULATION
-`define CHECKERS_ENABLED
 `define OPEN_SOURCE_ONLY
-
+`define PRELOAD_BRAMS
+`define CHECKERS_ENABLED
 /*
  * using x393_testbench01.tf style, contains a lot of copy-pasted code from there
  */
@@ -31,8 +31,8 @@
 //`include "sata_device.v"
 
 module tb #(
-`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - not used
-`include "includes/x393_simulation_parameters.vh"
+`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
+`include "includes/x393_simulation_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
 (
 );
@@ -46,8 +46,12 @@ initial #1 $display("HI THERE");
 initial
 begin
     $dumpfile(lxtname);
-    $dumpvars(0,tb);
+    $dumpvars(0, tb);       // SuppressThisWarning VEditor - no idea why here was a warning
 end
+
+reg EXTCLK_P = 1'b1;
+reg EXTCLK_N = 1'b0;
+//reg serial_clk = 1'b1;
 
 reg     [11:0]  ARID_IN_r;
 reg     [31:0]  ARADDR_IN_r;
@@ -78,7 +82,7 @@ reg  [31:0] SIMUL_AXI_READ;
 reg  [SIMUL_AXI_READ_WIDTH-1:0] SIMUL_AXI_ADDR;
 // SuppressWarnings VEditor
 reg         SIMUL_AXI_FULL; // some data available
-wire        SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
+wire        SIMUL_AXI_EMPTY;
 reg  [31:0] registered_rdata; // here read data from task
 
 //reg        CLK;
@@ -149,6 +153,7 @@ reg  [15:0] ENABLED_CHANNELS = 0; // currently enabled memory channels
 //  integer     SCANLINE_CUR_X;
 //  integer     SCANLINE_CUR_Y;
 wire AXI_RD_EMPTY=NUM_WORDS_READ==NUM_WORDS_EXPECTED; //SuppressThisWarning VEditor : may be unused, just for simulation
+assign  SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
 
 wire [11:0]  #(AXI_TASK_HOLD) ARID_IN = ARID_IN_r;
 wire [31:0]  #(AXI_TASK_HOLD) ARADDR_IN = ARADDR_IN_r;
@@ -344,9 +349,6 @@ simul_axi_read #(
   .burst(),     // burst in progress - just debug
   .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
-reg EXTCLK_P = 1'b1;
-reg EXTCLK_N = 1'b0;
-reg serial_clk = 1'b1;
 
 // device-under-test instance
 wire    rxn;
@@ -547,8 +549,8 @@ simul_axi_hp_wr #(
     end
 
 //tasks
-`include "includes/x393_tasks01.vh"
-`include "includes/x393_tasks_afi.vh"
+`include "includes/x393_tasks01.vh"     // SuppressThisWarning VEditor - partially used
+`include "includes/x393_tasks_afi.vh"   // SuppressThisWarning VEditor - partially used
 
 /*
  * Monitor maxi bus read data. 
@@ -570,8 +572,8 @@ integer maxi_monitor_raddr  = 0;
 integer maxi_monitor_waddr  = 0;
 reg     maxi_monitor_fifo_empty = 1;
 
-function maxiMonitorIsEmpty(
-    input dummy
+function maxiMonitorIsEmpty( // SuppressThisWarning VEditor - it's ok
+    input dummy // SuppressThisWarning VEditor - it's ok
     );
     begin
         maxiMonitorIsEmpty = maxi_monitor_fifo_empty;
@@ -587,7 +589,7 @@ task maxiMonitorPop;
             $finish;
         end
         data = maxi_monitor_fifo[maxi_monitor_raddr][31:0]; // RDATA
-        id = maxi_monitor_fifo[maxi_monitor_raddr][43:32]; // RID
+        id = maxi_monitor_fifo[maxi_monitor_raddr][43:32]; // RID // SuppressThisWarning VEditor - it's ok
         maxi_monitor_raddr = (maxi_monitor_raddr + 1) % maxi_monitor_fifo_size;
         if (maxi_monitor_waddr == maxi_monitor_raddr) begin
             maxi_monitor_fifo_empty = 1;
@@ -620,6 +622,6 @@ initial forever @ (posedge CLK) begin
 end
 
 // testing itself
-`include  "test_top.v"
+`include  "test_top.v" // SuppressThisWarning VEditor - to avoid strange warnings
 
 endmodule

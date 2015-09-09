@@ -96,7 +96,7 @@ assign  rd_start = set_busy & ~cmd_type;
 always @ (posedge clk)
 begin
     cmd_type_r  <= rst ? 1'b0 : set_busy ? cmd_type : cmd_type_r;
-    cmd_addr_r  <= rst ? 1'b0 : set_busy ? cmd_addr : cmd_addr_r;
+    cmd_addr_r  <= rst ? 25'b0 : set_busy ? cmd_addr[31:7] : cmd_addr_r[31:7];
     cmd_busy_r  <= (cmd_busy_r | set_busy) & ~rst & ~clr_busy;
 end
 
@@ -126,18 +126,21 @@ reg     [3:0]   rdwr_state;
 localparam READ_IDLE        = 0;
 localparam READ_WAIT_ADDR   = 3;
 localparam READ_DATA        = 4;
-reg             rd_reset_page;
+wire            rd_reset_page;
 reg             rd_next_page;
-reg             rd_data;
+wire    [63:0]  rd_data;
 reg     [6:0]   rd_data_count;
 reg             rd_en;
 
 wire            rd_stop;
-wire            rd_cnt_to_pull;
+wire    [6:0]   rd_cnt_to_pull;
 
 assign  rd_cnt_to_pull = 7'hf;
 assign  rd_stop = rd_ack_in & rd_data_count == rd_cnt_to_pull;
 
+assign  rd_reset_page = 1'b0;
+assign  rd_data     = buf_rdata;
+assign  rd_val_out  = rd_en;
 assign  rd_data_out = rd_data;
 
 always @ (posedge clk)
@@ -296,7 +299,7 @@ localparam MEMBR_SIZE   = 5;
 localparam MEMBR_LOADDR = 6;
 localparam MEMBR_CTRL   = 7;
 
-reg     [32:0]  membr_data;
+reg     [31:0]  membr_data;
 reg     [15:0]  membr_addr;
 reg             membr_start;
 reg             membr_done;
@@ -374,7 +377,7 @@ always @ (posedge clk)
             end
             MEMBR_LOADDR:
             begin
-                membr_data  <= cmd_addr_r;
+                membr_data  <= {7'h0, cmd_addr_r[31:7]};
                 membr_addr  <= 16'h202;
                 membr_start <= membr_inprocess ? 1'b0 : 1'b1;
                 membr_setup <= membr_inprocess | membr_setup ? 1'b0 : 1'b1;

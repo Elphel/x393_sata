@@ -100,6 +100,7 @@ module link #(
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
     output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out // charisk
 );
+wire    frame_done;
 // scrambled data
 wire    [DATA_BYTE_WIDTH*8 - 1:0]   scrambler_out;
 wire    dec_err; // doc, p.311 
@@ -109,15 +110,11 @@ wire    crc_bad;
 // current crc
 wire    [31:0] crc_dword; 
 
-reg     data_txing; // if there are still some data to transmit and the transaction wasn't cancelled
-always @ (posedge clk)
-    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
-
 // send primitives variety count, including CRC and DATA as primitives
 localparam  PRIM_NUM = 15;
-// list of bits of rcvd_dword
 wire    [PRIM_NUM - 1:0] rcvd_dword; // shows current processing primitive (or just data dword)
-wire                    dword_val;
+wire                     dword_val;
+// list of bits of rcvd_dword
 localparam  CODE_DATA   = 0;
 localparam  CODE_CRC    = 1;
 localparam  CODE_SYNCP  = 2;
@@ -134,6 +131,9 @@ localparam  CODE_DMATP  = 12;
 localparam  CODE_OKP    = 13;
 localparam  CODE_ERRP   = 14;
 
+reg                      data_txing; // if there are still some data to transmit and the transaction wasn't cancelled
+always @ (posedge clk)
+    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
 
 // fsm
 // states and transitions are taken from the doc, "Link Layer State Machine" chapter
@@ -391,21 +391,21 @@ generate
 if (DATA_BYTE_WIDTH == 2)
 begin
     reg     prim_word; // word counter in a primitive TODO logic
-    assign  prim_data[CODE_SYNCP]     =  prim_word ? PRIM_SYNCP_HI    : PRIM_SYNCP_LO;
-    assign  prim_data[CODE_ALIGNP]    =  prim_word ? PRIM_ALIGNP_HI   : PRIM_ALIGNP_LO;
-    assign  prim_data[CODE_XRDYP]     =  prim_word ? PRIM_XRDYP_HI    : PRIM_XRDYP_LO;
-    assign  prim_data[CODE_SOFP]      =  prim_word ? PRIM_SOFP_HI     : PRIM_SOFP_LO;
-    assign  prim_data[CODE_DATA]      =  scrambler_out;
-    assign  prim_data[CODE_HOLDAP]    =  prim_word ? PRIM_HOLDAP_HI   : PRIM_HOLDAP_LO;
-    assign  prim_data[CODE_HOLDP]     =  prim_word ? PRIM_HOLDP_HI    : PRIM_HOLDP_LO;
-    assign  prim_data[CODE_CRC]       =  scrambler_out;
-    assign  prim_data[CODE_EOFP]      =  prim_word ? PRIM_EOFP_HI     : PRIM_EOFP_LO;
-    assign  prim_data[CODE_WTRMP]     =  prim_word ? PRIM_WTRMP_HI    : PRIM_WTRMP_LO;
-    assign  prim_data[CODE_RRDYP]     =  prim_word ? PRIM_RRDYP_HI    : PRIM_RRDYP_LO;
-    assign  prim_data[CODE_IPP]       =  prim_word ? PRIM_IPP_HI      : PRIM_IPP_LO;
-    assign  prim_data[CODE_DMATP]     =  prim_word ? PRIM_DMATP_HI    : PRIM_DMATP_LO;
-    assign  prim_data[CODE_OKP]       =  prim_word ? PRIM_OKP_HI      : PRIM_OKP_LO;
-    assign  prim_data[CODE_ERRP]      =  prim_word ? PRIM_ERRP_HI     : PRIM_ERRP_LO;
+    assign  prim_data[CODE_SYNCP] [15:0]    =  prim_word ? PRIM_SYNCP_HI    : PRIM_SYNCP_LO;
+    assign  prim_data[CODE_ALIGNP][15:0]    =  prim_word ? PRIM_ALIGNP_HI   : PRIM_ALIGNP_LO;
+    assign  prim_data[CODE_XRDYP] [15:0]    =  prim_word ? PRIM_XRDYP_HI    : PRIM_XRDYP_LO;
+    assign  prim_data[CODE_SOFP]  [15:0]    =  prim_word ? PRIM_SOFP_HI     : PRIM_SOFP_LO;
+    assign  prim_data[CODE_DATA]  [15:0]    =  scrambler_out[15:0];
+    assign  prim_data[CODE_HOLDAP][15:0]    =  prim_word ? PRIM_HOLDAP_HI   : PRIM_HOLDAP_LO;
+    assign  prim_data[CODE_HOLDP] [15:0]    =  prim_word ? PRIM_HOLDP_HI    : PRIM_HOLDP_LO;
+    assign  prim_data[CODE_CRC]   [15:0]    =  scrambler_out[15:0];
+    assign  prim_data[CODE_EOFP]  [15:0]    =  prim_word ? PRIM_EOFP_HI     : PRIM_EOFP_LO;
+    assign  prim_data[CODE_WTRMP] [15:0]    =  prim_word ? PRIM_WTRMP_HI    : PRIM_WTRMP_LO;
+    assign  prim_data[CODE_RRDYP] [15:0]    =  prim_word ? PRIM_RRDYP_HI    : PRIM_RRDYP_LO;
+    assign  prim_data[CODE_IPP]   [15:0]    =  prim_word ? PRIM_IPP_HI      : PRIM_IPP_LO;
+    assign  prim_data[CODE_DMATP] [15:0]    =  prim_word ? PRIM_DMATP_HI    : PRIM_DMATP_LO;
+    assign  prim_data[CODE_OKP]   [15:0]    =  prim_word ? PRIM_OKP_HI      : PRIM_OKP_LO;
+    assign  prim_data[CODE_ERRP]  [15:0]    =  prim_word ? PRIM_ERRP_HI     : PRIM_ERRP_LO;
     always @ (posedge clk)
     begin
         $display("%m: unsupported data width");
@@ -577,7 +577,6 @@ assign  rcvd_dword[CODE_ERRP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_W
 assign  dec_err = |phy_err_in;
 
 // form a response to transport layer
-wire    frame_done;
 assign  frame_done      = frame_done_good | frame_done_bad;
 assign  frame_done_good = state_wait & dword_val & rcvd_dword[CODE_OKP];
 assign  frame_done_bad  = state_wait & dword_val & rcvd_dword[CODE_ERRP];
