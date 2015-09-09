@@ -88,7 +88,7 @@ module gtxe2_chnl_cpll(
     input   wire    [4:0]   PMARSVDIN,
     input   wire    [4:0]   PMARSVDIN2,
     input   wire    [19:0]  TSTIN,
-    output  wire            TSTOUT,
+    output  wire    [9:0]   TSTOUT,
 
 // internal
     input   wire    ref_clk,
@@ -287,7 +287,7 @@ module gtxe2_chnl_clocking(
     output  wire            rx_sipo_clk,
 
 // additional ports to cpll
-    output              TSTOUT,
+    output  [9:0]       TSTOUT,
     input   [15:0]      GTRSVD,
     input   [15:0]      PCSRSVDIN,
     input   [4:0]       PCSRSVDIN2,
@@ -2208,7 +2208,7 @@ module gtxe2_chnl(
     output  wire            rx_serial_clk,
 
 // additional ports to pll
-    output              TSTOUT,
+    output  [9:0]       TSTOUT,
     input   [15:0]      GTRSVD,
     input   [15:0]      PCSRSVDIN,
     input   [4:0]       PCSRSVDIN2,
@@ -2428,7 +2428,7 @@ module GTXE2_GPL(
     output              CPLLFBCLKLOST,
     output              CPLLLOCK,
     output              CPLLREFCLKLOST,
-    output              TSTOUT,
+    output  [9:0]       TSTOUT,
     input   [15:0]      GTRSVD,
     input   [15:0]      PCSRSVDIN,
     input   [4:0]       PCSRSVDIN2,
@@ -2445,7 +2445,7 @@ module GTXE2_GPL(
     input               TXPMARESET,
     output              TXRESETDONE,
     input               TXUSERRDY,
-    output              PCSRSVDOUT,
+    output  [15:0]      PCSRSVDOUT,
 // RX Reset ports, UG476 p.73
     input               GTRXRESET,
     input               RXPMARESET,
@@ -2651,8 +2651,8 @@ module GTXE2_GPL(
     input               RXDLYOVRDEN,
     input               RXDDIEN,
     output              RXPHALIGNDONE,
-    output              RXPHMONITOR,
-    output              RXPHSLIPMONITOR,
+    output  [4:0]       RXPHMONITOR,
+    output  [4:0]       RXPHSLIPMONITOR,
     output              RXDLYSRESETDONE,
 // RX Buffer Ports, ug476 p.259
     output  [2:0]       RXBUFSTATUS,

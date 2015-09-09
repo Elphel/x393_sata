@@ -1,0 +1,1 @@
+/home/alexey/tmp/sata2/x393/ddr3/1024Mb_ddr3_parameters.vh

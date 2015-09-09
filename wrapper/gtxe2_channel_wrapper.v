@@ -18,7 +18,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
-`define OPEN_SOURCE_ONLY
 module gtxe2_channel_wrapper(
 // clocking ports, UG476 p.37
     input   [2:0]       CPLLREFCLKSEL,
@@ -40,7 +39,7 @@ module gtxe2_channel_wrapper(
     output              CPLLFBCLKLOST,
     output              CPLLLOCK,
     output              CPLLREFCLKLOST,
-    output              TSTOUT,
+    output  [9:0]       TSTOUT,
     input   [15:0]      GTRSVD,
     input   [15:0]      PCSRSVDIN,
     input   [4:0]       PCSRSVDIN2,
@@ -57,7 +56,7 @@ module gtxe2_channel_wrapper(
     input               TXPMARESET,
     output              TXRESETDONE,
     input               TXUSERRDY,
-    output              PCSRSVDOUT,
+    output     [15:0]   PCSRSVDOUT,
 // RX Reset ports, UG476 p.73
     input               GTRXRESET,
     input               RXPMARESET,
@@ -263,8 +262,8 @@ module gtxe2_channel_wrapper(
     input               RXDLYOVRDEN,
     input               RXDDIEN,
     output              RXPHALIGNDONE,
-    output              RXPHMONITOR,
-    output              RXPHSLIPMONITOR,
+    output  [4:0]       RXPHMONITOR,
+    output  [4:0]       RXPHSLIPMONITOR,
     output              RXDLYSRESETDONE,
 // RX Buffer Ports, ug476 p.259
     output  [2:0]       RXBUFSTATUS,
@@ -358,10 +357,10 @@ parameter   TXPHDLY_CFG                  = 24'h0;
 parameter   TXDLY_CFG                    = 16'h0;
 parameter   TXDLY_LCFG                   = 9'h0;
 parameter   TXDLY_TAP_CFG                = 16'h0;
-parameter   TXSYNC_MULTILANE             = 1'b0;
-parameter   TXSYNC_SKIP_DA               = 1'b0;
-parameter   TXSYNC_OVRD                  = 1'b1;
-parameter   LOOPBACK_CFG                 = 1'b0;
+//parameter   TXSYNC_MULTILANE             = 1'b0;
+//parameter   TXSYNC_SKIP_DA               = 1'b0;
+//parameter   TXSYNC_OVRD                  = 1'b1;
+//parameter   LOOPBACK_CFG                 = 1'b0;
 // TX Pattern Generator, ug476 p.147
 parameter   RXPRBS_ERR_LOOPBACK          = 1'b0;
 // TX Fabric Clock Output Control Attributes, ug476 p. 153
@@ -459,7 +458,7 @@ parameter   RX_DATA_WIDTH                = 20;
 parameter   RX_INT_DATAWIDTH             = 0;
 parameter   ES_PMA_CFG                   = 10'h0;
 // Pattern Checker Attributes, ug476 p.226
-parameter   RX_PRBS_ERR_CNT              = 16'h15c;
+//parameter   RX_PRBS_ERR_CNT              = 16'h15c;
 // RX Byte and Word Alignment Attributes, ug476 p.235
 parameter   ALIGN_COMMA_WORD             = 1;
 parameter   ALIGN_COMMA_ENABLE           = 10'b1111111111;
@@ -472,7 +471,7 @@ parameter   SHOW_REALIGN_COMMA           = "TRUE";
 parameter   RXSLIDE_MODE                 = "OFF";
 parameter   RXSLIDE_AUTO_WAIT            = 7;
 parameter   RX_SIG_VALID_DLY             = 10;
-parameter   COMMA_ALIGN_LATENCY          = 9'h14e;
+//parameter   COMMA_ALIGN_LATENCY          = 9'h14e;
 // RX 8B/10B Decoder Attributes, ug476 p.242
 parameter   RX_DISPERR_SEQ_MATCH         = "TRUE";
 parameter   DEC_MCOMMA_DETECT            = "TRUE";
@@ -608,10 +607,10 @@ GTXE2_CHANNEL #(
     .TXDLY_CFG                                                  (TXDLY_CFG),
     .TXDLY_LCFG                                                 (TXDLY_LCFG),
     .TXDLY_TAP_CFG                                              (TXDLY_TAP_CFG),
-    .TXSYNC_MULTILANE                                           (TXSYNC_MULTILANE),
+/*    .TXSYNC_MULTILANE                                           (TXSYNC_MULTILANE),
     .TXSYNC_SKIP_DA                                             (TXSYNC_SKIP_DA),
     .TXSYNC_OVRD                                                (TXSYNC_OVRD),
-    .LOOPBACK_CFG                                               (LOOPBACK_CFG),
+    .LOOPBACK_CFG                                               (LOOPBACK_CFG),*/
 // TX Pattern Generator, ug476 p.147
     .RXPRBS_ERR_LOOPBACK                                        (RXPRBS_ERR_LOOPBACK),
 // TX Fabric Clock Output Control Attributes, ug476 p. 153
@@ -714,7 +713,7 @@ GTXE2_CHANNEL #(
     .RX_INT_DATAWIDTH                                           (RX_INT_DATAWIDTH),
     .ES_PMA_CFG                                                 (ES_PMA_CFG),
 // Pattern Checker Attributes, ug476 p.226
-    .RX_PRBS_ERR_CNT                                            (RX_PRBS_ERR_CNT),
+    //.RX_PRBS_ERR_CNT                                            (RX_PRBS_ERR_CNT),
 // RX Byte and Word Alignment Attributes, ug476 p.235
     .ALIGN_COMMA_WORD                                           (ALIGN_COMMA_WORD),
     .ALIGN_COMMA_ENABLE                                         (ALIGN_COMMA_ENABLE),
@@ -727,7 +726,7 @@ GTXE2_CHANNEL #(
     .RXSLIDE_MODE                                               (RXSLIDE_MODE),
     .RXSLIDE_AUTO_WAIT                                          (RXSLIDE_AUTO_WAIT),
     .RX_SIG_VALID_DLY                                           (RX_SIG_VALID_DLY),
-    .COMMA_ALIGN_LATENCY                                        (COMMA_ALIGN_LATENCY),
+    //.COMMA_ALIGN_LATENCY                                        (COMMA_ALIGN_LATENCY),
 // RX 8B/10B Decoder Attributes, ug476 p.242
     .RX_DISPERR_SEQ_MATCH                                       (RX_DISPERR_SEQ_MATCH),
     .DEC_MCOMMA_DETECT                                          (DEC_MCOMMA_DETECT),

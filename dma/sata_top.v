@@ -84,7 +84,7 @@
     output  wire    [3:0]   afi_awcache,
     output  wire    [2:0]   afi_awprot,
     output  wire    [3:0]   afi_awlen,
-    output  wire    [2:0]   afi_awsize,
+    output  wire    [1:0]   afi_awsize,
     output  wire    [1:0]   afi_awburst,
     output  wire    [3:0]   afi_awqos,
     // write data
@@ -113,7 +113,7 @@
     output  wire    [3:0]   afi_arcache,
     output  wire    [2:0]   afi_arprot,
     output  wire    [3:0]   afi_arlen,
-    output  wire    [2:0]   afi_arsize,
+    output  wire    [1:0]   afi_arsize,
     output  wire    [1:0]   afi_arburst,
     output  wire    [3:0]   afi_arqos,
     // read data
