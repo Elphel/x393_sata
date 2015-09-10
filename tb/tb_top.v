@@ -74,8 +74,8 @@ reg         SIMUL_AXI_FULL; // some data available
 wire        SIMUL_AXI_EMPTY;
 reg  [31:0] registered_rdata; // here read data from task
 
-//reg        CLK;
-wire    CLK;
+reg        CLK;
+//wire    CLK;
 reg        RST;
 reg        AR_SET_CMD_r;
 wire       AR_READY;
@@ -162,12 +162,12 @@ wire         #(AXI_TASK_HOLD) AW_SET_CMD = AW_SET_CMD_r;
 wire         #(AXI_TASK_HOLD) W_SET_CMD =  W_SET_CMD_r;
 
 //always #(CLKIN_PERIOD/2) CLK = ~CLK;
-assign CLK = dut.axi_aclk;
+//assign CLK = dut.axi_aclk0;
 
 /*
  * connect axi ports to the dut
  */
-assign dut.ps7_i.FCLKCLK=        {4{EXTCLK_P}};
+assign dut.ps7_i.FCLKCLK=        {4{CLK}};
 assign dut.ps7_i.FCLKRESETN=     {RST,~RST,RST,~RST};
 // Read address
 assign dut.ps7_i.MAXIGP1ARADDR=  araddr;

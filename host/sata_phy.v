@@ -30,6 +30,9 @@ module sata_phy #(
     output  wire        clk,
     output  wire        rst,
 
+    // reliable clock to source drp and cpll lock det circuits
+    input   wire        reliable_clk,
+
     // state
     output  wire        phy_ready,
 
@@ -370,8 +373,8 @@ gtx_wrap
 /*
  * Interfaces
  */
-assign  cplllockdetclk  = gtrefclk; //TODO
-assign  drpclk          = gtrefclk;
+assign  cplllockdetclk  = reliable_clk; //gtrefclk;
+assign  drpclk          = reliable_clk; //gtrefclk;
 
 //assign  clk             = usrclk2;
 BUFG bufg_sclk   (.O(clk),.I(usrclk2));

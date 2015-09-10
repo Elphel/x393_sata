@@ -139,8 +139,8 @@ BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
 BUFG bufg_extrst_i    (.O(extrst),.I(axi_rst_pre));
 axi_hp_clk #(
-    .CLKIN_PERIOD(6.666),
-    .CLKFBOUT_MULT_AXIHP(6),
+    .CLKIN_PERIOD(20.000),
+    .CLKFBOUT_MULT_AXIHP(18),
     .CLKFBOUT_DIV_AXIHP(6)
 ) axi_hp_clk_i (
     .rst          (axi_rst), // input
@@ -151,6 +151,8 @@ axi_hp_clk #(
 
 sata_top sata_top(
     .sclk                       (sclk),
+    // reliable clock to source drp and cpll lock det circuits
+    .reliable_clk               (axi_aclk0),
     .sata_rst                   (sata_rst),
     .extrst                     (extrst),
     .ACLK                       (axi_aclk),

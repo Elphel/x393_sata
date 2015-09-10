@@ -32,6 +32,10 @@
     output  wire    sclk,
     output  wire    sata_rst,
     input   wire    extrst,
+    
+    // reliable clock to source drp and cpll lock det circuits
+    input   wire    reliable_clk,
+
 /*
  * Commands interface
  */
@@ -605,6 +609,8 @@ sata_host sata_host(
     .rst                        (sata_rst),
     // sata clk
     .clk                        (sclk),
+    // reliable clock to source drp and cpll lock det circuits
+    .reliable_clk               (reliable_clk),
 // temporary
     .al_cmd_in                  (cmd_out), // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
     .al_cmd_val_in              (cmd_val_out),

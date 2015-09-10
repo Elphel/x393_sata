@@ -29,6 +29,10 @@ module sata_host(
     output  wire    rst,
     // sata clk
     output  wire    clk,
+
+    // reliable clock to source drp and cpll lock det circuits
+    input   wire    reliable_clk,
+
 // temporary
     input   wire    [31:0]  al_cmd_in, // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
     input   wire            al_cmd_val_in,
@@ -656,6 +660,9 @@ sata_phy phy(
     .rst                (rst),
     // sata clk, generated in pll as usrclk2
     .clk                (clk),
+
+    // stable clock to source drp and cpll lock det circuits
+    .reliable_clk       (reliable_clk),
 
     // state
     .phy_ready          (phy_ready),
