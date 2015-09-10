@@ -274,6 +274,10 @@ always @ (posedge clk)
     cominit_req_r <= (cominit_req_r | cominit_req_set) & ~(cominit_allow & cominit_req) & ~rst;
 assign  cominit_req = cominit_req_set | cominit_req_r;
 
+// primitives
+wire    [63:0]  alignp  = {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100, 8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100};
+wire    [63:0]  syncp   = {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100, 8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100};
+
 // detect which primitives sends the device after comwake was done
 generate 
     if (DATA_BYTE_WIDTH == 2)
@@ -281,26 +285,26 @@ generate
         reg detected_alignp_f;
         always @ (posedge clk)
             detected_alignp_f <= rst | ~state_wait_align ? 1'b0 : 
-                                 ~|(rxdata ^ {8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 2'b01); // {D10.2, K28.5}
-        assign detected_alignp = detected_alignp_f & ~|(rxdata ^ {8'b01111011, 8'b01001010}) & ~|(rxcharisk ^ 2'b00); // {D27.3, D10.2}
+                                 ~|(rxdata[15:0] ^ alignp[15:0]) & ~|(rxcharisk[1:0] ^ 2'b01); // {D10.2, K28.5}
+        assign detected_alignp = detected_alignp_f & ~|(rxdata[15:0] ^ alignp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D27.3, D10.2}
         
         reg detected_syncp_f;
         always @ (posedge clk)
             detected_syncp_f <= rst | ~state_wait_synp ? 1'b0 : 
-                                ~|(rxdata ^ {8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 2'b01); // {D21.4, K28.3}
-        assign detected_syncp = detected_syncp_f & ~|(rxdata ^ {8'b10110101, 8'b10110101}) & ~|(rxcharisk ^ 2'b00); // {D21.5, D21.5}
+                                ~|(rxdata[15:0] ^ syncp[15:0]) & ~|(rxcharisk[1:0] ^ 2'b01); // {D21.4, K28.3}
+        assign detected_syncp = detected_syncp_f & ~|(rxdata[15:0] ^ syncp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D21.5, D21.5}
     end
     else
     if (DATA_BYTE_WIDTH == 4)
     begin
-        assign detected_alignp = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
-        assign detected_syncp  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
+        assign detected_alignp = ~|(rxdata[31:0] ^ alignp[31:0]) & ~|(rxcharisk[3:0] ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
+        assign detected_syncp  = ~|(rxdata[31:0] ^ syncp[31:0])  & ~|(rxcharisk[3:0] ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
     end
     else
     if (DATA_BYTE_WIDTH == 8)
     begin
-        assign detected_alignp = ~|(rxdata ^ {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}) & ~|(rxcharisk ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
-        assign detected_syncp  = ~|(rxdata ^ {2{8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}}) & ~|(rxcharisk ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
+        assign detected_alignp = ~|(rxdata[63:0] ^ alignp[63:0]) & ~|(rxcharisk[7:0] ^ 8'h11); // {D27.3, D10.2, D10.2, K28.5}
+        assign detected_syncp  = ~|(rxdata[63:0] ^ syncp[63:0])  & ~|(rxcharisk[7:0] ^ 8'h11); // {D21.5, D21.5, D21.4, K28.3}
     end
     else
     begin
@@ -367,21 +371,21 @@ generate
         always @ (posedge clk)
             align_odd <= rst | ~state_wait_synp ? 1'b0 : ~align_odd;
         
-        assign txcharisk_align  = align_odd ? 2'b01 : 2'b00;
-        assign txdata_align     = align_odd ? {8'b01001010, 8'b10111100} : // {D10.2, K28.5}
-                                              {8'b01111011, 8'b01001010}; // {D27.3, D10.2}
+        assign txcharisk_align[DATA_BYTE_WIDTH - 1:0]   = align_odd ? 2'b01 : 2'b00;
+        assign txdata_align[DATA_BYTE_WIDTH*8 - 1:0]    = align_odd ? alignp[15:0] : // {D10.2, K28.5}
+                                                                      alignp[31:16]; // {D27.3, D10.2}
     end
     else
     if (DATA_BYTE_WIDTH == 4)
     begin
-        assign txcharisk_align  = 4'h1;
-        assign txdata_align     = {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}; // {D27.3, D10.2, D10.2, K28.5}
+        assign txcharisk_align[DATA_BYTE_WIDTH - 1:0]   = 4'h1;
+        assign txdata_align[DATA_BYTE_WIDTH*8 - 1:0]    = alignp[DATA_BYTE_WIDTH*8 - 1:0]; // {D27.3, D10.2, D10.2, K28.5}
     end
     else
     if (DATA_BYTE_WIDTH == 8)
     begin
-        assign txcharisk_align  = 8'h11;
-        assign txdata_align     = {2{8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}}; // 2x{D27.3, D10.2, D10.2, K28.5}
+        assign txcharisk_align[DATA_BYTE_WIDTH - 1:0]   = 8'h11;
+        assign txdata_align[DATA_BYTE_WIDTH*8 - 1:0]    = alignp[DATA_BYTE_WIDTH*8 - 1:0]; // 2x{D27.3, D10.2, D10.2, K28.5}
     end
     else
         always @ (posedge clk)
@@ -411,7 +415,7 @@ end
 `endif
 
 always @ (posedge clk)
-    rxcom_timer <= rst | rxcominit_done & state_wait_cominit | rxcomwake_done & state_wait_comwake | rxcominitdet & state_wait_cominit | rxcomwakedet & state_wait_comwake ? 10'h0 : cominit_req_l & state_idle | rxcominitdet_l & state_wait_cominit | rxcomwakedet_l & state_wait_comwake ? rxcom_timer + CLK_TO_TIMER_CONTRIB : 10'h0;
+    rxcom_timer <= rst | rxcominit_done & state_wait_cominit | rxcomwake_done & state_wait_comwake | rxcominitdet & state_wait_cominit | rxcomwakedet & state_wait_comwake ? 10'h0 : cominit_req_l & state_idle | rxcominitdet_l & state_wait_cominit | rxcomwakedet_l & state_wait_comwake ? rxcom_timer + CLK_TO_TIMER_CONTRIB[9:0] : 10'h0;
 
 // set data outputs to gtx
 assign  txdata_out    = txdata;
@@ -420,7 +424,7 @@ assign  txcharisk_out = txcharisk;
 // rxelectidle timer logic
 assign  eidle_timer_done = eidle_timer == 64;
 always @ (posedge clk)
-    eidle_timer <= rst | rxelecidle | ~state_wait_eidle ? 8'b0 : eidle_timer + CLK_TO_TIMER_CONTRIB;
+    eidle_timer <= rst | rxelecidle | ~state_wait_eidle ? 8'b0 : eidle_timer + CLK_TO_TIMER_CONTRIB[7:0];
 
 
 endmodule

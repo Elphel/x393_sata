@@ -176,6 +176,8 @@ module transport #(
     output  wire    watchdog_dwords
 );
 
+reg [7:0]   state;
+
 //TODO
 assign sync_escape_req = 1'b0;
 assign incom_stop_req = 1'b0;
@@ -221,8 +223,6 @@ localparam [2:0] CMD_TYPE_DMA_SETUP   = 3'h2;
 localparam [2:0] CMD_TYPE_DATA        = 3'h3;
 localparam [2:0] CMD_TYPE_BIST_ACT    = 3'h4;
 
-// asserts after FIS is sent
-reg             cmd_done_f;
 // current header dword
 wire    [31:0]  ll_header_dword;
 // current dword shall be header's
@@ -237,9 +237,6 @@ reg     [13:0]  dword_cnt;
 assign  watchdog_dwords = dword_cnt == 14'd2049;
 // ask for a receiving termination in case of errors
 reg             incom_stop_req_timeout;
-// dma activate is received when its type met and no errors occurs
-assign  got_dma_activate        = state == STATE_INCOMING & cl_data_last_in & ll_data_val_in & ll_data_in[7:0] == 8'h39;
-assign  got_dma_activate_port   = {4{got_dma_activate}} & ll_data_in[11:8];
 
 // global TL fsm
 /*
@@ -286,8 +283,6 @@ localparam  STATE_OUT_DMAS       = 8'ha0; // DMA Setup FIS Host to Device
 localparam  STATE_OUT_BIST       = 8'hb0; // BIST Activate FIS Host to Device
 localparam  STATE_OUT_WAIT_RESP  = 8'hc0; // 
 localparam  STATE_IN_UNRECOG     = 8'hf0; // Unrecognized FIS from Device
-
-reg [7:0]   state;
 
 always @ (posedge clk)
     if (rst)
@@ -1127,17 +1122,17 @@ assign  header_regfis   = dword_cnt[2:0] == 3'h0 ?  {sh_feature_in[7:0], sh_comm
                        /*dword_cnt[2:0] == 3'h4 ?*/ {32'h0000}; // Reserved
 // DMA Setup FIS header
 wire    [31:0] header_dmas;
-assign  header_dmas     = dword_cnt[3:0] == 3'h0 ?  {8'h0, 8'h0, sh_autoact_in, sh_inter_in, sh_dir_in, 1'b0, cmd_port_r, 8'h41} : // Reserved, Reserved, A I D R PMPort, FIS Type
-                          dword_cnt[3:0] == 3'h1 ?  {sh_dma_id_in[31:0]} : // DMA Buffer Identifier Low
-                          dword_cnt[3:0] == 3'h2 ?  {sh_dma_id_in[63:32]} : // DMA Buffer Identifier High
-                          dword_cnt[3:0] == 3'h4 ?  {sh_buf_off_in[31:0]} : // DMA Buffer Offset
-                          dword_cnt[3:0] == 3'h5 ?  {sh_dma_cnt_in[31:0]} : // DMA Transfer Count
-                                  /* 3'h3 | 3'h6 */ {32'h0000}; // Reserved
+assign  header_dmas     = dword_cnt[3:0] == 4'h0 ?  {8'h0, 8'h0, sh_autoact_in, sh_inter_in, sh_dir_in, 1'b0, cmd_port_r, 8'h41} : // Reserved, Reserved, A I D R PMPort, FIS Type
+                          dword_cnt[3:0] == 4'h1 ?  {sh_dma_id_in[31:0]} : // DMA Buffer Identifier Low
+                          dword_cnt[3:0] == 4'h2 ?  {sh_dma_id_in[63:32]} : // DMA Buffer Identifier High
+                          dword_cnt[3:0] == 4'h4 ?  {sh_buf_off_in[31:0]} : // DMA Buffer Offset
+                          dword_cnt[3:0] == 4'h5 ?  {sh_dma_cnt_in[31:0]} : // DMA Transfer Count
+                                  /* 4'h3 | 4'h6 */ {32'h0000}; // Reserved
 // BIST Activate FIS header
 wire    [31:0] header_bist; // TODO
-assign  header_bist     = dword_cnt[3:0] == 3'h0 ?  {8'h00, 8'h00, 4'h0, cmd_port_r, 8'h58} : // Reserved, T A S L F P R V, R R R R PMPort, FIS Type
-                          dword_cnt[3:0] == 3'h1 ?  {32'h00000000} : // Data1
-                          dword_cnt[3:0] == 3'h2 ?  {32'h00000000} : // Data2
+assign  header_bist     = dword_cnt[2:0] == 3'h0 ?  {8'h00, 8'h00, 4'h0, cmd_port_r, 8'h58} : // Reserved, T A S L F P R V, R R R R PMPort, FIS Type
+                          dword_cnt[2:0] == 3'h1 ?  {32'h00000000} : // Data1
+                          dword_cnt[2:0] == 3'h2 ?  {32'h00000000} : // Data2
                                                     {32'h00000000};
 // Data FIS header
 wire    [31:0] header_data;
@@ -1212,6 +1207,9 @@ assign  sh_tran_cnt_val_out = ll_data_last_in;
 assign  sh_notif_val_out    = ll_data_last_in;
 assign  sh_autoact_val_out  = ll_data_last_in;
 
+// dma activate is received when its type met and no errors occurs
+assign  got_dma_activate        = state == STATE_INCOMING & cl_data_last_in & ll_data_val_in & ll_data_in[7:0] == 8'h39;
+assign  got_dma_activate_port   = {4{got_dma_activate}} & ll_data_in[11:8];
 
 `ifdef CHECKERS_ENABLED
 always @ (posedge clk)

@@ -121,6 +121,8 @@ end
 
 reg [9:0] txelecidle_cnt;
 
+wire    aligndet;
+wire    syncdet;
 assign  aligndet = ~|(rxdata ^ {8'b01111011, 8'b01001010, 8'b01001010, 8'b10111100}) & ~|(rxcharisk ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}
 assign  syncdet  = ~|(rxdata ^ {8'b10110101, 8'b10110101, 8'b10010101, 8'b01111100}) & ~|(rxcharisk ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}
 

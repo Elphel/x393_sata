@@ -38,6 +38,10 @@ begin
     $dumpvars(0,tb);
 end
 
+reg EXTCLK_P = 1'b1;
+reg EXTCLK_N = 1'b0;
+//reg serial_clk = 1'b1;
+
 reg     [11:0]  ARID_IN_r;
 reg     [31:0]  ARADDR_IN_r;
 reg     [3:0]   ARLEN_IN_r;
@@ -67,7 +71,7 @@ reg  [31:0] SIMUL_AXI_READ;
 reg  [SIMUL_AXI_READ_WIDTH-1:0] SIMUL_AXI_ADDR;
 // SuppressWarnings VEditor
 reg         SIMUL_AXI_FULL; // some data available
-wire        SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
+wire        SIMUL_AXI_EMPTY;
 reg  [31:0] registered_rdata; // here read data from task
 
 //reg        CLK;
@@ -134,10 +138,10 @@ wire        bvalid;
 wire        bready;
 integer     NUM_WORDS_READ;
 integer     NUM_WORDS_EXPECTED;
-reg  [15:0] ENABLED_CHANNELS = 0; // currently enabled memory channels
 //  integer     SCANLINE_CUR_X;
 //  integer     SCANLINE_CUR_Y;
 wire AXI_RD_EMPTY=NUM_WORDS_READ==NUM_WORDS_EXPECTED; //SuppressThisWarning VEditor : may be unused, just for simulation
+assign  SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
 
 wire [11:0]  #(AXI_TASK_HOLD) ARID_IN = ARID_IN_r;
 wire [31:0]  #(AXI_TASK_HOLD) ARADDR_IN = ARADDR_IN_r;
@@ -333,9 +337,6 @@ simul_axi_read #(
   .burst(),     // burst in progress - just debug
   .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
-reg EXTCLK_P = 1'b1;
-reg EXTCLK_N = 1'b0;
-reg serial_clk = 1'b1;
 
 // device-under-test instance
 wire    rxn;
