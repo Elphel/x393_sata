@@ -114,8 +114,8 @@ assign  ored_subwindow[0]       = {20{comma_match_prev[0]}} & subwindow[0];
 generate
     for (ii = 1; ii < 20; ii = ii + 1)
     begin: or_all_possible_windows
-        assign ored_subwindow_comdet[ii] = {20{comma_match_p[ii]}} & comma_p | {20{~comma_match_p[ii] & comma_match[ii]}} & comma_n | ored_subwindow_comdet[ii-1];
-        assign ored_subwindow[ii]        = {20{comma_match_prev[ii]}} & subwindow[ii] | ored_subwindow[ii-1];
+        assign ored_subwindow_comdet[ii] = {20{comma_match_p[ii]}} & comma_p | {20{~comma_match_p[ii] & comma_match[ii]}} & comma_n | ored_subwindow_comdet[ii-1];  // SuppressThisWarning VEditor -warning would be fixed in future releases
+        assign ored_subwindow[ii]        = {20{comma_match_prev[ii]}} & subwindow[ii] | ored_subwindow[ii-1];                                                       // SuppressThisWarning VEditor -warning would be fixed in future releases
     end
 endgenerate
 

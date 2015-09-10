@@ -123,7 +123,8 @@ always @ (posedge clk)
 reg     [3:0]   rdwr_state;
 
 // Get data from buffer
-localparam READ_IDLE        = 0;
+localparam IDLE             = 0;
+//localparam READ_IDLE        = 0;
 localparam READ_WAIT_ADDR   = 3;
 localparam READ_DATA        = 4;
 wire            rd_reset_page;
@@ -143,7 +144,7 @@ assign  rd_data     = buf_rdata;
 assign  rd_val_out  = rd_en;
 assign  rd_data_out = rd_data;
 
-always @ (posedge clk)
+/*always @ (posedge clk)
     if (rst)
     begin
         rdwr_state      <= READ_IDLE;
@@ -187,10 +188,10 @@ always @ (posedge clk)
                 rd_en           <= 1'b0;
             end
         endcase
-
+*/
 
 // Put data into buffer
-localparam WRITE_IDLE       = 0;
+//localparam WRITE_IDLE       = 0;
 localparam WRITE_DATA       = 1;
 localparam WRITE_WAIT_ADDR  = 2;
 reg             wr_en;
@@ -215,6 +216,11 @@ assign  wr_ack_out   = wr_val_in & rdwr_state == WRITE_DATA;
 always @ (posedge clk)
     if (rst)
     begin
+        rdwr_state      <= IDLE;
+        rd_done         <= 1'b0;
+        rd_data_count   <= 7'h0;
+        rd_next_page    <= 1'b0;
+        rd_en           <= 1'b0;
         wr_done         <= 1'b0;
         wr_data_count   <= 7'd0;
         wr_val          <= 1'b0;
@@ -223,12 +229,16 @@ always @ (posedge clk)
         wr_reset_page   <= 1'b0;
         wr_en           <= 1'b0;
         wr_page_ready   <= 1'b0;
-        rdwr_state      <= WRITE_IDLE;
     end
     else
         case (rdwr_state)
-            WRITE_IDLE:
+            IDLE:
             begin
+                rdwr_state      <= rd_start ? READ_WAIT_ADDR : wr_start ? WRITE_DATA : IDLE;
+                rd_done         <= 1'b0;
+                rd_data_count   <= 7'h0;
+                rd_next_page    <= 1'b0;
+                rd_en           <= 1'b0;
                 wr_data_count   <= 7'd0;
                 wr_done         <= 1'b0;
                 wr_data         <= 64'h0;
@@ -236,30 +246,67 @@ always @ (posedge clk)
                 wr_reset_page   <= wr_start ? 1'b1 : 1'b0;
                 wr_en           <= 1'b0;
                 wr_page_ready   <= 1'b0;
-                rdwr_state      <= wr_start ? WRITE_DATA : WRITE_IDLE;
             end
             WRITE_DATA:
             begin
-                wr_done         <= wr_stop & membr_state == WRITE_IDLE ? 1'b1 : 1'b0;
+                wr_done         <= wr_stop & membr_state == IDLE ? 1'b1 : 1'b0;
                 wr_data_count   <= wr_val_in ? wr_data_count + 1'b1 : wr_data_count;
                 wr_data         <= wr_data_in;
                 wr_next_page    <= wr_stop ? 1'b1 : 1'b0;
                 wr_reset_page   <= 1'b0;
                 wr_en           <= wr_val_in;
                 wr_page_ready   <= wr_stop ? 1'b1 : 1'b0;
-                rdwr_state      <= wr_stop & membr_state == WRITE_IDLE ? WRITE_IDLE : 
+                rdwr_state      <= wr_stop & membr_state == IDLE ? IDLE : 
                                    wr_stop                       ? WRITE_WAIT_ADDR : WRITE_DATA;
+                rd_done         <= 1'b0;
+                rd_data_count   <= 7'h0;
+                rd_next_page    <= 1'b0;
+                rd_en           <= 1'b0;
             end
             WRITE_WAIT_ADDR: // in case all data is written into a buffer, but address is still being issued on axi bus
             begin
-                wr_done         <= membr_state == WRITE_IDLE ? 1'b1 : 1'b0;
+                wr_done         <= membr_state == IDLE ? 1'b1 : 1'b0;
                 wr_data_count   <= 7'd0;
                 wr_data         <= 64'h0;
                 wr_next_page    <= 1'b0;
                 wr_reset_page   <= 1'b0;
                 wr_en           <= 1'b0;
                 wr_page_ready   <= 1'b0;
-                rdwr_state      <= membr_state == WRITE_IDLE ? WRITE_IDLE : WRITE_WAIT_ADDR;
+                rdwr_state      <= membr_state == IDLE ? IDLE : WRITE_WAIT_ADDR;
+                rd_done         <= 1'b0;
+                rd_data_count   <= 7'h0;
+                rd_next_page    <= 1'b0;
+                rd_en           <= 1'b0;
+            end
+            READ_WAIT_ADDR: // wait until address information is sent to the bus and input buffer got data
+            begin
+                rdwr_state      <= membr_state == IDLE & rdata_done ? READ_DATA : READ_WAIT_ADDR;
+                rd_done         <= 1'b0;
+                rd_data_count   <= 7'h0;
+                rd_next_page    <= 1'b0;
+                rd_en           <= 1'b0;
+                wr_done         <= 1'b0;
+                wr_data_count   <= 7'd0;
+                wr_data         <= 64'h0;
+                wr_next_page    <= 1'b0;
+                wr_reset_page   <= 1'b0;
+                wr_en           <= 1'b0;
+                wr_page_ready   <= 1'b0;
+            end
+            READ_DATA: 
+            begin
+                rdwr_state      <= rd_stop ? IDLE : READ_DATA;
+                rd_done         <= rd_stop ? 1'b1 : 1'b0;
+                rd_data_count   <= rd_ack_in ? rd_data_count + 1'b1 : rd_data_count;
+                rd_next_page    <= rd_stop ? 1'b1 : 1'b0;
+                rd_en           <= rd_ack_in ? 1'b1 : 1'b0;
+                wr_done         <= 1'b0;
+                wr_data_count   <= 7'd0;
+                wr_data         <= 64'h0;
+                wr_next_page    <= 1'b0;
+                wr_reset_page   <= 1'b0;
+                wr_en           <= 1'b0;
+                wr_page_ready   <= 1'b0;
             end
             default: // read is executed
             begin
@@ -270,7 +317,11 @@ always @ (posedge clk)
                 wr_reset_page   <= 1'b0;
                 wr_en           <= 1'b0;
                 wr_page_ready   <= 1'b0;
-                rdwr_state      <= rdwr_state;
+                rdwr_state      <= IDLE;
+                rd_done         <= 1'b0;
+                rd_data_count   <= 7'h0;
+                rd_next_page    <= 1'b0;
+                rd_en           <= 1'b0;
             end
         endcase
 

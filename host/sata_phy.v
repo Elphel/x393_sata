@@ -373,7 +373,8 @@ gtx_wrap
 assign  cplllockdetclk  = gtrefclk; //TODO
 assign  drpclk          = gtrefclk;
 
-assign  clk             = usrclk2;
+//assign  clk             = usrclk2;
+BUFG bufg_sclk   (.O(clk),.I(usrclk2));
 assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
 assign  txn_out         = txn;

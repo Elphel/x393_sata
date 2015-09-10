@@ -133,7 +133,8 @@ always @(posedge comb_rst or posedge axi_aclk0) begin
     else          axi_rst_pre <= 1'b0;
 end
 
-BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
+//BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
+assign  axi_aclk = sclk;
 BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
 BUFG bufg_extrst_i    (.O(extrst),.I(axi_rst_pre));
