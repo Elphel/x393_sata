@@ -12,9 +12,6 @@ git clone https://github.com/Elphel/x393_sata **--recursive**
 1. sudo apt-get install ssh-askpass  
 2. ssh-copy-id user@ip  
 
-# Simulation
-* Get unisims library - refresh project files otherwise nothing will work  
-
 # Swtich between synthesis & simulation
 Edit *.editor_defines*:
 * simulation:
@@ -28,6 +25,15 @@ Edit *.editor_defines*:
   //`define OPEN_SOURCE_ONLY 1
   `define PRELOAD_BRAMS
 
+Refresh the project and update hierarchy (or rescan)
+  
+# Simulation
+* Get unisims library - refresh project files otherwise nothing will work  
+
+# Synthesis
+* Add constraints file through Synthesis parameters
+* Bitstream parameters - check *Force(overwrite)*
+  
 # Current step:
 Testing basic functionallity of a host.  
 Trying out pio access.  
