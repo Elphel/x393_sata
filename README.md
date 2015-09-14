@@ -32,7 +32,7 @@ Refresh the project and update hierarchy (or rescan)
 
 # Synthesis
 * Add constraints file through Synthesis parameters
-* Bitstream parameters - check *Force(overwrite)*
+* Bitstream Tool parameters - check *Force(overwrite)*
   
 # Current step:
 Testing basic functionallity of a host.  
