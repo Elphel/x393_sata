@@ -30,6 +30,7 @@ module oob_ctrl #(
     input   wire    rst,
     // gtx is ready = all resets are done
     input   wire    gtx_ready,
+    output  wire  [11:0] debug,
     // oob responces
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
@@ -118,6 +119,7 @@ oob #(
 )
 oob
 (
+    .debug (debug),
 // sata clk = usrclk2
     .clk                            (clk),
 // reset oob

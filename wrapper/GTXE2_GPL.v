@@ -2684,6 +2684,9 @@ module GTXE2_GPL(
 // for correct clocking scheme in case of multilane structure
     input               QPLLCLK,
     input               QPLLREFCLK,
+    
+// dunno
+    input               RXDFEVSEN,
 
 // Diffpairs
     input               GTXRXP,

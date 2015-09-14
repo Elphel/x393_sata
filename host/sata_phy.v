@@ -30,8 +30,14 @@ module sata_phy #(
     output  wire        clk,
     output  wire        rst,
 
+    // reliable clock to source drp and cpll lock det circuits
+    input   wire        reliable_clk,
+
     // state
     output  wire        phy_ready,
+    // tmp output TODO
+    output  wire        gtx_ready,
+    output  wire  [11:0] debug_cnt,
 
     // top-level ifaces
     // ref clk from an external source, shall be connected to pads
@@ -90,9 +96,9 @@ wire            rxreset_oob;
 wire            rxelsfull;
 wire            rxelsempty;
 
-wire            gtx_ready;
+//wire            gtx_ready;
 
-
+wire dummy;
 oob_ctrl oob_ctrl(
     // sata clk = usrclk2
     .clk                (clk),
@@ -100,6 +106,7 @@ oob_ctrl oob_ctrl(
     .rst                (rst),
     // gtx is ready = all resets are done
     .gtx_ready          (gtx_ready),
+    .debug ({dummy,debug_cnt[10:0]}),
     // oob responces
     .rxcominitdet_in    (rxcominitdet),
     .rxcomwakedet_in    (rxcomwakedet),
@@ -181,9 +188,26 @@ always @ (posedge gtrefclk)
  */
 wire    usrpll_locked;
 
+// make tx/rxreset synchronous to gtrefclk - gather singals from different domains: async, aclk, usrclk2, gtrefclk
+reg rxreset_f;
+reg txreset_f;
+reg rxreset_f_r;
+reg txreset_f_r;
+reg rxreset_f_rr;
+reg txreset_f_rr;
+always @ (posedge gtrefclk)
+begin
+    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
+    txreset_f <= ~cplllock | cpllreset;
+    txreset_f_r <= txreset_f;
+    rxreset_f_r <= rxreset_f;
+    txreset_f_rr <= txreset_f_r;
+    rxreset_f_rr <= rxreset_f_r;
+end
+
+assign  rxreset = rxreset_f_rr;
+assign  txreset = txreset_f_rr;
 assign  cpllreset = extrst;
-assign  rxreset = ~cplllock | cpllreset | rxreset_oob & gtx_configured;
-assign  txreset = ~cplllock | cpllreset;
 assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyereset_done & sata_reset_done;
 assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmareset_done & sata_reset_done;
 
@@ -239,9 +263,11 @@ wire    usrpll_fb_clk;
 wire    usrclk;
 wire    usrclk2;
 
-assign  txusrclk  = usrclk;
+wire usrclk_global;
+BUFG bufg_usrclk (.O(usrclk_global),.I(usrclk));
+assign  txusrclk  = usrclk_global;
 assign  txusrclk2 = usrclk2;
-assign  rxusrclk  = usrclk;
+assign  rxusrclk  = usrclk_global;
 assign  rxusrclk2 = usrclk2;
 
 PLLE2_ADV #(
@@ -330,6 +356,7 @@ gtx_wrap #(
 )
 gtx_wrap
 (
+    .debug (debug_cnt[11]),
     .cplllock           (cplllock),
     .cplllockdetclk     (cplllockdetclk),
     .cpllreset          (cpllreset),
@@ -370,8 +397,8 @@ gtx_wrap
 /*
  * Interfaces
  */
-assign  cplllockdetclk  = gtrefclk; //TODO
-assign  drpclk          = gtrefclk;
+assign  cplllockdetclk  = reliable_clk; //gtrefclk;
+assign  drpclk          = reliable_clk; //gtrefclk;
 
 //assign  clk             = usrclk2;
 BUFG bufg_sclk   (.O(clk),.I(usrclk2));

@@ -64,7 +64,7 @@ localparam HI = DEPTH_LOG2 - 1; // hi bus index
 reg     [22:0]  ram [(1 << DEPTH_LOG2) - 1:0];
 // data to/from fifo
 wire    [22:0]  inram;
-wire    [22:0]  outram;
+reg     [22:0]  outram;
 // adresses in their natural clock domains
 reg     [HI:0]  rd_addr;
 reg     [HI:0]  wr_addr;
@@ -142,7 +142,8 @@ endgenerate
 assign  full   = wr_addr   == rd_addr_r + 1'b1;
 assign  empty  = wr_addr_r == rd_addr;
 
-assign  outram = ram[rd_addr];
+always @ (posedge rclk)
+    outram <= ram[rd_addr];
 
 always @ (posedge wclk)
     if (we)
@@ -283,7 +284,7 @@ wire    clr_skip2_align;
 wire    clr_wait_next_p;
 wire    clr_send_ack;
 
-always @ (wclk)
+always @ (posedge wclk)
     next_prim_loaded <= state_wait_next_p;
 
 assign  state_bypass_rmv = ~state_wait1_align & ~state_skip1_align & ~state_wait2_align & ~state_skip2_align & ~state_wait_next_p & ~state_send_ack;
@@ -388,11 +389,15 @@ always @ (posedge rclk)
 
 // choose 1 of 2 words of ALIGNP
 wire    [22:0]  align_word;
-assign  align_word = {outram[22], 22'h007B4A} & {23{~align_altern}} | {outram[22], 22'h014ABC} & {23{align_altern}};
+assign  align_word = {outram[22], 22'h007B4A} & {23{align_altern}} | {outram[22], 22'h014ABC} & {23{~align_altern}};
 
+// output data would be valid the next clock they are issued
+reg     pause_read_r;
+always @ (posedge rclk)
+    pause_read_r <= pause_read;
 // read when compensation is not issued and when fifo gets required fullfillment
 assign  re = ~pause_read & fifo_stable;
-assign  outdata = {23{~pause_read}} & outram | {23{pause_read}} & align_word;
+assign  outdata = {23{~pause_read_r}} & outram | {23{pause_read_r}} & align_word;
 // indicates last cycle before the next primitive
 wire    fword_strobe_correction;
 reg     fword_strobe;

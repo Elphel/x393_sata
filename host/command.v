@@ -25,6 +25,11 @@ module command(
     input   rst,
     input   clk,
 
+    // temporary TODO
+    input   wire    gtx_ready,
+    input   wire    phy_ready,
+    input   wire    [11:0]  debug_cnt,
+
     // tl cmd iface
     output  wire    [2:0]   cmd_type,
     output  wire            cmd_val,
@@ -217,10 +222,13 @@ assign  sh_autoact_out  = sh_autoact;
 
 // temporaty command register TODO
 reg [31:0]  cmd;
-assign  al_cmd_out = cmd;
+assign  al_cmd_out[31:12] = cmd[31:12];
+assign  al_cmd_out[11:0]  = debug_cnt;
 always @ (posedge clk)
 begin
-    cmd[31:4]   <= rst ? 28'h0 : al_cmd_val_in ? al_cmd_in[31:4] : cmd[31:4];
+    cmd[27:4]   <= rst ? 24'h0 : al_cmd_val_in ? al_cmd_in[27:4] : cmd[27:4];
+    cmd[31]     <= rst ? 1'b1 : cmd[31];
+    cmd[30:28]  <= rst ? 3'h0 : {1'b0, phy_ready, gtx_ready};
     cmd[3]      <= rst ? 1'b0 : al_cmd_val_in ? al_cmd_in[3] : cmd_val ? 1'b0 : cmd[3];
     cmd[2]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_done_bad ? 1'b1 : cmd[2];
     cmd[1]      <= rst ? 1'b0 : al_cmd_val_in ? 1'b0 : cmd_done_good ? 1'b1 : cmd[1];

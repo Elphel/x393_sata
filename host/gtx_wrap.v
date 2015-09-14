@@ -33,6 +33,7 @@ module gtx_wrap #(
     parameter RXISCANRESET_TIME   = 5'h1
 )
 (
+    output  reg     debug = 0,
     output  wire    cplllock,
     input   wire    cplllockdetclk,
     input   wire    cpllreset,
@@ -74,12 +75,16 @@ module gtx_wrap #(
 );
 
 wire    rxresetdone_gtx; 
-wire    txresetdone_gtx; 
-wire    wrap_rxreset_;
-wire    wrap_txreset_;
+wire    txresetdone_gtx;
+reg     rxresetdone_gtx_r; 
+reg     txresetdone_gtx_r;
+reg     wrap_rxreset_;
+reg     wrap_txreset_;
 // resets while PCS resets, active low
-assign  wrap_rxreset_ = rxuserrdy & rxresetdone_gtx;
-assign  wrap_txreset_ = txuserrdy & txresetdone_gtx;
+always @ (posedge rxusrclk2)
+    wrap_rxreset_ <= rxuserrdy & rxresetdone_gtx_r;
+always @ (posedge txusrclk2)
+    wrap_txreset_ <= txuserrdy & txresetdone_gtx_r;
 
 wire    [63:0]  rxdata_gtx;
 wire    [7:0]   rxcharisk_gtx;
@@ -164,9 +169,19 @@ if (DATA_BYTE_WIDTH == 4) begin
         .half_empty ()
     );
 
-    assign  txcomwake_gtx  = txdata_resync_out[36];
-    assign  txcominit_gtx  = txdata_resync_out[37];
-    assign  txelecidle_gtx = txdata_resync_out[38];
+
+    reg txcomwake_gtx_f;
+    reg txcominit_gtx_f;
+    reg txelecidle_gtx_f;
+    always @ (posedge txusrclk)
+    begin
+        txcomwake_gtx_f  <= txdata_resync_out[36];
+        txcominit_gtx_f  <= txdata_resync_out[37];
+        txelecidle_gtx_f <= txdata_resync_out[38];
+    end
+    assign  txcomwake_gtx  = txcomwake_gtx_f;
+    assign  txcominit_gtx  = txcominit_gtx_f;
+    assign  txelecidle_gtx = txelecidle_gtx_f;
 end
 else
 if (DATA_BYTE_WIDTH == 2) begin
@@ -309,6 +324,8 @@ gtx_elastic(
 */
 wire    rxcomwakedet_gtx;
 wire    rxcominitdet_gtx;
+reg     rxcomwakedet_gtx_r;
+reg     rxcominitdet_gtx_r;
 
 
 // insert resync if it's necessary
@@ -323,15 +340,15 @@ if (DATA_BYTE_WIDTH == 4) begin
     wire    rxdata_resync_strobe;
     wire    [50:0] rxdata_resync_in;
     wire    [50:0] rxdata_resync_out;
-    reg     [23:0] rxdata_resync_buf;
+    reg     [25:0] rxdata_resync_buf;
 
     assign  rxdata_resync_strobe = lword_strobe;
     assign  rxdata_resync_in = {
-                                isaligned,                             // 1
-                                rxcomwakedet_gtx,                      // 1
-                                rxcominitdet_gtx,                      // 1
-                                rxresetdone_gtx,                       // 1 
-                                txresetdone_gtx,                       // 1
+                                isaligned,                                  // 1
+                                rxcomwakedet_gtx_r | rxdata_resync_buf[25], // 1
+                                rxcominitdet_gtx_r | rxdata_resync_buf[24], // 1
+                                rxresetdone_gtx_r,                          // 1 
+                                txresetdone_gtx_r,                          // 1
                                 elastic_full  | rxdata_resync_buf[23], // 1 
                                 elastic_empty | rxdata_resync_buf[22], // 1
                                 rxdisperr_els_out,                     // 2
@@ -340,7 +357,7 @@ if (DATA_BYTE_WIDTH == 4) begin
                                 rxdata_els_out,                        // 16
                                 rxdata_resync_buf[21:0]};              // 22 / 51 total
     always @ (posedge rxusrclk)
-        rxdata_resync_buf    <= ~wrap_rxreset_ ? 24'h0 : ~rxdata_resync_strobe ? {elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
+        rxdata_resync_buf    <= ~wrap_rxreset_ ? 26'h0 : ~rxdata_resync_strobe ? {rxcomwakedet_gtx_r, rxcominitdet_gtx_r, elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
 
     always @ (posedge rxusrclk2)
         rxdata_resync_nempty_r <= rxdata_resync_nempty;
@@ -378,10 +395,10 @@ else
 if (DATA_BYTE_WIDTH == 2) begin
     // no resync is needed => straightforward assignments
     assign  rxbyteisaligned = isaligned;
-    assign  rxcomwakedet    = rxcomwakedet_gtx;
-    assign  rxcominitdet    = rxcominitdet_gtx;
-    assign  rxresetdone     = rxresetdone_gtx;
-    assign  txresetdone     = txresetdone_gtx;
+    assign  rxcomwakedet    = rxcomwakedet_gtx_r;
+    assign  rxcominitdet    = rxcominitdet_gtx_r;
+    assign  rxresetdone     = rxresetdone_gtx_r;
+    assign  txresetdone     = txresetdone_gtx_r;
     assign  rxelsfull           = elastic_full;
     assign  rxelsempty          = elastic_empty;
     assign  rxdisperr[1:0]      = rxdisperr_els_out;
@@ -397,6 +414,22 @@ else begin
     end
 end
 endgenerate
+
+// latching gtx outputs, synchronous to RXUSRCLK2 = rxusrclk
+always @ (posedge rxusrclk)
+begin
+    rxcomwakedet_gtx_r  <= rxcomwakedet_gtx;
+    rxcominitdet_gtx_r  <= rxcominitdet_gtx;
+    rxresetdone_gtx_r   <= rxresetdone_gtx;
+    txresetdone_gtx_r   <= txresetdone_gtx;
+end
+
+wire    txoutclk_gtx;
+wire    xclk_gtx;
+wire    xclk_mr;
+BUFG bufg_txoutclk (.O(txoutclk),.I(txoutclk_gtx));
+BUFR bufr_xclk  (.O(xclk),.I(xclk_mr),.CE(1'b1),.CLR(1'b0));
+BUFMR bufmr_xclk  (.O(xclk_mr),.I(xclk_gtx));
 
 gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
@@ -526,9 +559,9 @@ gtxe2_channel_wrapper #(
     .PD_TRANS_TIME_TO_P2                    (8'h64),
     .SAS_MAX_COM                            (64),
     .SAS_MIN_COM                            (36),
-    .SATA_BURST_SEQ_LEN                     (4'b0110),
-    .SATA_BURST_VAL                         (3'b110),
-    .SATA_EIDLE_VAL                         (3'b110),
+    .SATA_BURST_SEQ_LEN                     (4'b0101),
+    .SATA_BURST_VAL                         (3'b100),
+    .SATA_EIDLE_VAL                         (3'b100),
     .SATA_MAX_BURST                         (8),
     .SATA_MAX_INIT                          (21),
     .SATA_MAX_WAKE                          (7),
@@ -631,8 +664,8 @@ gtxe2_channel_wrapper(
     .DRPRDY                         (),
     .DRPWE                          (1'b0),
     .GTREFCLKMONITOR                (),
-    .QPLLCLK                        (gtrefclk),
-    .QPLLREFCLK                     (gtrefclk),
+    .QPLLCLK                        (1'b0/*gtrefclk*/),
+    .QPLLREFCLK                     (1'b0/*gtrefclk*/),
     .RXSYSCLKSEL                    (2'b00),
     .TXSYSCLKSEL                    (2'b00),
     .DMONITOROUT                    (),
@@ -729,7 +762,7 @@ gtxe2_channel_wrapper(
     .RXOSHOLD                       (1'b0),
     .RXOSOVRDEN                     (1'b0),
     .RXRATEDONE                     (),
-    .RXOUTCLK                       (xclk),
+    .RXOUTCLK                       (xclk_gtx),
     .RXOUTCLKFABRIC                 (),
     .RXOUTCLKPCS                    (),
     .RXOUTCLKSEL                    (3'b010),
@@ -806,7 +839,7 @@ gtxe2_channel_wrapper(
     .TXDATA                         (txdata_gtx),
     .GTXTXN                         (txn),
     .GTXTXP                         (txp),
-    .TXOUTCLK                       (txoutclk),
+    .TXOUTCLK                       (txoutclk_gtx),
     .TXOUTCLKFABRIC                 (),
     .TXOUTCLKPCS                    (),
     .TXOUTCLKSEL                    (3'b010),
@@ -831,5 +864,8 @@ gtxe2_channel_wrapper(
     .TXQPISENN                      (),
     .TXQPISENP                      ()
 );
+
+always @ (posedge gtrefclk)
+    debug <= ~rxelecidle | debug;
 
 endmodule

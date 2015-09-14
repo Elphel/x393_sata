@@ -100,6 +100,17 @@ module link #(
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
     output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out // charisk
 );
+// latching data-primitives stream from phy
+reg     [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in_r;
+reg     [DATA_BYTE_WIDTH   - 1:0] phy_isk_in_r; // charisk
+reg     [DATA_BYTE_WIDTH   - 1:0] phy_err_in_r; // disperr | notintable
+always @ (posedge clk)
+begin
+    phy_data_in_r   <= phy_data_in;
+    phy_isk_in_r    <= phy_isk_in;
+    phy_err_in_r    <= phy_err_in;
+end
+
 wire    frame_done;
 // scrambled data
 wire    [DATA_BYTE_WIDTH*8 - 1:0]   scrambler_out;
@@ -494,7 +505,7 @@ scrambler scrambler(
     .val_in     (select_prim[CODE_DATA] | inc_is_data),
     .data_in    (crc_dword & {DATA_BYTE_WIDTH*8{select_prim[CODE_CRC]}} | 
                  data_in & {DATA_BYTE_WIDTH*8{select_prim[CODE_DATA]}} | 
-                 phy_data_in & {DATA_BYTE_WIDTH*8{inc_is_data}}),
+                 phy_data_in_r & {DATA_BYTE_WIDTH*8{inc_is_data}}),
     .data_out   (scrambler_out)
 );
 
@@ -557,24 +568,24 @@ assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr
 // shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val
 assign  dword_val = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP];
 // determine imcoming primitive type
-assign  rcvd_dword[CODE_DATA]	= ~|phy_isk_in;
+assign  rcvd_dword[CODE_DATA]	= ~|phy_isk_in_r;
 assign  rcvd_dword[CODE_CRC]	= 1'b0;
-assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in;
-assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in;
-assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in;
-assign  rcvd_dword[CODE_SOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in;
-assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in;
-assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in;
-assign  rcvd_dword[CODE_EOFP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in;
-assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in;
-assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in;
-assign  rcvd_dword[CODE_IPP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in;
-assign  rcvd_dword[CODE_DMATP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in;
-assign  rcvd_dword[CODE_OKP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in;
-assign  rcvd_dword[CODE_ERRP]	= phy_isk_in[0] == 1'b1 & ~|phy_isk_in[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in;
+assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in_r;
+assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_SOFP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in_r;
+assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in_r;
+assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_EOFP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in_r;
+assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_IPP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in_r;
+assign  rcvd_dword[CODE_DMATP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_OKP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in_r;
+assign  rcvd_dword[CODE_ERRP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in_r;
 
 // phy level errors handling TODO
-assign  dec_err = |phy_err_in;
+assign  dec_err = |phy_err_in_r;
 
 // form a response to transport layer
 assign  frame_done      = frame_done_good | frame_done_bad;
@@ -586,7 +597,7 @@ assign  frame_done_bad  = state_wait & dword_val & rcvd_dword[CODE_ERRP];
 always @ (posedge clk)
     if (~|rcvd_dword & phy_ready)
     begin
-        $display("%m: invalid primitive recieved : %h, conrol : %h, err : %h", phy_data_in, phy_isk_in, phy_err_in);
+        $display("%m: invalid primitive recieved : %h, conrol : %h, err : %h", phy_data_in_r, phy_isk_in_r, phy_err_in_r);
         $finish;
     end
 // States checker

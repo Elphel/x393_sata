@@ -139,8 +139,8 @@ BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
 BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
 BUFG bufg_extrst_i    (.O(extrst),.I(axi_rst_pre));
 axi_hp_clk #(
-    .CLKIN_PERIOD(6.666),
-    .CLKFBOUT_MULT_AXIHP(6),
+    .CLKIN_PERIOD(20.000),
+    .CLKFBOUT_MULT_AXIHP(18),
     .CLKFBOUT_DIV_AXIHP(6)
 ) axi_hp_clk_i (
     .rst          (axi_rst), // input
@@ -151,10 +151,13 @@ axi_hp_clk #(
 
 sata_top sata_top(
     .sclk                       (sclk),
+    // reliable clock to source drp and cpll lock det circuits
+    .reliable_clk               (axi_aclk0),
+    .hclk                       (hclk),
     .sata_rst                   (sata_rst),
     .extrst                     (extrst),
-    .ACLK                       (axi_aclk),
-    .ARESETN                    (axi_rst | sata_rst),
+    .ACLK                       (axi_aclk0),
+    .ARESETN                    (axi_rst/* | sata_rst*/),
 // AXI PS Master GP1: Read Address    
     .ARADDR                     (ARADDR),
     .ARVALID                    (ARVALID),
@@ -569,7 +572,7 @@ PS7 ps7_i (
 
 // AXI PS Master GP1    
 // AXI PS Master GP1: Clock, Reset
-    .MAXIGP1ACLK    (axi_aclk),         // AXI PS Master GP1 Clock , input
+    .MAXIGP1ACLK    (axi_aclk0),         // AXI PS Master GP1 Clock , input
     .MAXIGP1ARESETN (),          // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
     .MAXIGP1ARADDR  (ARADDR),           // AXI PS Master GP1 ARADDR[31:0], output  

@@ -986,6 +986,8 @@ gtx_unisims(
     .RXDFELFOVRDEN                                              (RXDFELFOVRDEN),
     .RXDFEUTHOLD                                                (RXDFEUTHOLD),
     .RXDFEUTOVRDEN                                              (RXDFEUTOVRDEN),
+    // this signal shall be present only in GTH, but for some reason it's included in unisims gtxe2 
+    .RXDFEVSEN                                                  (1'b0),
     .RXDFEVPHOLD                                                (RXDFEVPHOLD),
     .RXDFEVPOVRDEN                                              (RXDFEVPOVRDEN),
     .RXDFETAP2HOLD                                              (RXDFETAP2HOLD),

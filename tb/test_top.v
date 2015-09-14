@@ -30,6 +30,12 @@ begin
     EXTCLK_N = ~EXTCLK_N;
 end
 
+// MAXI clock
+always #10
+begin
+    CLK = ~CLK;
+end
+
 integer i;
 integer status;
 integer id;
@@ -37,7 +43,7 @@ reg [31:0] data;
 // write registers
 initial
 begin
-//    CLK =1'b0;
+    CLK =1'b0;
     RST = 1'bx;
     AR_SET_CMD_r = 1'b0;
     AW_SET_CMD_r = 1'b0;

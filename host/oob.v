@@ -29,6 +29,7 @@ module oob #(
     parameter CLK_SPEED_GRADE = 1 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
 )
 (
+    output  reg  [11:0] debug,
     // sata clk = usrclk2
     input   wire    clk,
     // reset oob
@@ -426,5 +427,20 @@ assign  eidle_timer_done = eidle_timer == 64;
 always @ (posedge clk)
     eidle_timer <= rst | rxelecidle | ~state_wait_eidle ? 8'b0 : eidle_timer + CLK_TO_TIMER_CONTRIB[7:0];
 
+always @ (posedge clk)
+    debug <= rst ? 12'h000 : { 
+                                state_idle,
+                                state_wait_cominit,
+                                state_wait_comwake,
+                                state_recal_tx,
+                                state_wait_eidle,
+                                state_wait_rxrst,
+                                state_wait_align,
+                                state_wait_synp,
+                                state_wait_linkup,
+                                state_error,
+                                oob_start,
+                                oob_error} | debug;
+                             
 
 endmodule

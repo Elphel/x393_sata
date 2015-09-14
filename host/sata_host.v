@@ -29,6 +29,10 @@ module sata_host(
     output  wire    rst,
     // sata clk
     output  wire    clk,
+
+    // reliable clock to source drp and cpll lock det circuits
+    input   wire    reliable_clk,
+
 // temporary
     input   wire    [31:0]  al_cmd_in, // == {cmd_type, cmd_port, cmd_val, cmd_done_bad, cmd_done_good; cmd_busy}
     input   wire            al_cmd_val_in,
@@ -194,6 +198,12 @@ wire    [15:0]  sh_tran_cnt; // Transfer Count
 wire            sh_notif;
 wire            sh_autoact;
 
+// phy is ready - link is established
+wire    phy_ready;
+// tmp TODO
+wire    gtx_ready;
+wire    [11:0] debug_cnt;
+
 assign  sh_data_val_out = sh_data_val;
 assign  sh_data_out     = sh_data;
 assign  sh_control_out  = sh_control;
@@ -218,6 +228,10 @@ assign  sh_autoact_out  = sh_autoact;
 command command(
     .rst                                (rst),
     .clk                                (clk),
+    // temporary inputs TODO
+    .gtx_ready  (gtx_ready),
+    .phy_ready  (phy_ready),
+    .debug_cnt  (debug_cnt),
 
 // tl cmd iface
     .cmd_type                           (cl2tl_cmd_type),
@@ -560,8 +574,6 @@ transport transport(
 // oob sequence is reinitiated and link now is not established or rxelecidle
 //wire    link_reset; // use ~phy_ready instead
 
-// phy is ready - link is established
-wire    phy_ready;
 
 // data-primitives stream from phy
 wire    [DATA_BYTE_WIDTH*8 - 1:0] phy2ll_data;
@@ -657,8 +669,13 @@ sata_phy phy(
     // sata clk, generated in pll as usrclk2
     .clk                (clk),
 
+    // stable clock to source drp and cpll lock det circuits
+    .reliable_clk       (reliable_clk),
+
     // state
     .phy_ready          (phy_ready),
+    .gtx_ready          (gtx_ready),
+    .debug_cnt          (debug_cnt),
 
     // top-level ifaces
     // ref clk from an external source, shall be connected to pads
