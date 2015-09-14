@@ -166,7 +166,7 @@ begin
     reg04 <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf1) ? wdata : reg04;
     reg08 <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf2) ? wdata : reg08;
     reg0c <= rst ? 32'h0 : bram_wen & (bram_waddr[7:0] == 8'hf3) ? wdata : reg0c;
-    reg10 <= rst ? 32'h0 : dma_start_aclk ? 32'h0 : dma_done_aclk ? 32'hffffffff : reg10; // status reg
+    reg10 <= rst ? 32'h0 : dma_start_aclk ? 32'h0 : {31'h0, dma_done_aclk} ? 32'hffffffff : reg10; // status reg
     reg14 <= rst ? 32'h0 : dma_done_aclk ? reg00 : reg14;
 end
 

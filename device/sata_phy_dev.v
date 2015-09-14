@@ -292,13 +292,13 @@ ext_clock_buf(
 
 GTXE2_CHANNEL #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
-    .SIM_TX_EIDLE_DRIVE_LEVEL               ("X"),
+    .SIM_TX_EIDLE_DRIVE_LEVEL               ("Z"),
     .SIM_RESET_SPEEDUP                      ("FALSE"),
     .SIM_CPLLREFCLK_SEL                     (3'b001),
     .SIM_VERSION                            ("4.0"),
     .ALIGN_COMMA_DOUBLE                     ("FALSE"),
     .ALIGN_COMMA_ENABLE                     (10'b1111111111),
-    .ALIGN_COMMA_WORD                       (1),
+    .ALIGN_COMMA_WORD                       (2),
     .ALIGN_MCOMMA_DET                       ("TRUE"),
     .ALIGN_MCOMMA_VALUE                     (10'b1010000011),
     .ALIGN_PCOMMA_DET                       ("TRUE"),
@@ -418,9 +418,9 @@ GTXE2_CHANNEL #(
     .PD_TRANS_TIME_TO_P2                    (8'h64),
     .SAS_MAX_COM                            (64),
     .SAS_MIN_COM                            (36),
-    .SATA_BURST_SEQ_LEN                     (4'b0111),
-    .SATA_BURST_VAL                         (3'b110),
-    .SATA_EIDLE_VAL                         (3'b110),
+    .SATA_BURST_SEQ_LEN                     (4'b0101),
+    .SATA_BURST_VAL                         (3'b100),
+    .SATA_EIDLE_VAL                         (3'b100),
     .SATA_MAX_BURST                         (8),
     .SATA_MAX_INIT                          (21),
     .SATA_MAX_WAKE                          (7),
@@ -729,13 +729,55 @@ gtx(
 
 // align to 4-byte boundary
 reg twobytes_shift;
+reg onebyte_shift;
 always @ (posedge clk)
-    twobytes_shift <= rst ? 1'b0 : rxchariscomma_gtx[0] === 1'bx ? 1'b0 : rxchariscomma_gtx[2] === 1'bx ? 1'b0 : rxchariscomma_gtx[2] ? 1'b1 : rxchariscomma_gtx[0] ? 1'b0 : twobytes_shift;
-assign  rxdata          = twobytes_shift ? {rxdata_gtx[63:32]     , rxdata_gtx[15:0]      , rxdata_gtx[31:16]     } : rxdata_gtx;
-assign  rxcharisk       = twobytes_shift ? {rxcharisk_gtx[7:4]    , rxcharisk_gtx[1:0]    , rxcharisk_gtx[3:2]    } : rxcharisk_gtx;
-assign  rxchariscomma   = twobytes_shift ? {rxchariscomma_gtx[7:4], rxchariscomma_gtx[1:0], rxchariscomma_gtx[3:2]} : rxchariscomma_gtx;
-assign  rxdisperr       = twobytes_shift ? {rxdisperr_gtx[7:4]    , rxdisperr_gtx[1:0]    , rxdisperr_gtx[3:2]    } : rxdisperr_gtx;
-assign  rxnotintable    = twobytes_shift ? {rxnotintable_gtx[7:4] , rxnotintable_gtx[1:0] , rxnotintable_gtx[3:2] } : rxnotintable_gtx;
+    twobytes_shift <= rst ? 1'b0 : rxchariscomma_gtx[0] === 1'bx | rxchariscomma_gtx[1] === 1'bx | rxchariscomma_gtx[2] === 1'bx | rxchariscomma_gtx[3] === 1'bx ? 1'b0 
+                                 : rxchariscomma_gtx[2] | rxchariscomma_gtx[3] ? 1'b1 : rxchariscomma_gtx[0] | rxchariscomma_gtx[1] ? 1'b0 : twobytes_shift;
+always @ (posedge clk)
+    onebyte_shift  <= rst ? 1'b0 : rxchariscomma_gtx[0] === 1'bx | rxchariscomma_gtx[1] === 1'bx | rxchariscomma_gtx[2] === 1'bx | rxchariscomma_gtx[3] === 1'bx ? 1'b0 
+                                 : rxchariscomma_gtx[1] | rxchariscomma_gtx[3] ? 1'b1 : rxchariscomma_gtx[0] | rxchariscomma_gtx[2] ? 1'b0 : onebyte_shift;
+
+wire [31:0] shifted_rxdata;
+wire [ 7:0] shifted_rxcharisk;
+wire [ 7:0] shifted_rxchariscomma;
+wire [ 7:0] shifted_rxdisperr;
+wire [ 7:0] shifted_rxnotintable;
+wire [ 1:0] shift_val = {twobytes_shift, onebyte_shift};
+reg  [31:0] rxdata_gtx_r       ;
+reg  [ 7:0] rxcharisk_gtx_r    ;
+reg  [ 7:0] rxchariscomma_gtx_r;
+reg  [ 7:0] rxdisperr_gtx_r    ;
+reg  [ 7:0] rxnotintable_gtx_r ;
+always @ (posedge clk)          
+begin                           
+    rxdata_gtx_r        <= rxdata_gtx          [31:0];
+    rxcharisk_gtx_r     <= rxcharisk_gtx       [ 3:0];
+    rxchariscomma_gtx_r <= rxchariscomma_gtx   [ 3:0];
+    rxdisperr_gtx_r     <= rxdisperr_gtx       [ 3:0];
+    rxnotintable_gtx_r  <= rxnotintable_gtx    [ 3:0];
+end
+wire [63:0] rxdata_d        = {rxdata_gtx       [31:0], rxdata_gtx_r          [31:0]};
+wire [ 7:0] rxcharisk_d     = {rxcharisk_gtx    [ 3:0], rxcharisk_gtx_r       [ 3:0]};
+wire [ 7:0] rxchariscomma_d = {rxchariscomma_gtx[ 3:0], rxchariscomma_gtx_r   [ 3:0]};
+wire [ 7:0] rxdisperr_d     = {rxdisperr_gtx    [ 3:0], rxdisperr_gtx_r       [ 3:0]};
+wire [ 7:0] rxnotintable_d  = {rxnotintable_gtx [ 3:0], rxnotintable_gtx_r    [ 3:0]};
+genvar ii;
+generate
+    for (ii = 0; ii < 4; ii = ii + 1)
+    begin: ads
+        assign shifted_rxdata       [ii*8 + 7:ii*8] = shift_val == 2'b11 ? rxdata_d[(ii + 3)*8 + 7:(ii + 3)*8] : shift_val == 2'b10 ? rxdata_d[(ii + 2)*8 + 7:(ii + 2)*8] : shift_val == 2'b01 ? rxdata_d[(ii + 1)*8 + 7:(ii + 1)*8] : rxdata_d[ii*8 + 7:ii*8];
+        assign shifted_rxcharisk    [ii]            = shift_val == 2'b11 ? rxcharisk_d    [(ii + 3)]           : shift_val == 2'b10 ? rxcharisk_d    [(ii + 2)]           : shift_val == 2'b01 ? rxcharisk_d    [(ii + 1)]           : rxcharisk_d    [ii];
+        assign shifted_rxchariscomma[ii]            = shift_val == 2'b11 ? rxchariscomma_d[(ii + 3)]           : shift_val == 2'b10 ? rxchariscomma_d[(ii + 2)]           : shift_val == 2'b01 ? rxchariscomma_d[(ii + 1)]           : rxchariscomma_d[ii];
+        assign shifted_rxdisperr    [ii]            = shift_val == 2'b11 ? rxdisperr_d    [(ii + 3)]           : shift_val == 2'b10 ? rxdisperr_d    [(ii + 2)]           : shift_val == 2'b01 ? rxdisperr_d    [(ii + 1)]           : rxdisperr_d    [ii];
+        assign shifted_rxnotintable [ii]            = shift_val == 2'b11 ? rxnotintable_d [(ii + 3)]           : shift_val == 2'b10 ? rxnotintable_d [(ii + 2)]           : shift_val == 2'b01 ? rxnotintable_d [(ii + 1)]           : rxnotintable_d [ii];
+    end
+endgenerate
+
+assign  rxdata          = {rxdata_gtx[63:32]     , shifted_rxdata       };
+assign  rxcharisk       = {rxcharisk_gtx[7:4]    , shifted_rxcharisk    };
+assign  rxchariscomma   = {rxchariscomma_gtx[7:4], shifted_rxchariscomma};
+assign  rxdisperr       = {rxdisperr_gtx[7:4]    , shifted_rxdisperr    };
+assign  rxnotintable    = {rxnotintable_gtx[7:4] , shifted_rxnotintable };
 
 assign  ll_err_out      = rxdisperr[3:0] | rxnotintable[3:0];
 

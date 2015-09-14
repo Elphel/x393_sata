@@ -187,6 +187,9 @@ begin
 /*    for (i = 0; i < 32; i = i + 1) begin
         $display("data received : %h", dev.receive_data[i]);
     end*/
+
+    RST = 1'b1;
+    repeat (2000) @(posedge EXTCLK_P) ;
     $display("============= DONE =============");
     $finish;
     
@@ -240,7 +243,7 @@ begin
 end
 */
 initial begin
-    #150000;
+    #200000;
     $display("[Test] Failed");
     $display("============= TIMELIMIT =============");
     $finish;

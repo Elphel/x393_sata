@@ -184,9 +184,26 @@ always @ (posedge gtrefclk)
  */
 wire    usrpll_locked;
 
+// make tx/rxreset synchronous to gtrefclk - gather singals from different domains: async, aclk, usrclk2, gtrefclk
+reg rxreset_f;
+reg txreset_f;
+reg rxreset_f_r;
+reg txreset_f_r;
+reg rxreset_f_rr;
+reg txreset_f_rr;
+always @ (posedge gtrefclk)
+begin
+    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
+    txreset_f <= ~cplllock | cpllreset;
+    txreset_f_r <= txreset_f;
+    rxreset_f_r <= rxreset_f;
+    txreset_f_rr <= txreset_f_r;
+    rxreset_f_rr <= rxreset_f_r;
+end
+
+assign  rxreset = rxreset_f_rr;
+assign  txreset = txreset_f_rr;
 assign  cpllreset = extrst;
-assign  rxreset = ~cplllock | cpllreset | rxreset_oob & gtx_configured;
-assign  txreset = ~cplllock | cpllreset;
 assign  rxuserrdy = usrpll_locked & cplllock & ~cpllreset & ~rxreset & rxeyereset_done & sata_reset_done;
 assign  txuserrdy = usrpll_locked & cplllock & ~cpllreset & ~txreset & txpmareset_done & sata_reset_done;
 

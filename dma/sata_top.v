@@ -36,6 +36,7 @@
     // reliable clock to source drp and cpll lock det circuits
     input   wire    reliable_clk,
 
+    input   wire    hclk,
 /*
  * Commands interface
  */
@@ -232,7 +233,7 @@ wire            dma_type;
 wire            dma_start;
 wire            dma_done;
 // axi-hp clock
-wire            hclk;
+//wire            hclk;
 // dma_control <-> dma_adapter command iface
 wire            adp_busy;
 wire    [31:7]  adp_addr;
@@ -283,10 +284,9 @@ wire    [63:0]  buf_rdata;
 wire            rdata_done; // = membridge.is_last_in_page & membridge.afi_rready;
 
 //assign  rst = ARESETN;
-
-// TODO
-assign hclk = ACLK;
-
+reg hrst;
+always @ (posedge hclk)
+    hrst <= sata_rst;
 
 axi_regs axi_regs(
 // axi iface
@@ -477,7 +477,7 @@ dma_control dma_control(
 
 dma_adapter dma_adapter(
     .clk                    (hclk),
-    .rst                    (sata_rst),
+    .rst                    (hrst),
 // command iface                            
     .cmd_type               (adp_type),
     .cmd_val                (adp_val),
@@ -530,8 +530,8 @@ V    .MEMBRIDGE_ADDR         (),
     .FRAME_HEIGHT_BITS      (),
     .FRAME_WIDTH_BITS       ()
 )*/ membridge(
-    .mrst                   (sata_rst), // input
-    .hrst                   (ARESETN), // input
+    .mrst                   (hrst), // input
+    .hrst                   (hrst), // input
     .mclk                   (hclk), // input
     .hclk                   (hclk), // input
     .cmd_ad                 (cmd_ad),

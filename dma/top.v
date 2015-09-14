@@ -153,10 +153,11 @@ sata_top sata_top(
     .sclk                       (sclk),
     // reliable clock to source drp and cpll lock det circuits
     .reliable_clk               (axi_aclk0),
+    .hclk                       (hclk),
     .sata_rst                   (sata_rst),
     .extrst                     (extrst),
-    .ACLK                       (axi_aclk),
-    .ARESETN                    (axi_rst | sata_rst),
+    .ACLK                       (axi_aclk0),
+    .ARESETN                    (axi_rst/* | sata_rst*/),
 // AXI PS Master GP1: Read Address    
     .ARADDR                     (ARADDR),
     .ARVALID                    (ARVALID),
@@ -571,7 +572,7 @@ PS7 ps7_i (
 
 // AXI PS Master GP1    
 // AXI PS Master GP1: Clock, Reset
-    .MAXIGP1ACLK    (axi_aclk),         // AXI PS Master GP1 Clock , input
+    .MAXIGP1ACLK    (axi_aclk0),         // AXI PS Master GP1 Clock , input
     .MAXIGP1ARESETN (),          // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
     .MAXIGP1ARADDR  (ARADDR),           // AXI PS Master GP1 ARADDR[31:0], output  
