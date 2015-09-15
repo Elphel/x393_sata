@@ -20,7 +20,12 @@
  *******************************************************************************/
 `include "axibram_read.v"
 `include "axibram_write.v"
-module axi_regs(
+module axi_regs #(
+    parameter AXIREGS_COUNT      = 10,
+    parameter AREGS_ADDR_BITS    = 4,
+    parameter SREGS_ADDR_BITS    = 4
+)
+(
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
     input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
@@ -66,7 +71,15 @@ module axi_regs(
     output  wire    [3:0]       bram_wstb,
     output  wire                bram_wen,
     output  wire                bram_ren,
-    output  wire                bram_regen
+    output  wire                bram_regen,
+
+// iface to registers @ sclk
+    output  wire    [SREGS_ADDR_BITS - 1:0]   sregs_address_out,
+    output  wire    [31:0]  sregs_wdata_out,
+    output  wire            sregs_val_out,
+    output  wire            sregs_req_out, // output strobe
+    input   wire    [31:0]  sregs_rdata_in,
+    input   wire            sregs_ack_in // input strobe OR write acknowledgement
 );
 /*
  * Converntional MAXI interface from x393 project
@@ -100,10 +113,11 @@ axibram_write(
     .dev_ready      (1'b1),
     .bram_wclk      (),
     .bram_waddr     (bram_waddr[15:0]),
-    .bram_wen       (bram_wen),
+    .bram_wen       (write_dev_rdy),
     .bram_wstb      (bram_wstb),
     .bram_wdata     (bram_wdata)
 );
+
 axibram_read #(
     .ADDRESS_BITS(16)
 )
@@ -125,12 +139,135 @@ axibram_read(
     .rresp          (RRESP),
     .pre_araddr     (),
     .start_burst    (),
-    .dev_ready      (1'b1),
+    .dev_ready      (read_dev_rdy),
     .bram_rclk      (),
     .bram_raddr     (bram_raddr[15:0]),
     .bram_ren       (bram_ren),
     .bram_regen     (bram_regen),
     .bram_rdata     (bram_rdata)
+);
+
+/*
+ * Determine, if target registers works @ axi clk or sata clk
+ */
+reg     [31:0]  regs_rdata_r;
+reg     [31:0]  regs_rdata_rr;
+// issue write or read, on read addr is strobed with regs_rd, on write - with regs_wr
+wire            regs_wr;
+wire            regs_rd;
+// indicates, that returning data is valid
+wire            regs_val;
+
+// same block of control signals for axi registers
+wire    [AREGS_ADDR_BITS - 1:0]   aregs_address;
+wire    [31:0]  aregs_wdata;
+wire    [31:0]  aregs_rdata;
+wire            aregs_wr;
+wire            aregs_rd;
+wire            aregs_val; 
+wire            adev_rdy;
+// and for sata registers
+wire    [SREGS_ADDR_BITS - 1:0]   sregs_address;
+wire    [31:0]  sregs_wdata;
+wire    [31:0]  sregs_rdata;
+wire            sregs_wr;
+wire            sregs_rd;
+wire            sregs_val;
+wire            sdev_rdy;
+
+// 
+localparam  DEST_ACLK = 0;
+localparam  DEST_SCLK = 1;
+wire    dest;
+
+assign  read_dev_rdy = adev_rdy | sdev_rdy;
+
+assign  aregs_wr = bram_wen & dest == DEST_ACLK;
+assign  aregs_rd = bram_ren & dest == DEST_ACLK;
+
+assign  sregs_wr = bram_wen & dest == DEST_SCLK;
+assign  sregs_rd = bram_ren & dest == DEST_SCLK;
+
+/*
+ * Address remap
+ */
+
+assign  dest          = bram_addr[SREGS_ADDR_BITS];
+assign  sregs_address = bram_addr[SREGS_ADDR_BITS - 1:0];
+assign  aregs_address = bram_addr[AREGS_ADDR_BITS - 1:0];
+
+/*
+ * Registers in ACLK domain
+ * Now implemented as a set registers. If some of them can be accesses only at some specific time,
+ * these registers can be replaced with a bram memory
+ */
+reg     [31:0]  axi_regs [AXIREGS_COUNT - 1:0];
+wire    [31:0]  axi_read_data;
+genvar ii;
+generate 
+    for (ii = 0; ii < AXIREGS_COUNT; ii = ii + 1)
+    begin: axi_registers_write
+        always @ (posedge ACLK)
+            axi_regs[ii] <= (ii == aregs_address) & aregs_wr ? regs_wdata : axi_regs[ii];
+    end
+endgenerate
+assign  axi_read_data = axi_regs[aregs_address];
+assign  adev_rdy = aregs_rd;
+
+/*
+ * Resync to registers @ sclk
+ * Can't make it pipelined - while axibram_read is used we can operate only with 1 request at a time
+ * Slow as hell
+ */
+// ACLK -> SCLK
+reg     state_wait_ack;
+wire    set_wait_ack;
+wire    clr_wait_ack;
+// request to read data. AXI have to wait until it's done
+// @ ACLK
+wire    sregs_ack;
+assign  set_wait_ack = sregs_rd & ~state_wait_ack;
+assign  clr_wait_ack = sregs_ack;
+always @ (posedge ACLK)
+    state_wait_ack <= (state_wait_ack | set_wait_ack) & ~clr_wait_ack & ~ARESETN;
+
+
+// tranfers control signals and data to write from @ ACLK to @ sclk
+fifo_cross_clocks #(
+    .DATA_WIDTH (SREGS_ADDR_BITS + 32 + 1),
+    .DATA_DEPTH (3)
+) 
+writes_to_sclk(
+    .rst        (ARESETN),
+    .rrst       (ARESETN),
+    .wrst       (ARESETN),
+    .rclk       (sclk),
+    .wclk       (ACLK),
+    .we         (sregs_rd | sregs_wr),
+    .re         (sregs_ack),
+    .data_in    ({sregs_rd, sregs_address, sregs_wdata}),
+    .data_out   ({sregs_req_out, sregs_address_out, sregs_wdata_out}),
+    .nempty     (sregs_val_out),
+    .half_empty ()
+);
+
+// read data @ sclk -> @ ACLK and control strobe
+pulse_cross_clock bram_ack(
+    .rst        (ARESETN),
+    .src_clk    (sclk),
+    .dst_clk    (ACLK),
+    .in_pulse   (sregs_ack_in),
+    .out_pulse  (sregs_ack),
+    .busy       ()
+);
+
+level_cross_clocks#(
+    .WIDTH      (32),
+    .REGISTER   (2)
+)
+data_to_aclk(
+    .d_in   (sregs_rdata_in),
+    .d_out  (sregs_rdata)
 );
 
 endmodule
