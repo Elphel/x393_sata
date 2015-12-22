@@ -36,16 +36,31 @@ module tb #(
 )
 (
 );
-`ifdef IVERILOG
-    `include "IVERILOG_INCLUDE.v"
+
+`ifdef IVERILOG              
+    `ifdef NON_VDT_ENVIROMENT
+        parameter fstname="x393.fst";
+    `else
+        `include "IVERILOG_INCLUDE.v"
+    `endif // NON_VDT_ENVIROMENT
 `else // IVERILOG
-    parameter lxtname = "x393.lxt";
+    `ifdef CVC
+        `ifdef NON_VDT_ENVIROMENT
+            parameter fstname = "x393.fst";
+        `else // NON_VDT_ENVIROMENT
+            `include "IVERILOG_INCLUDE.v"
+        `endif // NON_VDT_ENVIROMENT
+    `else
+        parameter fstname = "x393.fst";
+    `endif // CVC
 `endif // IVERILOG
+
+
 
 initial #1 $display("HI THERE");
 initial
 begin
-    $dumpfile(lxtname);
+    $dumpfile(fstname);
     $dumpvars(0, tb);       // SuppressThisWarning VEditor - no idea why here was a warning
 end
 

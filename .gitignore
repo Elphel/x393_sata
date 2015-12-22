@@ -1,0 +1,13 @@
+unisims
+debug
+vivado_*
+simulation/*
+ise_*
+attic/*
+IVERILOG_INCLUDE.v
+x393.prj
+*DEBUG_VDT*
+*.kate-swp
+*.old
+*.pyc
+*.pickle

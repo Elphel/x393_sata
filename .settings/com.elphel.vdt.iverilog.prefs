@@ -1,8 +1,14 @@
-com.elphel.store.context.iverilog=iverilog_81_TopModulesOther<-@\#\#@->iverilog_83_ExtraFiles<-@\#\#@->iverilog_88_ShowNoProblem<-@\#\#@->iverilog_77_Param_Exe<-@\#\#@->iverilog_78_VVP_Exe<-@\#\#@->iverilog_99_GrepFindErrWarn<-@\#\#@->iverilog_89_ShowNoProblem<-@\#\#@->iverilog_79_GtkWave_Exe<-@\#\#@->iverilog_103_ExtraFiles<-@\#\#@->iverilog_104_IncludeDir<-@\#\#@->iverilog_101_TopModulesOther<-@\#\#@->iverilog_122_IVerilogOther<-@\#\#@->
+com.elphel.store.context.iverilog=iverilog_81_TopModulesOther<-@\#\#@->iverilog_83_ExtraFiles<-@\#\#@->iverilog_88_ShowNoProblem<-@\#\#@->iverilog_77_Param_Exe<-@\#\#@->iverilog_78_VVP_Exe<-@\#\#@->iverilog_99_GrepFindErrWarn<-@\#\#@->iverilog_89_ShowNoProblem<-@\#\#@->iverilog_79_GtkWave_Exe<-@\#\#@->iverilog_103_ExtraFiles<-@\#\#@->iverilog_104_IncludeDir<-@\#\#@->iverilog_101_TopModulesOther<-@\#\#@->iverilog_122_IVerilogOther<-@\#\#@->iverilog_110_ShowNoProblem<-@\#\#@->iverilog_113_SaveLogsPreprocessor<-@\#\#@->iverilog_114_SaveLogsSimulator<-@\#\#@->iverilog_105_IncludeDir<-@\#\#@->iverilog_102_TopModulesOther<-@\#\#@->iverilog_104_ExtraFiles<-@\#\#@->
 eclipse.preferences.version=1
 iverilog_101_TopModulesOther=glbl<-@\#\#@->
+iverilog_102_TopModulesOther=glbl<-@\#\#@->
 iverilog_103_ExtraFiles=x393/glbl.v<-@\#\#@->
+iverilog_104_ExtraFiles=x393/glbl.v<-@\#\#@->
 iverilog_104_IncludeDir=${verilog_project_loc}/x393<-@\#\#@->${verilog_project_loc}/x393/includes<-@\#\#@->${verilog_project_loc}/host<-@\#\#@->${verilog_project_loc}/tb<-@\#\#@->
+iverilog_105_IncludeDir=${verilog_project_loc}/tb<-@\#\#@->${verilog_project_loc}/host<-@\#\#@->
+iverilog_110_ShowNoProblem=true
+iverilog_113_SaveLogsPreprocessor=true
+iverilog_114_SaveLogsSimulator=true
 iverilog_77_Param_Exe=/usr/local/bin/iverilog
 iverilog_78_VVP_Exe=/usr/local/bin/vvp
 iverilog_79_GtkWave_Exe=/usr/local/bin/gtkwave
