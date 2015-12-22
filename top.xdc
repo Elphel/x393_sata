@@ -9,6 +9,7 @@ set_property PACKAGE_PIN AB3 [get_ports TXN]
 set_property PACKAGE_PIN AB4 [get_ports TXP]
 
 # manually placing usrpll in the same region where gtx is located : x0y0
-startgroup
-place_cell sata_top/sata_host/phy/usrclk_pll PLLE2_ADV_X0Y0/PLLE2_ADV
-endgroup
+###startgroup
+###place_cell sata_top/sata_host/phy/usrclk_pll PLLE2_ADV_X0Y0/PLLE2_ADV
+###endgroup
+###CRITICAL WARNING: [Designutils 20-1307] Command 'place_cell' is not supported in the xdc constraint file. [/home/xilinx/vdt/x393_sata/top.xdc:13]

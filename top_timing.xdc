@@ -11,17 +11,22 @@ create_clock -name txoutclk -period 6.666 -waveform {0.000 3.333} [get_nets sata
 # recovered sata parallel clock
 create_clock -name xclk -period 6.666 -waveform {0.000 3.333} [get_nets sata_top/sata_host/phy/gtx_wrap/xclk]
 
-# txoutclk -> userpll, which gives us 2 clocks: userclk and userclk2. The second one is sata host clk
+# txoutclk -> userpll, which gives us 2 clocks: userclk (150MHz) and userclk2 (75MHz) . The second one is sata host clk
 ###create_generated_clock -name usrclk [get_nets sata_top/sata_host/phy/CLK]
-create_generated_clock -name usrclk [get_nets sata_top/sata_host/phy/usrclk2]
 #create_generated_clock -name sclk   [get_nets sata_top/sata_host/phy/clk]
-create_generated_clock -name sclk   [get_nets sata_top_n_173]
+###create_generated_clock -name sclk   [get_nets sata_top_n_173]
+
+###These clocks are already automatically extracted
+#create_generated_clock -name usrclk [get_nets sata_top/sata_host/phy/usrclk]
+#create_generated_clock -name usrclk2 [get_nets sata_top/sata_host/phy/usrclk2]
 
 set_clock_groups -name async_clocks -asynchronous \
 -group {gtrefclk} \
 -group {axi_aclk0} \
 -group {xclk} \
 -group {usrclk} \
--group {sclk} \
+-group {usrclk2} \
 -group {clk_axihp_pre} \
 -group {txoutclk}
+
+###-group {sclk} \

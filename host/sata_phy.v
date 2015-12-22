@@ -27,7 +27,7 @@ module sata_phy #(
     // initial reset, resets PLL. After pll is locked, an internal sata reset is generated.
     input   wire        extrst,
     // sata clk, generated in pll as usrclk2
-    output  wire        clk,
+    output  wire        clk, // 75KHz, bufg
     output  wire        rst,
 
     // reliable clock to source drp and cpll lock det circuits
@@ -215,7 +215,9 @@ assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
 
 // assert gtx_configured. Once gtx_ready -> 1, gtx_configured latches
 always @ (posedge clk or posedge extrst)
-    gtx_configured <= extrst ? 1'b0 : gtx_ready | gtx_configured;
+//    gtx_configured <= extrst ? 1'b0 : gtx_ready | gtx_configured;
+    if (extrst) gtx_configured <= 0;
+    else        gtx_configured <= gtx_ready | gtx_configured;
 
 
 // issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
@@ -227,7 +229,9 @@ assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop & gtx_configured;
 assign  recal_tx_done = txpcsreset_stop & gtx_ready;
 
 always @ (posedge clk or posedge extrst)
-    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
+//    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
+    if (extrst) txpcsreset_cnt <= 1;
+    else        txpcsreset_cnt <= rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
 
 // issue rx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
 reg [3:0]   rxreset_oob_cnt;
@@ -238,7 +242,9 @@ assign  rxreset_oob      = rxreset_req & ~rxreset_oob_stop;
 assign  rxreset_ack      = rxreset_oob_stop & gtx_ready;
 
 always @ (posedge clk or posedge extrst)
-    rxreset_oob_cnt <= extrst | rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
+//    rxreset_oob_cnt <= extrst | rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
+    if (extrst) rxreset_oob_cnt <= 1; 
+    else        rxreset_oob_cnt <= rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
 
 // generate internal reset after a clock is established
 // !!!ATTENTION!!!
@@ -247,11 +253,14 @@ reg [7:0]   rst_timer;
 reg         rst_r;
 localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
 always @ (posedge clk or posedge extrst)
-    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
+//    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
+    if (extrst) rst_timer <= 1;
+    else        rst_timer <= ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
 
 assign  rst = rst_r;
 always @ (posedge clk or posedge extrst)
-    rst_r <= extrst | ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
+    if (extrst) rst_r <= 1; 
+    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
 
 assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
 
@@ -265,10 +274,10 @@ wire    usrclk2;
 
 wire usrclk_global;
 BUFG bufg_usrclk (.O(usrclk_global),.I(usrclk));
-assign  txusrclk  = usrclk_global;
-assign  txusrclk2 = usrclk2;
-assign  rxusrclk  = usrclk_global;
-assign  rxusrclk2 = usrclk2;
+assign  txusrclk  = usrclk_global; // 150MHz
+assign  txusrclk2 = clk; // usrclk2;       // should not use non-buffered clock!
+assign  rxusrclk  = usrclk_global; // 150MHz
+assign  rxusrclk2 = clk; // usrclk2;       // should not use non-buffered clock!
 
 PLLE2_ADV #(
     .BANDWIDTH              ("OPTIMIZED"),
@@ -305,8 +314,8 @@ PLLE2_ADV #(
 )
 usrclk_pll(
   .CLKFBOUT (usrpll_fb_clk),
-  .CLKOUT0  (usrclk),
-  .CLKOUT1  (usrclk2),
+  .CLKOUT0  (usrclk),   //150Mhz
+  .CLKOUT1  (usrclk2), // 75MHz
   .CLKOUT2  (),
   .CLKOUT3  (),
   .CLKOUT4  (),
