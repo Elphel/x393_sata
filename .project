@@ -46,7 +46,7 @@
 		<link>
 			<name>vivado_logs/VivadoBitstream.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoBitstream-20151221195334703.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoBitstream-20151222105615706.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoOpt.log</name>

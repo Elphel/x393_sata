@@ -129,7 +129,61 @@ generate
 if (DATA_BYTE_WIDTH == 4) begin
     // resync to txusrclk
     // 2*Fin = Fout => WIDTHin = 2*WIDTHout
-    wire    txdata_resync_nempty;
+    // Andrey:
+    reg            txdata_resync_strobe;
+    reg     [15:0] txdata_enc_in_r;
+    reg     [ 1:0] txcharisk_enc_in_r;
+    wire    [38:0] txdata_resync_out;
+    wire           txdata_resync_valid;
+    reg            txcomwake_gtx_f;
+    reg            txcominit_gtx_f;
+    reg            txelecidle_gtx_f;
+    
+    resync_data #( // TODO: update output register..  OK as it is
+        .DATA_WIDTH(39),
+        .DATA_DEPTH(3),
+        .INITIAL_VALUE(39'h4000000000) // All 0 but txelecidle_gtx
+    ) txdata_resynchro (
+        .arst     (txreset),                                               // input
+        .srst     (~wrap_txreset_),                                        // input
+        .wclk     (txusrclk2),                                             // input
+        .rclk     (txusrclk),                                              // input
+        .we       (1'b1),                                                  // input
+        .re       (txdata_resync_strobe),                                  // input
+        .data_in  ({txelecidle, txcominit, txcomwake, txcharisk, txdata}), // input[15:0] 
+        .data_out (txdata_resync_out),                                     // output[15:0] reg 
+        .valid    (txdata_resync_valid)                                    // output reg 
+    );
+    always @ (posedge txreset or posedge txusrclk) begin
+        if      (txreset)             txdata_resync_strobe <= 0;
+        else if (txdata_resync_valid) txdata_resync_strobe <= ~txdata_resync_strobe[0];
+        
+        if (txreset) begin
+            txdata_enc_in_r <=    0;
+            txcharisk_enc_in_r <= 0;
+        end else if (txdata_resync_valid) begin
+            txdata_enc_in_r <=    txdata_resync_strobe? txdata_resync_out[31:16]: txdata_resync_out[15:0];
+            txcharisk_enc_in_r <= txdata_resync_strobe? txdata_resync_out[35:34]: txdata_resync_out[33:32];
+        end
+        
+        if (txreset) begin
+            txcomwake_gtx_f  <= 0;
+            txcominit_gtx_f  <= 0;
+            txelecidle_gtx_f <= 0;
+        end else begin
+            txcomwake_gtx_f  <= txdata_resync_out[36];
+            txcominit_gtx_f  <= txdata_resync_out[37];
+            txelecidle_gtx_f <= txdata_resync_out[38];
+        end
+    end
+    assign  txdata_enc_in       = txdata_enc_in_r;
+    assign  txcharisk_enc_in    = txcharisk_enc_in_r;
+    assign  txcominit_gtx       = txcominit_gtx_f;
+    assign  txcomwake_gtx       = txcomwake_gtx_f;
+    assign  txelecidle_gtx      = txelecidle_gtx_f;
+    
+    
+    /*wire    txdata_resync_nempty;
     reg     txdata_resync_nempty_r;
     reg     txdata_resync_nempty_rr;
     reg     txdata_resync_strobe;
@@ -138,13 +192,14 @@ if (DATA_BYTE_WIDTH == 4) begin
 
     assign  txdata_enc_in       = {16{~txdata_resync_strobe}} & txdata_resync[15:0] | {16{txdata_resync_strobe}} & txdata_resync[31:16];
     assign  txcharisk_enc_in   = {2{~txdata_resync_strobe}} & txdata_resync[33:32] | {2{txdata_resync_strobe}} & txdata_resync[35:34];
+    // Andrey: wrap_txreset_ has different clock domain
     always @ (posedge txusrclk)
     begin
-        txdata_resync        <= ~wrap_txreset_ ? 36'h0 : txdata_resync_nempty & txdata_resync_strobe ? txdata_resync_out[35:0] : txdata_resync;
-        txdata_resync_strobe <= ~wrap_txreset_ ? 1'b0  : ~txdata_resync_nempty ? txdata_resync_strobe : ~txdata_resync_strobe; // -> 1 once every resynced dword = signal to latch it
+        txdata_resync        <= ~wrap_txreset_ ? 36'h0 : ((txdata_resync_nempty & txdata_resync_strobe) ? txdata_resync_out[35:0] : txdata_resync);
+        txdata_resync_strobe <= ~wrap_txreset_ ? 1'b0  : ((~txdata_resync_nempty) ? txdata_resync_strobe : ~txdata_resync_strobe); // -> 1 once every resynced dword = signal to latch it
     end
 
-    // nempty_rr & nempty => shall be at least 2 elements in fifo - safe to read
+    // nempty_rr & nempty => shall be at least 2 elements in fifo
     always @ (posedge txusrclk2) 
     begin
         txdata_resync_nempty_r  <= txdata_resync_nempty;
@@ -182,7 +237,9 @@ if (DATA_BYTE_WIDTH == 4) begin
     assign  txcomwake_gtx  = txcomwake_gtx_f;
     assign  txcominit_gtx  = txcominit_gtx_f;
     assign  txelecidle_gtx = txelecidle_gtx_f;
+    */
 end
+
 else
 if (DATA_BYTE_WIDTH == 2) begin
     // no resync is needed => straightforward assignments

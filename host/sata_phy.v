@@ -27,7 +27,7 @@ module sata_phy #(
     // initial reset, resets PLL. After pll is locked, an internal sata reset is generated.
     input   wire        extrst,
     // sata clk, generated in pll as usrclk2
-    output  wire        clk, // 75KHz, bufg
+    output  wire        clk, // 75MHz, bufg
     output  wire        rst,
 
     // reliable clock to source drp and cpll lock det circuits

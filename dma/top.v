@@ -49,83 +49,83 @@ wire            axi_aclk;
 wire            axi_rst;
 wire            hclk;
 wire            comb_rst;
-wire    [31:0]  ARADDR;
-wire            ARVALID;
-wire            ARREADY;
-wire    [11:0]  ARID;
-wire    [3:0]   ARLEN;
-wire    [1:0]   ARSIZE;
-wire    [1:0]   ARBURST;
-wire    [31:0]  RDATA;
-wire            RVALID;
-wire            RREADY;
-wire    [11:0]  RID;
-wire            RLAST;
-wire    [1:0]   RRESP;
-wire    [31:0]  AWADDR;
-wire            AWVALID;
-wire            AWREADY;
-wire    [11:0]  AWID;
-wire    [3:0]   AWLEN;
-wire    [1:0]   AWSIZE;
-wire    [1:0]   AWBURST;
-wire    [31:0]  WDATA;
-wire            WVALID;
-wire            WREADY;
-wire    [11:0]  WID;
-wire            WLAST;
-wire    [3:0]   WSTRB;
-wire            BVALID;
-wire            BREADY;
-wire    [11:0]  BID;
-wire    [1:0]   BRESP;
+wire    [31:0]  maxi1_araddr;
+wire            maxi1_arvalid;
+wire            maxi1_arready;
+wire    [11:0]  maxi1_arid;
+wire    [3:0]   maxi1_arlen;
+wire    [1:0]   maxi1_arsize;
+wire    [1:0]   maxi1_arburst;
+wire    [31:0]  maxi1_rdata;
+wire            maxi1_rvalid;
+wire            maxi1_rready;
+wire    [11:0]  maxi1_rid;
+wire            maxi1_rlast;
+wire    [1:0]   maxi1_rresp;
+wire    [31:0]  maxi1_awaddr;
+wire            maxi1_awvalid;
+wire            maxi1_awready;
+wire    [11:0]  maxi1_awid;
+wire    [3:0]   maxi1_awlen;
+wire    [1:0]   maxi1_awsize;
+wire    [1:0]   maxi1_awburst;
+wire    [31:0]  maxi1_wdata;
+wire            maxi1_wvalid;
+wire            maxi1_wready;
+wire    [11:0]  maxi1_wid;
+wire            maxi1_wlast;
+wire    [3:0]   maxi1_wstb;
+wire            maxi1_bvalid;
+wire            maxi1_bready;
+wire    [11:0]  maxi1_bid;
+wire    [1:0]   maxi1_bresp;
 reg             axi_rst_pre;
 
 // membridge
-wire [31:0] afi0_awaddr;   // output[31:0]
-wire        afi0_awvalid;  // output
-wire        afi0_awready;     // input
-wire [ 5:0] afi0_awid;     // output[5:0] 
-wire [ 1:0] afi0_awlock;     // output[1:0] 
-wire [ 3:0] afi0_awcache;     // output[3:0] 
-wire [ 2:0] afi0_awprot;     // output[2:0] 
-wire [ 3:0] afi0_awlen;     // output[3:0] 
-wire [ 1:0] afi0_awsize;     // output[2:0] 
-wire [ 1:0] afi0_awburst;     // output[1:0] 
-wire [ 3:0] afi0_awqos;     // output[3:0] 
-wire [63:0] afi0_wdata;     // output[63:0] 
-wire        afi0_wvalid;     // output
-wire        afi0_wready;     // input
-wire [ 5:0] afi0_wid;     // output[5:0] 
-wire        afi0_wlast;     // output
-wire [ 7:0] afi0_wstrb;     // output[7:0] 
-wire        afi0_bvalid;     // input
-wire        afi0_bready;     // output
-wire [ 5:0] afi0_bid;     // input[5:0] 
-wire [ 1:0] afi0_bresp;     // input[1:0] 
-wire [ 7:0] afi0_wcount;     // input[7:0] 
-wire [ 5:0] afi0_wacount;     // input[5:0] 
-wire        afi0_wrissuecap1en;     // output
-wire [31:0] afi0_araddr;     // output[31:0] 
-wire        afi0_arvalid;     // output
-wire        afi0_arready;     // input
-wire [ 5:0] afi0_arid;     // output[5:0] 
-wire [ 1:0] afi0_arlock;     // output[1:0] 
-wire [ 3:0] afi0_arcache;     // output[3:0] 
-wire [ 2:0] afi0_arprot;     // output[2:0] 
-wire [ 3:0] afi0_arlen;     // output[3:0] 
-wire [ 1:0] afi0_arsize;     // output[2:0] 
-wire [ 1:0] afi0_arburst;     // output[1:0] 
-wire [ 3:0] afi0_arqos;     // output[3:0] 
-wire [63:0] afi0_rdata;     // input[63:0] 
-wire        afi0_rvalid;     // input
-wire        afi0_rready;     // output
-wire [ 5:0] afi0_rid;     // input[5:0] 
-wire        afi0_rlast;     // input
-wire [ 1:0] afi0_rresp;     // input[2:0] 
-wire [ 7:0] afi0_rcount;     // input[7:0] 
-wire [ 2:0] afi0_racount;     // input[2:0] 
-wire        afi0_rdissuecap1en; // output
+wire [31:0] afi3_awaddr;   // output[31:0]
+wire        afi3_awvalid;  // output
+wire        afi3_awready;     // input
+wire [ 5:0] afi3_awid;     // output[5:0] 
+wire [ 1:0] afi3_awlock;     // output[1:0] 
+wire [ 3:0] afi3_awcache;     // output[3:0] 
+wire [ 2:0] afi3_awprot;     // output[2:0] 
+wire [ 3:0] afi3_awlen;     // output[3:0] 
+wire [ 1:0] afi3_awsize;     // output[2:0] 
+wire [ 1:0] afi3_awburst;     // output[1:0] 
+wire [ 3:0] afi3_awqos;     // output[3:0] 
+wire [63:0] afi3_wdata;     // output[63:0] 
+wire        afi3_wvalid;     // output
+wire        afi3_wready;     // input
+wire [ 5:0] afi3_wid;     // output[5:0] 
+wire        afi3_wlast;     // output
+wire [ 7:0] afi3_wstrb;     // output[7:0] 
+wire        afi3_bvalid;     // input
+wire        afi3_bready;     // output
+wire [ 5:0] afi3_bid;     // input[5:0] 
+wire [ 1:0] afi3_bresp;     // input[1:0] 
+wire [ 7:0] afi3_wcount;     // input[7:0] 
+wire [ 5:0] afi3_wacount;     // input[5:0] 
+wire        afi3_wrissuecap1en;     // output
+wire [31:0] afi3_araddr;     // output[31:0] 
+wire        afi3_arvalid;     // output
+wire        afi3_arready;     // input
+wire [ 5:0] afi3_arid;     // output[5:0] 
+wire [ 1:0] afi3_arlock;     // output[1:0] 
+wire [ 3:0] afi3_arcache;     // output[3:0] 
+wire [ 2:0] afi3_arprot;     // output[2:0] 
+wire [ 3:0] afi3_arlen;     // output[3:0] 
+wire [ 1:0] afi3_arsize;     // output[2:0] 
+wire [ 1:0] afi3_arburst;     // output[1:0] 
+wire [ 3:0] afi3_arqos;     // output[3:0] 
+wire [63:0] afi3_rdata;     // input[63:0] 
+wire        afi3_rvalid;     // input
+wire        afi3_rready;     // output
+wire [ 5:0] afi3_rid;     // input[5:0] 
+wire        afi3_rlast;     // input
+wire [ 1:0] afi3_rresp;     // input[2:0] 
+wire [ 7:0] afi3_rcount;     // input[7:0] 
+wire [ 2:0] afi3_racount;     // input[2:0] 
+wire        afi3_rdissuecap1en; // output
 
 assign comb_rst=~frst[0] | frst[1];
 always @(posedge comb_rst or posedge axi_aclk0) begin
@@ -159,95 +159,95 @@ sata_top sata_top(
     .ACLK                       (axi_aclk0),
     .ARESETN                    (axi_rst/* | sata_rst*/),
 // AXI PS Master GP1: Read Address    
-    .ARADDR                     (ARADDR),
-    .ARVALID                    (ARVALID),
-    .ARREADY                    (ARREADY),
-    .ARID                       (ARID),
-    .ARLEN                      (ARLEN),
-    .ARSIZE                     (ARSIZE),
-    .ARBURST                    (ARBURST),
+    .ARADDR                     (maxi1_araddr),
+    .ARVALID                    (maxi1_arvalid),
+    .ARREADY                    (maxi1_arready),
+    .ARID                       (maxi1_arid),
+    .ARLEN                      (maxi1_arlen),
+    .ARSIZE                     (maxi1_arsize),
+    .ARBURST                    (maxi1_arburst),
 // AXI PS Master GP1: Read Data
-    .RDATA                      (RDATA),
-    .RVALID                     (RVALID),
-    .RREADY                     (RREADY),
-    .RID                        (RID),
-    .RLAST                      (RLAST),
-    .RRESP                      (RRESP),
+    .RDATA                      (maxi1_rdata),
+    .RVALID                     (maxi1_rvalid),
+    .RREADY                     (maxi1_rready),
+    .RID                        (maxi1_rid),
+    .RLAST                      (maxi1_rlast),
+    .RRESP                      (maxi1_rresp),
 // AXI PS Master GP1: Write Address    
-    .AWADDR                     (AWADDR),
-    .AWVALID                    (AWVALID),
-    .AWREADY                    (AWREADY),
-    .AWID                       (AWID),
-    .AWLEN                      (AWLEN),
-    .AWSIZE                     (AWSIZE),
-    .AWBURST                    (AWBURST),
+    .AWADDR                     (maxi1_awaddr),
+    .AWVALID                    (maxi1_awvalid),
+    .AWREADY                    (maxi1_awready),
+    .AWID                       (maxi1_awid),
+    .AWLEN                      (maxi1_awlen),
+    .AWSIZE                     (maxi1_awsize),
+    .AWBURST                    (maxi1_awburst),
 // AXI PS Master GP1: Write Data
-    .WDATA                      (WDATA),
-    .WVALID                     (WVALID),
-    .WREADY                     (WREADY),
-    .WID                        (WID),
-    .WLAST                      (WLAST),
-    .WSTRB                      (WSTRB),
+    .WDATA                      (maxi1_wdata),
+    .WVALID                     (maxi1_wvalid),
+    .WREADY                     (maxi1_wready),
+    .WID                        (maxi1_wid),
+    .WLAST                      (maxi1_wlast),
+    .WSTRB                      (maxi1_wstb),
 // AXI PS Master GP1: Write Responce
-    .BVALID                     (BVALID),
-    .BREADY                     (BREADY),
-    .BID                        (BID),
-    .BRESP                      (BRESP),
+    .BVALID                     (maxi1_bvalid),
+    .BREADY                     (maxi1_bready),
+    .BID                        (maxi1_bid),
+    .BRESP                      (maxi1_bresp),
 
 /*
  * Data interface
  */
-    .afi_awaddr                 (afi0_awaddr),
-    .afi_awvalid                (afi0_awvalid),
-    .afi_awready                (afi0_awready),
-    .afi_awid                   (afi0_awid),
-    .afi_awlock                 (afi0_awlock),
-    .afi_awcache                (afi0_awcache),
-    .afi_awprot                 (afi0_awprot),
-    .afi_awlen                  (afi0_awlen),
-    .afi_awsize                 (afi0_awsize),
-    .afi_awburst                (afi0_awburst),
-    .afi_awqos                  (afi0_awqos),
+    .afi_awaddr                 (afi3_awaddr),
+    .afi_awvalid                (afi3_awvalid),
+    .afi_awready                (afi3_awready),
+    .afi_awid                   (afi3_awid),
+    .afi_awlock                 (afi3_awlock),
+    .afi_awcache                (afi3_awcache),
+    .afi_awprot                 (afi3_awprot),
+    .afi_awlen                  (afi3_awlen),
+    .afi_awsize                 (afi3_awsize),
+    .afi_awburst                (afi3_awburst),
+    .afi_awqos                  (afi3_awqos),
     // write data
-    .afi_wdata                  (afi0_wdata),
-    .afi_wvalid                 (afi0_wvalid),
-    .afi_wready                 (afi0_wready),
-    .afi_wid                    (afi0_wid),
-    .afi_wlast                  (afi0_wlast),
-    .afi_wstrb                  (afi0_wstrb),
+    .afi_wdata                  (afi3_wdata),
+    .afi_wvalid                 (afi3_wvalid),
+    .afi_wready                 (afi3_wready),
+    .afi_wid                    (afi3_wid),
+    .afi_wlast                  (afi3_wlast),
+    .afi_wstrb                  (afi3_wstrb),
     // write response
-    .afi_bvalid                 (afi0_bvalid),
-    .afi_bready                 (afi0_bready),
-    .afi_bid                    (afi0_bid),
-    .afi_bresp                  (afi0_bresp),
+    .afi_bvalid                 (afi3_bvalid),
+    .afi_bready                 (afi3_bready),
+    .afi_bid                    (afi3_bid),
+    .afi_bresp                  (afi3_bresp),
     // PL extra (non-AXI) signal
-    .afi_wcount                 (afi0_wcount),
-    .afi_wacount                (afi0_wacount),
-    .afi_wrissuecap1en          (afi0_wrissuecap1en),
+    .afi_wcount                 (afi3_wcount),
+    .afi_wacount                (afi3_wacount),
+    .afi_wrissuecap1en          (afi3_wrissuecap1en),
     // AXI_HP signals - read channel
     // read address
-    .afi_araddr                 (afi0_araddr),
-    .afi_arvalid                (afi0_arvalid),
-    .afi_arready                (afi0_arready),
-    .afi_arid                   (afi0_arid),
-    .afi_arlock                 (afi0_arlock),
-    .afi_arcache                (afi0_arcache),
-    .afi_arprot                 (afi0_arprot),
-    .afi_arlen                  (afi0_arlen),
-    .afi_arsize                 (afi0_arsize),
-    .afi_arburst                (afi0_arburst),
-    .afi_arqos                  (afi0_arqos),
+    .afi_araddr                 (afi3_araddr),
+    .afi_arvalid                (afi3_arvalid),
+    .afi_arready                (afi3_arready),
+    .afi_arid                   (afi3_arid),
+    .afi_arlock                 (afi3_arlock),
+    .afi_arcache                (afi3_arcache),
+    .afi_arprot                 (afi3_arprot),
+    .afi_arlen                  (afi3_arlen),
+    .afi_arsize                 (afi3_arsize),
+    .afi_arburst                (afi3_arburst),
+    .afi_arqos                  (afi3_arqos),
     // read data
-    .afi_rdata                  (afi0_rdata),
-    .afi_rvalid                 (afi0_rvalid),
-    .afi_rready                 (afi0_rready),
-    .afi_rid                    (afi0_rid),
-    .afi_rlast                  (afi0_rlast),
-    .afi_rresp                  (afi0_rresp),
+    .afi_rdata                  (afi3_rdata),
+    .afi_rvalid                 (afi3_rvalid),
+    .afi_rready                 (afi3_rready),
+    .afi_rid                    (afi3_rid),
+    .afi_rlast                  (afi3_rlast),
+    .afi_rresp                  (afi3_rresp),
     // PL extra (non-AXI) signal
-    .afi_rcount                 (afi0_rcount),
-    .afi_racount                (afi0_racount),
-    .afi_rdissuecap1en          (afi0_rdissuecap1en),
+    .afi_rcount                 (afi3_rcount),
+    .afi_racount                (afi3_racount),
+    .afi_rdissuecap1en          (afi3_rdissuecap1en),
 
 /*
  * PHY
@@ -575,48 +575,48 @@ PS7 ps7_i (
     .MAXIGP1ACLK    (axi_aclk0),         // AXI PS Master GP1 Clock , input
     .MAXIGP1ARESETN (),          // AXI PS Master GP1 Reset, output
 // AXI PS Master GP1: Read Address    
-    .MAXIGP1ARADDR  (ARADDR),           // AXI PS Master GP1 ARADDR[31:0], output  
-    .MAXIGP1ARVALID (ARVALID),          // AXI PS Master GP1 ARVALID, output
-    .MAXIGP1ARREADY (ARREADY),          // AXI PS Master GP1 ARREADY, input
-    .MAXIGP1ARID    (ARID),             // AXI PS Master GP1 ARID[11:0], output
+    .MAXIGP1ARADDR  (maxi1_araddr),           // AXI PS Master GP1 ARADDR[31:0], output  
+    .MAXIGP1ARVALID (maxi1_arvalid),          // AXI PS Master GP1 ARVALID, output
+    .MAXIGP1ARREADY (maxi1_arready),          // AXI PS Master GP1 ARREADY, input
+    .MAXIGP1ARID    (maxi1_arid),             // AXI PS Master GP1 ARID[11:0], output
     .MAXIGP1ARLOCK  (),           // AXI PS Master GP1 ARLOCK[1:0], output
     .MAXIGP1ARCACHE (),          // AXI PS Master GP1 ARCACHE[3:0], output
     .MAXIGP1ARPROT  (),           // AXI PS Master GP1 ARPROT[2:0], output
-    .MAXIGP1ARLEN   (ARLEN),            // AXI PS Master GP1 ARLEN[3:0], output
-    .MAXIGP1ARSIZE  (ARSIZE),           // AXI PS Master GP1 ARSIZE[1:0], output
-    .MAXIGP1ARBURST (ARBURST),          // AXI PS Master GP1 ARBURST[1:0], output
+    .MAXIGP1ARLEN   (maxi1_arlen),            // AXI PS Master GP1 ARLEN[3:0], output
+    .MAXIGP1ARSIZE  (maxi1_arsize),           // AXI PS Master GP1 ARSIZE[1:0], output
+    .MAXIGP1ARBURST (maxi1_arburst),          // AXI PS Master GP1 ARBURST[1:0], output
     .MAXIGP1ARQOS   (),            // AXI PS Master GP1 ARQOS[3:0], output
 // AXI PS Master GP1: Read Data
-    .MAXIGP1RDATA   (RDATA),            // AXI PS Master GP1 RDATA[31:0], input
-    .MAXIGP1RVALID  (RVALID),           // AXI PS Master GP1 RVALID, input
-    .MAXIGP1RREADY  (RREADY),           // AXI PS Master GP1 RREADY, output
-    .MAXIGP1RID     (RID),              // AXI PS Master GP1 RID[11:0], input
-    .MAXIGP1RLAST   (RLAST),            // AXI PS Master GP1 RLAST, input
-    .MAXIGP1RRESP   (RRESP),            // AXI PS Master GP1 RRESP[1:0], input
+    .MAXIGP1RDATA   (maxi1_rdata),            // AXI PS Master GP1 RDATA[31:0], input
+    .MAXIGP1RVALID  (maxi1_rvalid),           // AXI PS Master GP1 RVALID, input
+    .MAXIGP1RREADY  (maxi1_rready),           // AXI PS Master GP1 RREADY, output
+    .MAXIGP1RID     (maxi1_rid),              // AXI PS Master GP1 RID[11:0], input
+    .MAXIGP1RLAST   (maxi1_rlast),            // AXI PS Master GP1 RLAST, input
+    .MAXIGP1RRESP   (maxi1_rresp),            // AXI PS Master GP1 RRESP[1:0], input
 // AXI PS Master GP1: Write Address    
-    .MAXIGP1AWADDR  (AWADDR),           // AXI PS Master GP1 AWADDR[31:0], output
-    .MAXIGP1AWVALID (AWVALID),          // AXI PS Master GP1 AWVALID, output
-    .MAXIGP1AWREADY (AWREADY),          // AXI PS Master GP1 AWREADY, input
-    .MAXIGP1AWID    (AWID),             // AXI PS Master GP1 AWID[11:0], output
+    .MAXIGP1AWADDR  (maxi1_awaddr),           // AXI PS Master GP1 AWADDR[31:0], output
+    .MAXIGP1AWVALID (maxi1_awvalid),          // AXI PS Master GP1 AWVALID, output
+    .MAXIGP1AWREADY (maxi1_awready),          // AXI PS Master GP1 AWREADY, input
+    .MAXIGP1AWID    (maxi1_awid),             // AXI PS Master GP1 AWID[11:0], output
     .MAXIGP1AWLOCK  (),           // AXI PS Master GP1 AWLOCK[1:0], output
     .MAXIGP1AWCACHE (),          // AXI PS Master GP1 AWCACHE[3:0], output
     .MAXIGP1AWPROT  (),           // AXI PS Master GP1 AWPROT[2:0], output
-    .MAXIGP1AWLEN   (AWLEN),            // AXI PS Master GP1 AWLEN[3:0], output
-    .MAXIGP1AWSIZE  (AWSIZE),           // AXI PS Master GP1 AWSIZE[1:0], output
-    .MAXIGP1AWBURST (AWBURST),          // AXI PS Master GP1 AWBURST[1:0], output
+    .MAXIGP1AWLEN   (maxi1_awlen),            // AXI PS Master GP1 AWLEN[3:0], output
+    .MAXIGP1AWSIZE  (maxi1_awsize),           // AXI PS Master GP1 AWSIZE[1:0], output
+    .MAXIGP1AWBURST (maxi1_awburst),          // AXI PS Master GP1 AWBURST[1:0], output
     .MAXIGP1AWQOS   (),            // AXI PS Master GP1 AWQOS[3:0], output
 // AXI PS Master GP1: Write Data
-    .MAXIGP1WDATA   (WDATA),            // AXI PS Master GP1 WDATA[31:0], output
-    .MAXIGP1WVALID  (WVALID),           // AXI PS Master GP1 WVALID, output
-    .MAXIGP1WREADY  (WREADY),           // AXI PS Master GP1 WREADY, input
-    .MAXIGP1WID     (WID),              // AXI PS Master GP1 WID[11:0], output
-    .MAXIGP1WLAST   (WLAST),            // AXI PS Master GP1 WLAST, output
-    .MAXIGP1WSTRB   (WSTRB),            // AXI PS Master GP1 WSTRB[3:0], output
+    .MAXIGP1WDATA   (maxi1_wdata),            // AXI PS Master GP1 WDATA[31:0], output
+    .MAXIGP1WVALID  (maxi1_wvalid),           // AXI PS Master GP1 WVALID, output
+    .MAXIGP1WREADY  (maxi1_wready),           // AXI PS Master GP1 WREADY, input
+    .MAXIGP1WID     (maxi1_wid),              // AXI PS Master GP1 WID[11:0], output
+    .MAXIGP1WLAST   (maxi1_wlast),            // AXI PS Master GP1 WLAST, output
+    .MAXIGP1WSTRB   (maxi1_wstb),             // AXI PS Master GP1 maxi1_wstb[3:0], output
 // AXI PS Master GP1: Write Responce
-    .MAXIGP1BVALID  (BVALID),           // AXI PS Master GP1 BVALID, input
-    .MAXIGP1BREADY  (BREADY),           // AXI PS Master GP1 BREADY, output
-    .MAXIGP1BID     (BID),              // AXI PS Master GP1 BID[11:0], input
-    .MAXIGP1BRESP   (BRESP),            // AXI PS Master GP1 BRESP[1:0], input
+    .MAXIGP1BVALID  (maxi1_bvalid),           // AXI PS Master GP1 BVALID, input
+    .MAXIGP1BREADY  (maxi1_bready),           // AXI PS Master GP1 BREADY, output
+    .MAXIGP1BID     (maxi1_bid),              // AXI PS Master GP1 BID[11:0], input
+    .MAXIGP1BRESP   (maxi1_bresp),            // AXI PS Master GP1 BRESP[1:0], input
 
 // AXI PS Slave GP0    
 // AXI PS Slave GP0: Clock, Reset
@@ -881,54 +881,54 @@ PS7 ps7_i (
     .SAXIHP3ACLK            (hclk),                 // AXI PS Slave HP3 Clock , input
     .SAXIHP3ARESETN(),           // AXI PS Slave HP3 Reset, output
 // AXI PS Slave HP3: Read Address    
-    .SAXIHP3ARADDR          (afi0_araddr),            // AXI PS Slave HP3 ARADDR[31:0], input  
-    .SAXIHP3ARVALID         (afi0_arvalid),           // AXI PS Slave HP3 ARVALID, input
-    .SAXIHP3ARREADY         (afi0_arready),           // AXI PS Slave HP3 ARREADY, output
-    .SAXIHP3ARID            (afi0_arid),              // AXI PS Slave HP3 ARID[5:0], input
-    .SAXIHP3ARLOCK          (afi0_arlock),            // AXI PS Slave HP3 ARLOCK[1:0], input
-    .SAXIHP3ARCACHE         (afi0_arcache),           // AXI PS Slave HP3 ARCACHE[3:0], input
-    .SAXIHP3ARPROT          (afi0_arprot),            // AXI PS Slave HP3 ARPROT[2:0], input
-    .SAXIHP3ARLEN           (afi0_arlen),             // AXI PS Slave HP3 ARLEN[3:0], input
-    .SAXIHP3ARSIZE          (afi0_arsize),            // AXI PS Slave HP3 ARSIZE[2:0], input
-    .SAXIHP3ARBURST         (afi0_arburst),           // AXI PS Slave HP3 ARBURST[1:0], input
-    .SAXIHP3ARQOS           (afi0_arqos),             // AXI PS Slave HP3 ARQOS[3:0], input
+    .SAXIHP3ARADDR          (afi3_araddr),            // AXI PS Slave HP3 ARADDR[31:0], input  
+    .SAXIHP3ARVALID         (afi3_arvalid),           // AXI PS Slave HP3 ARVALID, input
+    .SAXIHP3ARREADY         (afi3_arready),           // AXI PS Slave HP3 ARREADY, output
+    .SAXIHP3ARID            (afi3_arid),              // AXI PS Slave HP3 ARID[5:0], input
+    .SAXIHP3ARLOCK          (afi3_arlock),            // AXI PS Slave HP3 ARLOCK[1:0], input
+    .SAXIHP3ARCACHE         (afi3_arcache),           // AXI PS Slave HP3 ARCACHE[3:0], input
+    .SAXIHP3ARPROT          (afi3_arprot),            // AXI PS Slave HP3 ARPROT[2:0], input
+    .SAXIHP3ARLEN           (afi3_arlen),             // AXI PS Slave HP3 ARLEN[3:0], input
+    .SAXIHP3ARSIZE          (afi3_arsize),            // AXI PS Slave HP3 ARSIZE[2:0], input
+    .SAXIHP3ARBURST         (afi3_arburst),           // AXI PS Slave HP3 ARBURST[1:0], input
+    .SAXIHP3ARQOS           (afi3_arqos),             // AXI PS Slave HP3 ARQOS[3:0], input
 // AXI PS Slave HP3: Read Data
-    .SAXIHP3RDATA           (afi0_rdata),             // AXI PS Slave HP3 RDATA[63:0], output
-    .SAXIHP3RVALID          (afi0_rvalid),            // AXI PS Slave HP3 RVALID, output
-    .SAXIHP3RREADY          (afi0_rready),            // AXI PS Slave HP3 RREADY, input
-    .SAXIHP3RID             (afi0_rid),               // AXI PS Slave HP3 RID[5:0], output
-    .SAXIHP3RLAST           (afi0_rlast),             // AXI PS Slave HP3 RLAST, output
-    .SAXIHP3RRESP           (afi0_rresp),             // AXI PS Slave HP3 RRESP[1:0], output
-    .SAXIHP3RCOUNT          (afi0_rcount),            // AXI PS Slave HP3 RCOUNT[7:0], output
-    .SAXIHP3RACOUNT         (afi0_racount),           // AXI PS Slave HP3 RACOUNT[2:0], output
-    .SAXIHP3RDISSUECAP1EN   (afi0_rdissuecap1en),     // AXI PS Slave HP3 RDISSUECAP1EN, input
+    .SAXIHP3RDATA           (afi3_rdata),             // AXI PS Slave HP3 RDATA[63:0], output
+    .SAXIHP3RVALID          (afi3_rvalid),            // AXI PS Slave HP3 RVALID, output
+    .SAXIHP3RREADY          (afi3_rready),            // AXI PS Slave HP3 RREADY, input
+    .SAXIHP3RID             (afi3_rid),               // AXI PS Slave HP3 RID[5:0], output
+    .SAXIHP3RLAST           (afi3_rlast),             // AXI PS Slave HP3 RLAST, output
+    .SAXIHP3RRESP           (afi3_rresp),             // AXI PS Slave HP3 RRESP[1:0], output
+    .SAXIHP3RCOUNT          (afi3_rcount),            // AXI PS Slave HP3 RCOUNT[7:0], output
+    .SAXIHP3RACOUNT         (afi3_racount),           // AXI PS Slave HP3 RACOUNT[2:0], output
+    .SAXIHP3RDISSUECAP1EN   (afi3_rdissuecap1en),     // AXI PS Slave HP3 RDISSUECAP1EN, input
 // AXI PS Slave HP3: Write Address    
-    .SAXIHP3AWADDR          (afi0_awaddr),            // AXI PS Slave HP3 AWADDR[31:0], input
-    .SAXIHP3AWVALID         (afi0_awvalid),           // AXI PS Slave HP3 AWVALID, input
-    .SAXIHP3AWREADY         (afi0_awready),           // AXI PS Slave HP3 AWREADY, output
-    .SAXIHP3AWID            (afi0_awid),              // AXI PS Slave HP3 AWID[5:0], input
-    .SAXIHP3AWLOCK          (afi0_awlock),            // AXI PS Slave HP3 AWLOCK[1:0], input
-    .SAXIHP3AWCACHE         (afi0_awcache),           // AXI PS Slave HP3 AWCACHE[3:0], input
-    .SAXIHP3AWPROT          (afi0_awprot),            // AXI PS Slave HP3 AWPROT[2:0], input
-    .SAXIHP3AWLEN           (afi0_awlen),             // AXI PS Slave HP3 AWLEN[3:0], input
-    .SAXIHP3AWSIZE          (afi0_awsize),            // AXI PS Slave HP3 AWSIZE[1:0], input
-    .SAXIHP3AWBURST         (afi0_awburst),           // AXI PS Slave HP3 AWBURST[1:0], input
-    .SAXIHP3AWQOS           (afi0_awqos),             // AXI PS Slave HP3 AWQOS[3:0], input
+    .SAXIHP3AWADDR          (afi3_awaddr),            // AXI PS Slave HP3 AWADDR[31:0], input
+    .SAXIHP3AWVALID         (afi3_awvalid),           // AXI PS Slave HP3 AWVALID, input
+    .SAXIHP3AWREADY         (afi3_awready),           // AXI PS Slave HP3 AWREADY, output
+    .SAXIHP3AWID            (afi3_awid),              // AXI PS Slave HP3 AWID[5:0], input
+    .SAXIHP3AWLOCK          (afi3_awlock),            // AXI PS Slave HP3 AWLOCK[1:0], input
+    .SAXIHP3AWCACHE         (afi3_awcache),           // AXI PS Slave HP3 AWCACHE[3:0], input
+    .SAXIHP3AWPROT          (afi3_awprot),            // AXI PS Slave HP3 AWPROT[2:0], input
+    .SAXIHP3AWLEN           (afi3_awlen),             // AXI PS Slave HP3 AWLEN[3:0], input
+    .SAXIHP3AWSIZE          (afi3_awsize),            // AXI PS Slave HP3 AWSIZE[1:0], input
+    .SAXIHP3AWBURST         (afi3_awburst),           // AXI PS Slave HP3 AWBURST[1:0], input
+    .SAXIHP3AWQOS           (afi3_awqos),             // AXI PS Slave HP3 AWQOS[3:0], input
 // AXI PS Slave HP3: Write Data
-    .SAXIHP3WDATA           (afi0_wdata),             // AXI PS Slave HP3 WDATA[63:0], input
-    .SAXIHP3WVALID          (afi0_wvalid),            // AXI PS Slave HP3 WVALID, input
-    .SAXIHP3WREADY          (afi0_wready),            // AXI PS Slave HP3 WREADY, output
-    .SAXIHP3WID             (afi0_wid),               // AXI PS Slave HP3 WID[5:0], input
-    .SAXIHP3WLAST           (afi0_wlast),             // AXI PS Slave HP3 WLAST, input
-    .SAXIHP3WSTRB           (afi0_wstrb),             // AXI PS Slave HP3 WSTRB[7:0], input
-    .SAXIHP3WCOUNT          (afi0_wcount),            // AXI PS Slave HP3 WCOUNT[7:0], output
-    .SAXIHP3WACOUNT         (afi0_wacount),           // AXI PS Slave HP3 WACOUNT[5:0], output
-    .SAXIHP3WRISSUECAP1EN   (afi0_wrissuecap1en),     // AXI PS Slave HP3 WRISSUECAP1EN, input
+    .SAXIHP3WDATA           (afi3_wdata),             // AXI PS Slave HP3 WDATA[63:0], input
+    .SAXIHP3WVALID          (afi3_wvalid),            // AXI PS Slave HP3 WVALID, input
+    .SAXIHP3WREADY          (afi3_wready),            // AXI PS Slave HP3 WREADY, output
+    .SAXIHP3WID             (afi3_wid),               // AXI PS Slave HP3 WID[5:0], input
+    .SAXIHP3WLAST           (afi3_wlast),             // AXI PS Slave HP3 WLAST, input
+    .SAXIHP3WSTRB           (afi3_wstrb),             // AXI PS Slave HP3 WSTRB[7:0], input
+    .SAXIHP3WCOUNT          (afi3_wcount),            // AXI PS Slave HP3 WCOUNT[7:0], output
+    .SAXIHP3WACOUNT         (afi3_wacount),           // AXI PS Slave HP3 WACOUNT[5:0], output
+    .SAXIHP3WRISSUECAP1EN   (afi3_wrissuecap1en),     // AXI PS Slave HP3 WRISSUECAP1EN, input
 // AXI PS Slave HP3: Write Responce
-    .SAXIHP3BVALID          (afi0_bvalid),            // AXI PS Slave HP3 BVALID, output
-    .SAXIHP3BREADY          (afi0_bready),            // AXI PS Slave HP3 BREADY, input
-    .SAXIHP3BID             (afi0_bid),               // AXI PS Slave HP3 BID[5:0], output
-    .SAXIHP3BRESP           (afi0_bresp),             // AXI PS Slave HP3 BRESP[1:0], output
+    .SAXIHP3BVALID          (afi3_bvalid),            // AXI PS Slave HP3 BVALID, output
+    .SAXIHP3BREADY          (afi3_bready),            // AXI PS Slave HP3 BREADY, input
+    .SAXIHP3BID             (afi3_bid),               // AXI PS Slave HP3 BID[5:0], output
+    .SAXIHP3BRESP           (afi3_bresp),             // AXI PS Slave HP3 BRESP[1:0], output
 
 // AXI PS Slave ACP    
 // AXI PS Slave ACP: Clock, Reset
