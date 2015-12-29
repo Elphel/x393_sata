@@ -21,6 +21,7 @@
 /*
  * this file is included into tb_top.v due to the compatibility with x393 design testbench
  */
+    reg [639:0] TEST_TITLE; // to show human-readable state in the GTKWave
 
 // external clock to gtx
 
@@ -81,7 +82,10 @@ begin
     axi_write_single({30'h5, 2'b00}, 32'hEC);
     // start!
     axi_write_single({30'hf, 2'b00}, 32'h0108);
-    $display("[Test] H2D Reg with pio cmd issued");
+//    $display("[Test]:            H2D Reg with pio cmd issued");
+    TEST_TITLE = "H2D Reg with pio cmd issued";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
+    
     // wait until reception
     while (dev.receive_id != 1) begin
         repeat (100)
@@ -89,11 +93,15 @@ begin
     end
 
     if (dev.receive_status != 0) begin
-        $display("[Test] Failed");
+//        $display("[Test]:            Failed 1");
+        TEST_TITLE = "Failed #1";
+        $display("[Test]:            %s @%t", TEST_TITLE, $time);
         $finish;
     end
 
-    $display("[Test] H2D Reg with pio cmd received by dev");
+//    $display("[Test]:            H2D Reg with pio cmd received by dev");
+    TEST_TITLE = "H2D Reg with pio cmd received by dev";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     // send dev2host reg fis with BSY flag
     repeat (100)
         @ (posedge dev.clk);
@@ -108,17 +116,23 @@ begin
 
     dev.linkTransmitFIS(66, 5, 0, status);
     if (status != 0) begin
-        $display("[Test] Failed");
+//        $display("[Test]:            Failed 2");
+        TEST_TITLE = "Failed #2";
+        $display("[Test]:            %s @%t", TEST_TITLE, $time);
         $finish;
     end
-    $display("[Test] Dev sent BSY flag");
+//    $display("[Test]:            Dev sent BSY flag");
+    TEST_TITLE = "Dev sent BSY flag";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
 
     // checks if BSY is set up // only on waves TODO
     axi_read_addr(12'h555, {30'h11, 2'b00}, 4'h3, 2'b01);
     repeat (50)
         @ (posedge dev.clk);
 
-    $display("[Test] Device sends PIO Setup");
+//    $display("[Test]:            Device sends PIO Setup");
+    TEST_TITLE = "Device sends PIO Setup";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     dev.transmit_data[0] = 32'h0080205f; // direction d2h, type = 5f
     dev.transmit_data[1] = 32'hdeadbeef; // whatever
     dev.transmit_data[2] = 32'hdeadbeef; // whatever
@@ -126,11 +140,15 @@ begin
     dev.transmit_data[4] = 32'h00000014; // let it be 20 bytes to be transfered
     dev.linkTransmitFIS(11, 5, 0, status);
     if (status != 0) begin
-        $display("[Test] Failed");
+//        $display("[Test]:            Failed 3");
+        TEST_TITLE = "Failed #3";
+        $display("[Test]:            %s @%t", TEST_TITLE, $time);
         $finish;
     end
 
-    $display("[Test] Device sends data FIS");
+//    $display("[Test]:            Device sends data FIS");
+    TEST_TITLE = "Device sends data FIS";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     dev.transmit_data[0] = 32'h00000046; // type = 46
     dev.transmit_data[1] = 32'hfeeddeaf;
     dev.transmit_data[2] = 32'ha114bea7;
@@ -139,7 +157,10 @@ begin
     dev.transmit_data[5] = 32'hdeadbeef;
     dev.linkTransmitFIS(22, 6, 0, status);
     if (status != 0) begin
-        $display("[Test] Failed");
+//        $display("[Test]:            Failed 4");
+        TEST_TITLE = "Failed #4";
+        $display("[Test]:            %s @%t", TEST_TITLE, $time);
+        
         $finish;
     end
 
@@ -152,19 +173,30 @@ begin
     end
     
     // imitating PIO reads
-    $display("[Test] Read data word 0");
+//    $display("[Test]:            Read data word 0");
+    TEST_TITLE = "Read data word 0";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     axi_read_addr(12'h660, {30'h00, 2'b00}, 4'h0, 2'b01);
 
-    $display("[Test] Read data word 1");
+//    $display("[Test]:            Read data word 1");
+    TEST_TITLE = "Read data word 1";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     axi_read_addr(12'h661, {30'h00, 2'b00}, 4'h0, 2'b01);
 
-    $display("[Test] Read data word 2");
+//    $display("[Test]:            Read data word 2");
+    TEST_TITLE = "Read data word 2";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     axi_read_addr(12'h662, {30'h00, 2'b00}, 4'h0, 2'b01);
 
-    $display("[Test] Read data word 3");
+//    $display("[Test]:            Read data word 3");
+    TEST_TITLE = "Read data word 3";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     axi_read_addr(12'h663, {30'h00, 2'b00}, 4'h0, 2'b01);
+    
 
-    $display("[Test] Read data word 4");
+//    $display("[Test]:            Read data word 4");
+    TEST_TITLE = "Read data word 4";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
     axi_read_addr(12'h664, {30'h00, 2'b00}, 4'h0, 2'b01);
 
     // check if all ok
@@ -172,12 +204,18 @@ begin
     while (~maxiMonitorIsEmpty(0)) begin
         maxiMonitorPop(data, id);
         if (dev.transmit_data[i] != data) begin
-            $display("[Test] Data check failed");
+//            $display("[Test]:            Data check failed");
+            TEST_TITLE = "Data check failed";
+            $display("[Test]:            %s @%t", TEST_TITLE, $time);
+            
             $finish;
         end
         i = i + 1;
     end
-    $display("[Test] Data check OK");
+//    $display("[Test]:            Data check OK");
+    TEST_TITLE = "Data check OK";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
+    
     
 
 
@@ -188,6 +226,7 @@ begin
         $display("data received : %h", dev.receive_data[i]);
     end*/
     $display("============= DONE =============");
+    TEST_TITLE = "DONE";
     $finish;
     
 // test SAXI3 iface
@@ -241,7 +280,10 @@ end
 */
 initial begin
     #150000;
-    $display("[Test] Failed");
+//    $display("[Test]:            Failed");
+    TEST_TITLE = "Failed (timelimit)";
+    $display("[Test]:            %s @%t", TEST_TITLE, $time);
+    
     $display("============= TIMELIMIT =============");
     $finish;
 end

@@ -39,6 +39,7 @@ module dma_regs(
     input   wire            bram_ren,
     input   wire            bram_regen,
 
+ // all registers sh_* outputs valid @ACLK
 // tmp to cmd control
     output  wire            cmd_val_out,
     output  wire    [31:0]  cmd_out,
@@ -82,6 +83,7 @@ module dma_regs(
     output  wire            sh_dir_val,
 
 // inputs from sh registers
+// No registers, just mux-ed (so @ACLK)
     input   wire            sh_data_val_in,
     input   wire    [31:0]  sh_data_in,
     input   wire    [7:0]   sh_control_in,

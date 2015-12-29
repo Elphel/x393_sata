@@ -1,6 +1,10 @@
+`define IVERILOG 1
+`include "system_defines.vh"
+/*
 //`define SIMULATION 1
 `define CHECKERS_ENABLED 1
 //`define OPEN_SOURCE_ONLY 1
 `define PRELOAD_BRAMS
 //`define IVERILOG 1
 //`include "system_defines.vh"
+*/

@@ -106,6 +106,12 @@ module oob #(
 `endif //OOB_MULTISPEED
 );
 
+`ifdef SIMULATION
+    reg [639:0] HOST_OOB_TITLE; // to show human-readable state in the GTKWave
+`endif
+
+
+
 // 873.8 us error timer
 // = 2621400 SATA2 serial ticks (period = 0.000333 us)
 // = 131070 ticks @ 150Mhz
@@ -401,16 +407,20 @@ endgenerate
 always @ (posedge clk) 
 begin
     if (txcominit) begin
-        $display("[Host] OOB: Issued cominit");
+        HOST_OOB_TITLE = "Issued cominit";
+        $display("[Host] OOB:         %s @%t",HOST_OOB_TITLE,$time);
     end
     if (txcomwake) begin
-        $display("[Host] OOB: Issued comwake");
+        HOST_OOB_TITLE = "Issued comwake";
+        $display("[Host] OOB:         %s @%t",HOST_OOB_TITLE,$time);
     end
     if (state_wait_linkup) begin
-        $display("[Host] OOB: Link is up");
+        HOST_OOB_TITLE = "Link is up";
+        $display("[Host] OOB:         %s @%t",HOST_OOB_TITLE,$time);
     end
     if (set_wait_synp) begin
-        $display("[Host] OOB: Started continious align sending");
+        HOST_OOB_TITLE = "Started continious align sending";
+        $display("[Host] OOB:         %s @%t",HOST_OOB_TITLE,$time);
     end
 end
 `endif

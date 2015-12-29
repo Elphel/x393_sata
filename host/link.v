@@ -100,16 +100,23 @@ module link #(
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
     output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out // charisk
 );
+`ifdef SIMULATION
+    reg [639:0] HOST_LINK_TITLE; // to show human-readable state in the GTKWave
+    reg  [31:0] HOST_LINK_DATA;
+`endif
 // latching data-primitives stream from phy
 reg     [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in_r;
 reg     [DATA_BYTE_WIDTH   - 1:0] phy_isk_in_r; // charisk
 reg     [DATA_BYTE_WIDTH   - 1:0] phy_err_in_r; // disperr | notintable
-always @ (posedge clk)
-begin
-    phy_data_in_r   <= phy_data_in;
-    phy_isk_in_r    <= phy_isk_in;
-    phy_err_in_r    <= phy_err_in;
-end
+//one extra layer to process CONTp
+reg     [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in_r0;
+reg     [DATA_BYTE_WIDTH   - 1:0] phy_isk_in_r0; // charisk
+reg     [DATA_BYTE_WIDTH   - 1:0] phy_err_in_r0; // disperr | notintable
+
+reg     [DATA_BYTE_WIDTH*8 - 1:0] last_not_cont_di; // last primitive dword, but not CONTp
+reg                               rcv_junk;         // receiving CONTp junk data
+wire                              is_non_cont_p_w;  // got primitive other than CONTp
+wire                              is_cont_p_w;      // got CONTp primitive
 
 wire    frame_done;
 // scrambled data
@@ -122,25 +129,48 @@ wire    crc_bad;
 wire    [31:0] crc_dword; 
 
 // send primitives variety count, including CRC and DATA as primitives
-localparam  PRIM_NUM = 15;
+localparam  PRIM_NUM = 16; // 15;
 wire    [PRIM_NUM - 1:0] rcvd_dword; // shows current processing primitive (or just data dword)
 wire                     dword_val;
 // list of bits of rcvd_dword
-localparam  CODE_DATA   = 0;
-localparam  CODE_CRC    = 1;
-localparam  CODE_SYNCP  = 2;
-localparam  CODE_ALIGNP = 3;
-localparam  CODE_XRDYP  = 4;
-localparam  CODE_SOFP   = 5;
-localparam  CODE_HOLDAP = 6;
-localparam  CODE_HOLDP  = 7;
-localparam  CODE_EOFP   = 8;
-localparam  CODE_WTRMP  = 9;
-localparam  CODE_RRDYP  = 10;
-localparam  CODE_IPP    = 11;
-localparam  CODE_DMATP  = 12;
-localparam  CODE_OKP    = 13;
-localparam  CODE_ERRP   = 14;
+localparam  CODE_DATA   = 0;  // DATA
+localparam  CODE_CRC    = 1;  // CRC
+localparam  CODE_SYNCP  = 2;  // SYNCp
+localparam  CODE_ALIGNP = 3;  // ALIGNp PHY layer control
+localparam  CODE_XRDYP  = 4;  // X_RDYp Transmission data ready
+localparam  CODE_SOFP   = 5;  // SOFp Start of Frame
+localparam  CODE_HOLDAP = 6;  // HOLDAp HOLD acknowledge
+localparam  CODE_HOLDP  = 7;  // HOLDp Hold data transmission
+localparam  CODE_EOFP   = 8;  // EOFp End Of Frame
+localparam  CODE_WTRMP  = 9;  // WTRMp Wait for frame termination
+localparam  CODE_RRDYP  = 10; // R_RDYp Receiver ready
+localparam  CODE_IPP    = 11; // R_IPp - Reception in progress
+localparam  CODE_DMATP  = 12; // DMATp - DMA terminate
+localparam  CODE_OKP    = 13; // R_OKp - Reception with no error
+localparam  CODE_ERRP   = 14; // R_ERRp - Reception with Error
+localparam  CODE_CONTP  = 15; // CONTp - Continue repeating
+
+// processing CONTp/junk, delaying everything by 1 clock 
+always @ (posedge clk) begin
+    phy_data_in_r0   <= phy_data_in;
+    phy_isk_in_r0    <= phy_isk_in;
+    phy_err_in_r0    <= phy_err_in;
+    
+    if (is_non_cont_p_w)        last_not_cont_di <= phy_data_in_r0;
+    if (rst || is_non_cont_p_w) rcv_junk <= 0;
+    else if (is_cont_p_w)       rcv_junk <= 1;
+    if (is_cont_p_w || (rcv_junk && !is_non_cont_p_w)) begin
+        phy_data_in_r   <= last_not_cont_di;
+        phy_isk_in_r    <= 1;
+    end else begin
+        phy_data_in_r   <= phy_data_in_r0;
+        phy_isk_in_r    <= phy_isk_in_r0;
+    end
+    phy_err_in_r    <= phy_err_in_r0;
+    
+end
+
+
 
 reg                      data_txing; // if there are still some data to transmit and the transaction wasn't cancelled
 always @ (posedge clk)
@@ -393,6 +423,9 @@ localparam [15:0] PRIM_OKP_HI		= {3'd1, 5'd21, 3'd1, 5'd21};
 localparam [15:0] PRIM_OKP_LO		= {3'd5, 5'd21, 3'd3, 5'd28};
 localparam [15:0] PRIM_ERRP_HI		= {3'd2, 5'd22, 3'd2, 5'd22};
 localparam [15:0] PRIM_ERRP_LO		= {3'd5, 5'd21, 3'd3, 5'd28};
+//The transmission of CONTp is optional, but the ability to receive and properly process CONTp is required.
+localparam [15:0] PRIM_CONTP_HI     = {3'd4, 5'd25, 3'd4, 5'd25};
+localparam [15:0] PRIM_CONTP_LO     = {3'd2, 5'd10, 3'd3, 5'd28};
 
 
 wire    [DATA_BYTE_WIDTH*8 - 1:0] prim_data [PRIM_NUM - 1:0];
@@ -417,6 +450,7 @@ begin
     assign  prim_data[CODE_DMATP] [15:0]    =  prim_word ? PRIM_DMATP_HI    : PRIM_DMATP_LO;
     assign  prim_data[CODE_OKP]   [15:0]    =  prim_word ? PRIM_OKP_HI      : PRIM_OKP_LO;
     assign  prim_data[CODE_ERRP]  [15:0]    =  prim_word ? PRIM_ERRP_HI     : PRIM_ERRP_LO;
+    assign  prim_data[CODE_CONTP] [15:0]    =  prim_word ? PRIM_CONTP_HI    : PRIM_CONTP_LO;
     always @ (posedge clk)
     begin
         $display("%m: unsupported data width");
@@ -441,6 +475,7 @@ begin
     assign  prim_data[CODE_DMATP]     = {PRIM_DMATP_HI    , PRIM_DMATP_LO};
     assign  prim_data[CODE_OKP]       = {PRIM_OKP_HI      , PRIM_OKP_LO};
     assign  prim_data[CODE_ERRP]      = {PRIM_ERRP_HI     , PRIM_ERRP_LO};
+    assign  prim_data[CODE_CONTP]     = {PRIM_CONTP_HI    , PRIM_CONTP_LO};
 end
 else
 begin
@@ -469,6 +504,7 @@ assign  select_prim[CODE_IPP]       = ~alignes_pair & (state_rcvr_data & ~incom_
 assign  select_prim[CODE_DMATP]     = ~alignes_pair & (state_rcvr_data &  incom_stop_f | state_rcvr_shold & incom_stop_f);
 assign  select_prim[CODE_OKP]       = ~alignes_pair & (state_rcvr_goodend);
 assign  select_prim[CODE_ERRP]      = ~alignes_pair & (state_rcvr_badend);
+// No sending of CONTp
 
 // primitive selector MUX 
 always @ (posedge clk)
@@ -584,6 +620,11 @@ assign  rcvd_dword[CODE_DMATP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_B
 assign  rcvd_dword[CODE_OKP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in_r;
 assign  rcvd_dword[CODE_ERRP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in_r;
 
+// CONTp (*_r0 is one cycle ahead of *_r)
+assign is_cont_p_w =     phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] == phy_data_in_r0;
+assign is_non_cont_p_w = phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] != phy_data_in_r0;
+
+
 // phy level errors handling TODO
 assign  dec_err = |phy_err_in_r;
 
@@ -664,11 +705,16 @@ always @ (posedge clk)
 always @ (posedge clk)
 begin
     if (data_val_out) begin
-        $display("[Host] LINK: From device - received data = %h", data_out);
+//        $display("[Host] LINK:        From device - received data = %h @%t", data_out, $time);
+        HOST_LINK_TITLE = "From device - received data";
+        HOST_LINK_DATA =  data_out;
+        $display("[Host] LINK:        %s = %h @%t", HOST_LINK_TITLE, HOST_LINK_DATA, $time);
+`endif
+        
     end
 
 //    if (inc_is_data) begin
-//        $display("[Host] LINK: From device - received raw data = %h", phy_data_in);
+//        $display("[Host] LINK:        From device - received raw data = %h", phy_data_in);
 //    end
 end
     

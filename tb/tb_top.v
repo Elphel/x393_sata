@@ -19,6 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
 // global defines
+`define IVERILOG
 `define SIMULATION
 `define OPEN_SOURCE_ONLY
 `define PRELOAD_BRAMS
@@ -55,6 +56,9 @@ module tb #(
     `endif // CVC
 `endif // IVERILOG
 
+reg [639:0] TESTBENCH_TITLE; // to show human-readable state in the GTKWave
+reg  [31:0] TESTBENCH_DATA;
+reg  [11:0] TESTBENCH_ID;
 
 
 initial #1 $display("HI THERE");
@@ -618,12 +622,21 @@ task maxiMonitorPush;
     begin
         if (maxi_monitor_raddr == (maxi_monitor_waddr + 1)) begin
             $display("[Testbench] maxiMonitorPush: trying to push to a full fifo");
+            TESTBENCH_TITLE = "trying to push to a full fifo";
+            $display("[Testbench] maxiMonitorPush %s = %h, id = %h @%t", TESTBENCH_TITLE, $time);
             $finish;
         end
         maxi_monitor_fifo[maxi_monitor_waddr][31:0]  = data;
         maxi_monitor_fifo[maxi_monitor_waddr][43:32] = id;
         maxi_monitor_fifo_empty = 1'b0;
-        $display("[Testbench] MAXI: Got data = %h, id = %h", data, id);
+//        $display("[Testbench] MAXI: Got data = %h, id = %h", data, id);
+        TESTBENCH_TITLE = "Got data";
+        TESTBENCH_DATA =  data;
+        TESTBENCH_ID =    id;
+        $display("[Testbench] MAXI   %s = %h, id = %h @%t", TESTBENCH_TITLE, TESTBENCH_DATA, TESTBENCH_ID, $time);
+        
+        
+        //[Testbench] MAXI:   %
         maxi_monitor_waddr = (maxi_monitor_waddr + 1) % maxi_monitor_fifo_size;
     end
 endtask
@@ -637,6 +650,8 @@ initial forever @ (posedge CLK) begin
 end
 
 // testing itself
-`include  "test_top.v" // SuppressThisWarning VEditor - to avoid strange warnings
+`include  "test_top.v" // S uppressThisWarning VEditor - to avoid strange warnings
 
 endmodule
+
+//`include "x393/glbl.v" // SuppressThisWarning VEditor - duplicate module 

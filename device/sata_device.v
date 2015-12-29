@@ -28,6 +28,11 @@ module sata_device(
     input   wire    EXTCLK_P,
     input   wire    EXTCLK_N
 );
+//`ifdef SIMULATION
+    reg [639:0] DEV_TITLE; // to show human-readable state in the GTKWave
+//    reg  [31:0] DEV_DATA;
+    integer DEV_DATA;
+//`endif
 
 wire            phy_ready;
 
@@ -130,7 +135,7 @@ initial forever @ (posedge clk) begin
     end
 end
 
-function [31:0] scrambleFunc;
+function [31:0] scrambleFunc; //SuppressThisWarning VEditor: VDT bug? it is used
     input [31:0] context;
     reg [31:0] next;
     reg [15:0] now;
@@ -175,7 +180,7 @@ function [31:0] scrambleFunc;
     end
 endfunction
 
-function [31:0] calculateCRC;
+function [31:0] calculateCRC;  //SuppressThisWarning VEditor VDT bug, it is used
     input [31:0] seed;
     input [31:0] data;
     reg [31:0] crc_bit;
@@ -265,10 +270,13 @@ function [31:0] calculateCRC;
 endfunction
 
 // stub TODO
-function tranCheckFIS;
+function tranCheckFIS; //SuppressThisWarning VEditor: VDT bug - the function is used in conditional expression
     input count;
     begin
-        $display("[Device] TRANSPORT: Says the FIS is valid");
+//        $display("[Device] TRANSPORT: Says the FIS is valid");
+        DEV_TITLE = "Says the FIS is valid";
+        $display("[Device] TRANSPORT: %s @%t", DEV_TITLE, $time);
+        
         tranCheckFIS = 0; // always tell LL the FIS os OK
     end
 endfunction
@@ -319,16 +327,24 @@ task linkMonitorFIS;
         cnt = 0;
     // current rprim = XRDY
         rprim = "XRDY";
-        $display("[Device] LINK: Detected incoming transmission");
-        $display("[Device] LINK: Waiting %h cycles to empty input buffer", pause);
+        DEV_TITLE = "Detected incoming transmission";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+        DEV_TITLE = "Waiting to empty input buffer";
+        DEV_DATA =   pause;
+//        $display("[Device] LINK:      Waiting %h cycles to empty input buffer", pause);
+        $display("[Device] LINK:      %s, pause = %d @%t", DEV_TITLE, DEV_DATA, $time);
         while (pause > 0) begin
     // L_RcvWaitFifo
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #1";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if (rprim != "XRDY") begin
-                $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+                DEV_TITLE = "Reception terminated by the host #1";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             @ (posedge clk)
@@ -336,24 +352,37 @@ task linkMonitorFIS;
         end
     // L_RcvChkRdy
         if (~phy_ready) begin
-            $display("[Device] LINK: Unexpected line disconnect");
+//            $display("[Device] LINK:      Unexpected line disconnect");
+            DEV_TITLE = "Unexpected line disconnect #2";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
         if (rprim != "XRDY") begin
-            $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//            $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+            DEV_TITLE = "Reception terminated by the host #2";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
             $finish;
         end
         linkSendPrim("RRDY");
-        $display("[Device] LINK: Starting the reception");
+//        $display("[Device] LINK:      Starting the reception");
+        DEV_TITLE = "Starting the reception";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+        
         @ (posedge clk)
             rprim = linkGetPrim(0);
         while (rprim != "SOF") begin
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #3";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if (rprim != "XRDY") begin
-                $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+                DEV_TITLE = "Reception terminated by the host #3";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             @ (posedge clk)
@@ -361,29 +390,44 @@ task linkMonitorFIS;
         end
     // L_RcvData
         if (~phy_ready) begin
-            $display("[Device] LINK: Unexpected line disconnect");
+//            $display("[Device] LINK:      Unexpected line disconnect");
+            DEV_TITLE = "Unexpected line disconnect #4";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
-        $display("[Device] LINK: Detected Start of FIS");
+//        $display("[Device] LINK:      Detected Start of FIS");
+        DEV_TITLE = "Detected Start of FIS";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
         linkSendPrim("IP");
         @ (posedge clk)
             rprim = linkGetPrim(0);
         pause = 0;
         while (rcv_stop == 0) begin
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #5";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if (rprim == "SYNC") begin
-                $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+                DEV_TITLE = "Reception terminated by the host #4";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             if (rprim == "SCRAP") begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #1";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             if (rprim == "EOF") begin
-                $display("[Device] LINK: Detected End of FIS");
+//                $display("[Device] LINK:      Detected End of FIS");
+                DEV_TITLE = "Detected End of FIS";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                
                 rcv_stop = 1;
             end
             else
@@ -391,17 +435,23 @@ task linkMonitorFIS;
                 pause = pause - 1;
                 linkSendPrim("HOLD");
                 if (rprim == "HOLDA") begin
-                    $display("[Device] LINK: The pause is acknowledged by the host, chilling out");
+//                    $display("[Device] LINK:      The pause is acknowledged by the host, chilling out");
+                    DEV_TITLE = "The pause is acknowledged by the host, chilling out";
+                    $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                     rcv_ignore = 1;
                 end
                 else begin
-                    $display("[Device] LINK: Asked for a pause");
+//                    $display("[Device] LINK:      Asked for a pause");
+                    DEV_TITLE = "Asked for a pause";
+                    $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                     rcv_ignore = 0;
                 end
             end
             else
             if (rprim == "HOLD") begin
-                $display("[Device] LINK: the host asked for a pause, acknowledging");
+//                $display("[Device] LINK:      the host asked for a pause, acknowledging");
+                DEV_TITLE = "the host asked for a pause, acknowledging";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 linkSendPrim("HOLDA");
                 rcv_ignore = 1;
             end
@@ -410,20 +460,31 @@ task linkMonitorFIS;
                 rcv_ignore = 0;
             end
             if (rprim == "WTRM") begin
-                $display("[Device] LINK: Host invalidated the reception, reception id = %d", id);
+//                $display("[Device] LINK:      Host invalidated the reception, reception id = %d", id);
+                DEV_TITLE = "Host invalidated the reception";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 rcv_stop = 2;
             end
             if ((rcv_stop == 0) && (rcv_ignore == 0)) begin
                 if (cnt > 2048) begin
-                    $display("[Device] LINK: Wrong data dwords count received, reception id = %d", id);
+//                    $display("[Device] LINK:      Wrong data dwords count received, reception id = %d", id);
+                    DEV_TITLE = "Wrong data dwords count received";
+                    DEV_DATA =  id;
+                    $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                     $finish;
                 end
                 if (cnt >= dmat_index) begin
                     linkSendPrim("DMAT");
                 end
-                scrambler_value = scrambleFunc(scrambler_value[31:16]);
+//                scrambler_value = scrambleFunc(scrambler_value[31:16]);
+                scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
                 receive_data[cnt] = linkGetData(0) ^ scrambler_value;
-                $display("[Device] LINK: Got data = %h", receive_data[cnt]);
+//                $display("[Device] LINK:      Got data = %h", receive_data[cnt]);
+                DEV_TITLE = "Got data";
+                DEV_DATA =  receive_data[cnt];
+                $display("[Device] LINK:      %s = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                
                 pause = pause + receive_data_pause[cnt];
                 crc = calculateCRC(crc, receive_data[cnt]); // running crc. shall be 0 
                 cnt = cnt + 1;
@@ -434,44 +495,72 @@ task linkMonitorFIS;
                 rprim = linkGetPrim(0);
         end
         if (cnt < 2) begin
-            $display("[Device] LINK: Incorrect number of received words");
+//            $display("[Device] LINK:      Incorrect number of received words");
+            DEV_TITLE = "Incorrect number of received words";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
-        $display("[Device] LINK: Running CRC after all data was received = %h", crc);
+//        $display("[Device] LINK:      Running CRC after all data was received = %h", crc);
+        DEV_TITLE = "Running CRC after all data was received";
+        DEV_DATA =  crc;
+        $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
+        
         if (crc != 32'h88c21025) begin // running disparity when data crc matches actual received crc
-            $display("[Device] LINK: Running CRC check failed");
+//            $display("[Device] LINK:      Running CRC check failed");
+            DEV_TITLE = "Running CRC check failed";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             rcv_stop = 2;
         end 
         else begin
-            $display("[Device] LINK: Running CRC OK");
+//            $display("[Device] LINK:      Running CRC OK");
+            DEV_TITLE = "Running CRC OK";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);            
         end
         if (rcv_stop == 1) begin // ordinary path
         // L_RcvEOF
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #6";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                
                 $finish;
             end
             if (rprim == "SYNC") begin
-                $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+                DEV_TITLE = "Reception terminated by the host #5";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #2";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             @ (posedge clk)
                 rprim = linkGetPrim(0);
         // L_GoodCRC
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #7";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if (rprim == "SYNC") begin
-                $display("[Device] LINK: Reception terminated by the host, reception id = %d", id);
+//                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
+                DEV_TITLE = "Reception terminated by the host #6";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #3";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             if (tranCheckFIS(cnt - 1)) begin
@@ -482,7 +571,10 @@ task linkMonitorFIS;
     // L_BadEnd
             status = 1;
             linkSendPrim("ERR");
-            $display("[Device] LINK: Found an error");
+//            $display("[Device] LINK:      Found an error");
+            DEV_TITLE = "Found an error";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            
         end
         else begin
     // L_GoodEnd
@@ -493,11 +585,16 @@ task linkMonitorFIS;
             rprim = linkGetPrim(0);
         while (rprim != "SYNC") begin
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #8";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, reception id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #4";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             @ (posedge clk)
@@ -506,11 +603,18 @@ task linkMonitorFIS;
     // L_IDLE
         linkSendPrim("SYNC");
         if (status == 1) begin
-            $display("[Device] LINK: Reception done, errors detected, reception id = %d", id);
+//            $display("[Device] LINK:      Reception done, errors detected, reception id = %d", id);
+            DEV_TITLE = "Reception done, errors detected";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            
         end
         else
         if (status == 0) begin
-            $display("[Device] LINK: Reception done OK, reception id = %d", id);
+//            $display("[Device] LINK:      Reception done OK, reception id = %d", id);
+            DEV_TITLE = "Reception done OK";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
         end
     end
 endtask
@@ -519,7 +623,7 @@ endtask
 
 reg [31:0] transmit_data [2047:0];
 reg [31:0] transmit_data_pause [2047:0];
-reg [31:0] transmit_crc;
+reg [31:0] transmit_crc; // never assigned
 /*
  * Transmits data to a host. ~Link Transmit FSM
  * Correct execution, as it shall be w/o errors from a device side. (except timeouts and data consistency, see below)
@@ -561,12 +665,19 @@ task linkTransmitFIS;
         transmit_lock = 1;
     // DL_SendChkRdy
         linkSendPrim("XRDY");
-        $display("[Device] LINK: Started outcoming transmission");
+//        $display("[Device] LINK:      Started outcoming transmission");
+        DEV_TITLE = "Started outcoming transmission";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+        
         rprim = linkGetPrim(0);
-        $display("[Device] LINK: Waiting for acknowledgement");
+//        $display("[Device] LINK:      Waiting for acknowledgement");
+        DEV_TITLE = "Waiting for acknowledgement";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
         while (rprim != "RRDY") begin
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+//                $display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #9";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             @ (posedge clk)
@@ -574,54 +685,81 @@ task linkTransmitFIS;
         end
     // L_SendSOF
         linkSendPrim("SOF");
-        $display("[Device] LINK: Sending Start of FIS");
+//        $display("[Device] LINK:      Sending Start of FIS");
+        DEV_TITLE = "Sending Start of FIS";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
         @ (posedge clk)
             rprim = linkGetPrim(0);
         if (~phy_ready) begin
-            $display("[Device] LINK: Unexpected line disconnect");
+//            $display("[Device] LINK:      Unexpected line disconnect");
+            DEV_TITLE = "Unexpected line disconnect #10";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
         if (rprim == "SYNC") begin
-            $display("[Device] LINK: Transmission terminated by the host, transmission id = %d", id);
+//            $display("[Device] LINK:      Transmission terminated by the host, transmission id = %d", id);
+            DEV_TITLE = "Transmission terminated by the host #1";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-            $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+//            $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+            DEV_TITLE = "Bad primitives from the host #5";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
             $finish;
         end
     // L_SendData + L_RcvrHold + L_SendHold
         cnt = 0;
         pause = transmit_data_pause[0];
         while (cnt < size) begin
-            scrambler_value = scrambleFunc(scrambler_value[31:16]);
-//            $display("[Device] LINK: Scrambler = %h", scrambler_value);
+//            scrambler_value = scrambleFunc(scrambler_value[31:16]);
+            scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
+//            $display("[Device] LINK:      Scrambler = %h", scrambler_value);
             linkSendData(transmit_data[cnt] ^ scrambler_value);
             crc = calculateCRC(crc, transmit_data[cnt]);
-            $display("[Device] LINK: Sent data = %h", transmit_data[cnt]);
+//            $display("[Device] LINK:      Sent data = %h", transmit_data[cnt]);
+            DEV_TITLE = "Sent data";
+            DEV_DATA =  transmit_data[cnt];
+            $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
             @ (posedge clk)
                 rprim = linkGetPrim(0);
             if (rprim == "SYNC") begin
-                $display("[Device] LINK: Transmission terminated by the host, transmission id = %d", id);
+//                $display("[Device] LINK:      Transmission terminated by the host, transmission id = %d", id);
+                DEV_TITLE = "Transmission terminated by the host #2";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #6";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             else
             if (rprim == "DMAT") begin
-                $display("[Device] LINK: Transmission terminated by the host via DMAT, transmission id = %d", id);
+//                $display("[Device] LINK:      Transmission terminated by the host via DMAT, transmission id = %d", id);
+                DEV_TITLE = "Transmission terminated by the hostvia DMAT";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             else
             if (pause > 0) begin
-                $display("[Device] LINK: Transmission is paused");
+//                $display("[Device] LINK:      Transmission is paused");
+                DEV_TITLE = "Transmission is paused";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 linkSendPrim("HOLD");
                 pause = pause - 1;
             end
             else
             if (rprim == "HOLD") begin
-                $display("[Device] LINK: The host asked for a pause, acknowledging");
+//                $display("[Device] LINK:      The host asked for a pause, acknowledging");
+                DEV_TITLE = "The host asked for a pause, acknowledging transmission paused";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 linkSendPrim("HOLDA");
             end
             else begin 
@@ -631,73 +769,116 @@ task linkTransmitFIS;
             end
         end
     // L_SendCRC
-        scrambler_value = scrambleFunc(scrambler_value[31:16]);
+//        scrambler_value = scrambleFunc(scrambler_value[31:16]);
+        scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
         if (transmit_custom_crc != 0) begin
             crc = transmit_crc;
         end
             linkSendData(crc ^ scrambler_value);
-        $display("[Device] LINK: Sent crc = %h", crc);
+//        $display("[Device] LINK:      Sent crc = %h", crc);
+        DEV_TITLE = "Sent crc";
+        DEV_DATA =  crc;
+        $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
+        
         @ (posedge clk)
             rprim = linkGetPrim(0);
         if (~phy_ready) begin
-            $display("[Device] LINK: Unexpected line disconnect");
+//            $display("[Device] LINK:      Unexpected line disconnect");
+            DEV_TITLE = "Unexpected line disconnect #11";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
         if (rprim == "SYNC") begin
-            $display("[Device] LINK: Transmission terminated by the host, transmission id = %d", id);
+//            $display("[Device] LINK:      Transmission terminated by the host, transmission id = %d", id);
+            DEV_TITLE = "Transmission terminated by the host #3";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-            $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+//            $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+            DEV_TITLE = "Bad primitives from the host #7";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
             $finish;
         end
     // L_SendEOF
         linkSendPrim("EOF");
-        $display("[Device] LINK: Sent End of FIS");
+//        $display("[Device] LINK:      Sent End of FIS");
+        DEV_TITLE = "Sent End of FIS";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
         @ (posedge clk)
             rprim = linkGetPrim(0);
         if (~phy_ready) begin
-            $display("[Device] LINK: Unexpected line disconnect");
+//            $display("[Device] LINK:      Unexpected line disconnect");
+            DEV_TITLE = "Unexpected line disconnect #12";
+            $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
             $finish;
         end
         if (rprim == "SYNC") begin
-            $display("[Device] LINK: Transmission terminated by the host, transmission id = %d", id);
+//            $display("[Device] LINK:      Transmission terminated by the host, transmission id = %d", id);
+            DEV_TITLE = "Transmission terminated by the host #4";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-            $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+//            $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+            DEV_TITLE = "Bad primitives from the host #8";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
             $finish;
         end
     // L_Wait
         linkSendPrim("WTRM");
-        $display("[Device] LINK: Waiting for a response from the host");
+//        $display("[Device] LINK:      Waiting for a response from the host");
+        DEV_TITLE = "Waiting for a response from the host";
+        $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
         @ (posedge clk)
             rprim = linkGetPrim(0);
         status = 0;
         while ((rprim != "OK") && (status == 0)) begin
             if (~phy_ready) begin
-                $display("[Device] LINK: Unexpected line disconnect");
+                //$display("[Device] LINK:      Unexpected line disconnect");
+                DEV_TITLE = "Unexpected line disconnect #13";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 $finish;
             end
             if (rprim == "SYNC") begin
-                $display("[Device] LINK: Transmission terminated by the host, transmission id = %d", id);
+//                $display("[Device] LINK:      Transmission terminated by the host, transmission id = %d", id);
+                DEV_TITLE = "Transmission terminated by the host #5";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
-                $display("[Device] LINK: Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+//                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
+                DEV_TITLE = "Bad primitives from the host #9";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 $finish;
             end
             if (rprim == "ERR") begin
-                $display("[Device] LINK: Host invalidated the transmission, transmission id = %d", id);
+//                $display("[Device] LINK:      Host invalidated the transmission, transmission id = %d", id);
+                DEV_TITLE = "Host invalidated the transmission";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 status = 1;
             end
             @ (posedge clk)
                 rprim = linkGetPrim(0);
         end
         if (status == 0)
-            $display("[Device] LINK: Transmission done OK, id = %d", id);
+//            $display("[Device] LINK:      Transmission done OK, id = %d", id);
+            DEV_TITLE = "Transmission done OK";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            
         if (status == 1)
-            $display("[Device] LINK: Transmission done with ERRORs, id = %d", id);
+//            $display("[Device] LINK:      Transmission done with ERRORs, id = %d", id);
+            DEV_TITLE = "Transmission done with ERRORS";
+            DEV_DATA =  id;
+            $display("[Device] LINK:      %s, id = %d @%t", DEV_TITLE, DEV_DATA, $time);
     // L_IDLE
         linkSendPrim("SYNC");
         @ (posedge clk);

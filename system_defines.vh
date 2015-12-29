@@ -6,11 +6,16 @@
   `ifdef IVERILOG
     `define SIMULATION
     `define OPEN_SOURCE_ONLY
+    `define CHECKERS_ENABLED 1    
   `else
     `ifdef CVC
       `define SIMULATION
       `define OPEN_SOURCE_ONLY
+      `define CHECKERS_ENABLED 1    
+    `else
+       `undef OPEN_SOURCE_ONLY
     `endif // CVC
+    
   `endif // IVERILOG
   
 // will not use simultaneous reset in shift registers, just and input data with ~rst  

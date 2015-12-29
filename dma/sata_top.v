@@ -291,228 +291,229 @@ always @ (posedge hclk)
 
 axi_regs axi_regs(
 // axi iface
-    .ACLK               (ACLK),
-    .ARESETN            (ARESETN),
-    .ARADDR             (ARADDR),
-    .ARVALID            (ARVALID),
-    .ARREADY            (ARREADY),
-    .ARID               (ARID),
-    .ARLEN              (ARLEN),
-    .ARSIZE             (ARSIZE),
-    .ARBURST            (ARBURST),
-    .RDATA              (RDATA),
-    .RVALID             (RVALID),
-    .RREADY             (RREADY),
-    .RID                (RID),
-    .RLAST              (RLAST),
-    .RRESP              (RRESP),
-    .AWADDR             (AWADDR),
-    .AWVALID            (AWVALID),
-    .AWREADY            (AWREADY),
-    .AWID               (AWID),
-    .AWLEN              (AWLEN),
-    .AWSIZE             (AWSIZE),
-    .AWBURST            (AWBURST),
-    .WDATA              (WDATA),
-    .WVALID             (WVALID),
-    .WREADY             (WREADY),
-    .WID                (WID),
-    .WLAST              (WLAST),
-    .WSTRB              (WSTRB),
-    .BVALID             (BVALID),
-    .BREADY             (BREADY),
-    .BID                (BID),
-    .BRESP              (BRESP),
+    .ACLK               (ACLK),      // input wire
+    .ARESETN            (ARESETN),   // input wire 
+    .ARADDR             (ARADDR),    // input[31:0] wire
+    .ARVALID            (ARVALID),   // input wire 
+    .ARREADY            (ARREADY),   // output wire
+    .ARID               (ARID),      // input[11:0] wire
+    .ARLEN              (ARLEN),     // input[3:0] wire 
+    .ARSIZE             (ARSIZE),    // input[1:0] wire 
+    .ARBURST            (ARBURST),   // input[1:0] wire
+    .RDATA              (RDATA),     // output[31:0] wire
+    .RVALID             (RVALID),    // output wire
+    .RREADY             (RREADY),    // input wire
+    .RID                (RID),       // output[11:0] wire 
+    .RLAST              (RLAST),     // output wire 
+    .RRESP              (RRESP),     // output[1:0] wire
+    .AWADDR             (AWADDR),    // input[31:0] wire 
+    .AWVALID            (AWVALID),   // input wire
+    .AWREADY            (AWREADY),   // output wire
+    .AWID               (AWID),      // input[11:0] wire 
+    .AWLEN              (AWLEN),     // input[3:0] wire 
+    .AWSIZE             (AWSIZE),    // input[1:0] wire
+    .AWBURST            (AWBURST),   // input[1:0] wire
+    .WDATA              (WDATA),     // input[31:0] wire 
+    .WVALID             (WVALID),    // input wire 
+    .WREADY             (WREADY),    // output wire
+    .WID                (WID),       // input[11:0] wire 
+    .WLAST              (WLAST),     // input wire
+    .WSTRB              (WSTRB),     // input wire
+    .BVALID             (BVALID),    // output wire 
+    .BREADY             (BREADY),    // input wire
+    .BID                (BID),       // output[11:0] wire
+    .BRESP              (BRESP),     // output[1:0] wire 
 // registers iface
-    .bram_rdata         (bram_rdata),
-    .bram_waddr         (bram_waddr),
-    .bram_wdata         (bram_wdata),
-    .bram_raddr         (bram_raddr),
-    .bram_wstb          (bram_wstb),
-    .bram_wen           (bram_wen),
-    .bram_ren           (bram_ren),
-    .bram_regen         (bram_regen)
+    .bram_rdata         (bram_rdata),// input[31:0] wire 
+    .bram_waddr         (bram_waddr),// output[31:0] wire 
+    .bram_wdata         (bram_wdata),// output[31:0] wire
+    .bram_raddr         (bram_raddr),// output[31:0] wire
+    .bram_wstb          (bram_wstb), // output[3:0] wire
+    .bram_wen           (bram_wen),  // output wire
+    .bram_ren           (bram_ren),  // output wire
+    .bram_regen         (bram_regen) // output wire
 );
+
 
 /*
  * Programmable sata controller registers
  */
 dma_regs dma_regs(
-    .rst            (ARESETN),
-    .ACLK           (ACLK),
-    .sclk           (sclk),
+    .rst            (ARESETN),                     // input wire 
+    .ACLK           (ACLK),                        // input wire
+    .sclk           (sclk),                        // input wire
 // control iface
-    .mem_address    (mem_address[31:7]),
-    .lba            (lba),
-    .sector_cnt     (sector_cnt),
-    .dma_type       (dma_type),
-    .dma_start      (dma_start),
-    .dma_done       (dma_done),
+    .mem_address    (mem_address[31:7]),           // output[31:7] wire
+    .lba            (lba),                         // output[31:0] wire
+    .sector_cnt     (sector_cnt),                  // output[31:0] wire
+    .dma_type       (dma_type),                    // output wire 
+    .dma_start      (dma_start),                   // output wire 
+    .dma_done       (dma_done),                    // input wire
 // axi buffer iface
-    .bram_rdata     (bram_rdata),
-    .bram_raddr     (bram_raddr),
-    .bram_waddr     (bram_waddr),
-    .bram_wdata     (bram_wdata),
-    .bram_wstb      (bram_wstb),
-    .bram_wen       (bram_wen),
-    .bram_ren       (bram_ren),
-    .bram_regen     (bram_regen),
+    .bram_rdata     (bram_rdata),                  // output[31:0] wire 
+    .bram_raddr     (bram_raddr),                  // input[31:0] wire
+    .bram_waddr     (bram_waddr),                  // input[31:0] wire
+    .bram_wdata     (bram_wdata),                  // input[31:0] wire
+    .bram_wstb      (bram_wstb),                   // input[ 3:0] wire
+    .bram_wen       (bram_wen),                    // input wire
+    .bram_ren       (bram_ren),                    // input wire
+    .bram_regen     (bram_regen),                  // input wire
 
 // direct connections to the host
 // tmp to cmd control
-    .cmd_val_out                (cmd_val_out),
-    .cmd_out                    (cmd_out),
+    .cmd_val_out                (cmd_val_out),     // output wire 
+    .cmd_out                    (cmd_out),         // output[31:0] wire 
 // tmp to shadow registers
-    .sh_data                    (sh_data), // write data
-    .sh_data_val                (sh_data_val), // write strobe
-    .sh_data_strobe             (sh_data_strobe), // read strobe
-    .sh_feature                 (sh_feature),
-    .sh_feature_val             (sh_feature_val),
-    .sh_lba_lo                  (sh_lba_lo),
-    .sh_lba_lo_val              (sh_lba_lo_val),
-    .sh_lba_hi                  (sh_lba_hi),
-    .sh_lba_hi_val              (sh_lba_hi_val),
-    .sh_count                   (sh_count),
-    .sh_count_val               (sh_count_val),
-    .sh_command                 (sh_command),
-    .sh_command_val             (sh_command_val),
-    .sh_dev                     (sh_dev),
-    .sh_dev_val                 (sh_dev_val),
-    .sh_control                 (sh_control),
-    .sh_control_val             (sh_control_val),
-    .sh_dma_id_lo               (sh_dma_id_lo),
-    .sh_dma_id_lo_val           (sh_dma_id_lo_val),
-    .sh_dma_id_hi               (sh_dma_id_hi),
-    .sh_dma_id_hi_val           (sh_dma_id_hi_val),
-    .sh_buf_off                 (sh_buf_off),
-    .sh_buf_off_val             (sh_buf_off_val),
-    .sh_dma_cnt                 (sh_dma_cnt),
-    .sh_dma_cnt_val             (sh_dma_cnt_val),
-    .sh_tran_cnt                (sh_tran_cnt),
-    .sh_tran_cnt_val            (sh_tran_cnt_val),
-    .sh_autoact                 (sh_autoact),
-    .sh_autoact_val             (sh_autoact_val),
-    .sh_inter                   (sh_inter),
-    .sh_inter_val               (sh_inter_val),
-    .sh_port                    (sh_port),
-    .sh_port_val                (sh_port_val),
-    .sh_notif                   (sh_notif),
-    .sh_notif_val               (sh_notif_val),
-    .sh_dir                     (sh_dir),
-    .sh_dir_val                 (sh_dir_val),
+    .sh_data                    (sh_data),         // output[31:0] wire : write data
+    .sh_data_val                (sh_data_val),     // output wire: write strobe
+    .sh_data_strobe             (sh_data_strobe),  // output wire: read strobe
+    .sh_feature                 (sh_feature),      // output[15:0] wire 
+    .sh_feature_val             (sh_feature_val),  // output wire
+    .sh_lba_lo                  (sh_lba_lo),       // output[23:0] wire
+    .sh_lba_lo_val              (sh_lba_lo_val),   // output wire
+    .sh_lba_hi                  (sh_lba_hi),       // output[23:0] wire 
+    .sh_lba_hi_val              (sh_lba_hi_val),   // output wire
+    .sh_count                   (sh_count),        // output[15:0] wire
+    .sh_count_val               (sh_count_val),    // output wire
+    .sh_command                 (sh_command),      // output[7:0] wire
+    .sh_command_val             (sh_command_val),  // output wire
+    .sh_dev                     (sh_dev),          // output[7:0] wire
+    .sh_dev_val                 (sh_dev_val),  // output wire
+    .sh_control                 (sh_control),      // output[7:0] wire
+    .sh_control_val             (sh_control_val),  // output wire
+    .sh_dma_id_lo               (sh_dma_id_lo),    // output[31:0] wire 
+    .sh_dma_id_lo_val           (sh_dma_id_lo_val),// output wire
+    .sh_dma_id_hi               (sh_dma_id_hi),    // output[31:0] wire 
+    .sh_dma_id_hi_val           (sh_dma_id_hi_val),// output wire
+    .sh_buf_off                 (sh_buf_off),      // output[31:0] wire 
+    .sh_buf_off_val             (sh_buf_off_val),  // output wire
+    .sh_dma_cnt                 (sh_dma_cnt),      // output[31:0] wire 
+    .sh_dma_cnt_val             (sh_dma_cnt_val),  // output wire
+    .sh_tran_cnt                (sh_tran_cnt),     // output[15:0] wire 
+    .sh_tran_cnt_val            (sh_tran_cnt_val), // output wire
+    .sh_autoact                 (sh_autoact),      // output wire
+    .sh_autoact_val             (sh_autoact_val),  // output wire
+    .sh_inter                   (sh_inter),        // output wire
+    .sh_inter_val               (sh_inter_val),    // output wire
+    .sh_port                    (sh_port),         // output[3:0] wire 
+    .sh_port_val                (sh_port_val),     // output wire
+    .sh_notif                   (sh_notif),        // output wire
+    .sh_notif_val               (sh_notif_val),    // output wire
+    .sh_dir                     (sh_dir),          // output wire
+    .sh_dir_val                 (sh_dir_val),      // output wire
 
 // inputs from sh registers
-    .sh_data_val_in             (sh_data_val_in),
-    .sh_data_in                 (sh_data_in),
-    .sh_control_in              (sh_control_in),
-    .sh_feature_in              (sh_feature_in),
-    .sh_lba_in                  (sh_lba_in),
-    .sh_count_in                (sh_count_in),
-    .sh_command_in              (sh_command_in),
-    .sh_err_in                  (sh_err_in),
-    .sh_status_in               (sh_status_in),
-    .sh_estatus_in              (sh_estatus_in), // E_Status
-    .sh_dev_in                  (sh_dev_in),
-    .sh_port_in                 (sh_port_in),
-    .sh_inter_in                (sh_inter_in),
-    .sh_dir_in                  (sh_dir_in),
-    .sh_dma_id_in               (sh_dma_id_in),
-    .sh_dma_off_in              (sh_dma_off_in),
-    .sh_dma_cnt_in              (sh_dma_cnt_in),
-    .sh_tran_cnt_in             (sh_tran_cnt_in), // Transfer Count
-    .sh_notif_in                (sh_notif_in),
-    .sh_autoact_in              (sh_autoact_in),
+    .sh_data_val_in             (sh_data_val_in),  // input wire 
+    .sh_data_in                 (sh_data_in),      // input[31:0] wire
+    .sh_control_in              (sh_control_in),   // input[7:0] wire
+    .sh_feature_in              (sh_feature_in),   // input[15:0] wire 
+    .sh_lba_in                  (sh_lba_in),       // input[47:0] wire 
+    .sh_count_in                (sh_count_in),     // input[15:0] wire 
+    .sh_command_in              (sh_command_in),   // input[7:0] wire 
+    .sh_err_in                  (sh_err_in),       // input[7:0] wire 
+    .sh_status_in               (sh_status_in),    // input[7:0] wire 
+    .sh_estatus_in              (sh_estatus_in),   // input[7:0] wire :  E_Status
+    .sh_dev_in                  (sh_dev_in),       // input[7:0] wire 
+    .sh_port_in                 (sh_port_in),      // input[3:0] wire 
+    .sh_inter_in                (sh_inter_in),     // input wire
+    .sh_dir_in                  (sh_dir_in),       // input wire
+    .sh_dma_id_in               (sh_dma_id_in),    // input[63:0] wire 
+    .sh_dma_off_in              (sh_dma_off_in),   // input[31:0] wire
+    .sh_dma_cnt_in              (sh_dma_cnt_in),   // input[31:0] wire
+    .sh_tran_cnt_in             (sh_tran_cnt_in),  // Transfer Count
+    .sh_notif_in                (sh_notif_in),     // input wire
+    .sh_autoact_in              (sh_autoact_in),   // input wire
 // inputs from cmd control
-    .cmd_in                     (cmd_in)
+    .cmd_in                     (cmd_in)           // input[31:0] wire
 );
 
 
 dma_control dma_control(
-    .sclk               (sclk),
-    .hclk               (hclk),
-    .rst                (sata_rst),
+    .sclk               (sclk),               // input wire
+    .hclk               (hclk),               // input wire
+    .rst                (sata_rst),           // input wire
 
     // registers iface
-    .mem_address        (mem_address[31:7]),
-    .lba                (lba),
-    .sector_cnt         (sector_cnt),
-    .dma_type           (dma_type),
-    .dma_start          (dma_start),
-    .dma_done           (dma_done),
+    .mem_address        (mem_address[31:7]),  // input[31:7] wire
+    .lba                (lba),                // input[31:0] wire 
+    .sector_cnt         (sector_cnt),         // input[31:0] wire
+    .dma_type           (dma_type),           // input wire
+    .dma_start          (dma_start),          // input wire
+    .dma_done           (dma_done),           // output wire
 
     // adapter command iface
-    .adp_busy           (adp_busy),
-    .adp_addr           (adp_addr[31:7]),
-    .adp_type           (adp_type),
-    .adp_val            (adp_val),
+    .adp_busy           (adp_busy),           // input wire
+    .adp_addr           (adp_addr[31:7]),     // output[31:7] wire 
+    .adp_type           (adp_type),           // output wire
+    .adp_val            (adp_val),            // output wire
 
     // sata host command iface
-    .host_ready_for_cmd (host_ready_for_cmd),
-    .host_new_cmd       (host_new_cmd),
-    .host_cmd_type      (host_cmd_type),
-    .host_sector_count  (host_sector_count),
-    .host_sector_addr   (host_sector_addr),
+    .host_ready_for_cmd (host_ready_for_cmd), // input wire
+    .host_new_cmd       (host_new_cmd),       // output wire
+    .host_cmd_type      (host_cmd_type),      // output[1:0] wire 
+    .host_sector_count  (host_sector_count),  // output[31:0] wire
+    .host_sector_addr   (host_sector_addr),   // output[31:0] wire
 
     // adapter data iface
     // to main memory
-    .to_data            (to_data),
-    .to_val             (to_val),
-    .to_ack             (to_ack),
+    .to_data            (to_data),            // output[63:0] wire
+    .to_val             (to_val),             // output wire
+    .to_ack             (to_ack),             // input wire
     // from main memory
-    .from_data          (from_data),
-    .from_val           (from_val),
-    .from_ack           (from_ack),
+    .from_data          (from_data),          // input[63:0] wire
+    .from_val           (from_val),           // input wire
+    .from_ack           (from_ack),           // output wire
 
     // sata host iface
     // data from sata host
-    .in_data            (in_data),
-    .in_val             (in_val),
-    .in_busy            (in_busy),
+    .in_data            (in_data),            // input[31:0] wire
+    .in_val             (in_val),             // output wire
+    .in_busy            (in_busy),            // input wire
     // data to sata host
-    .out_data           (out_data),
-    .out_val            (out_val),
-    .out_busy           (out_busy)
+    .out_data           (out_data),           // output[31:0] wire
+    .out_val            (out_val),            // output wire
+    .out_busy           (out_busy)            // input wire
 );
 
 //assign  rdata_done = membridge.is_last_in_page & membridge.afi_rready;
 
 dma_adapter dma_adapter(
-    .clk                    (hclk),
-    .rst                    (hrst),
+    .clk                    (hclk),                // input wire
+    .rst                    (hrst),                // input wire
 // command iface                            
-    .cmd_type               (adp_type),
-    .cmd_val                (adp_val),
-    .cmd_addr               (adp_addr[31:7]),
-    .cmd_busy               (adp_busy),
+    .cmd_type               (adp_type),            // input wire
+    .cmd_val                (adp_val),             // input wire
+    .cmd_addr               (adp_addr[31:7]),      // input[31:7] wire
+    .cmd_busy               (adp_busy),            // output wire
 // data iface                            
-    .wr_data_in             (to_data),
-    .wr_val_in              (to_val),
-    .wr_ack_out             (to_ack),
-    .rd_data_out            (from_data),
-    .rd_val_out             (from_val),
-    .rd_ack_in              (from_ack),
+    .wr_data_in             (to_data),             // input[63:0] wire
+    .wr_val_in              (to_val),              // input wire
+    .wr_ack_out             (to_ack),              // output wire
+    .rd_data_out            (from_data),           // output[63:0] wire
+    .rd_val_out             (from_val),            // output wire
+    .rd_ack_in              (from_ack),            // input wire
 // membridge iface
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata),
-    .rdata_done             (rdata_done)
+    .cmd_ad                 (cmd_ad),              // output[7:0] wire 
+    .cmd_stb                (cmd_stb),             // output wire
+    .status_ad              (status_ad),           // input[7:0] wire Not used
+    .status_rq              (status_rq),           // input wire  Not used
+    .status_start           (status_start),        // output wire
+    .frame_start_chn        (frame_start_chn),     // input wire  Not used
+    .next_page_chn          (next_page_chn),       // input wire  Not used
+    .cmd_wrmem              (cmd_wrmem),           // output wire
+    .page_ready_chn         (page_ready_chn),      // output wire
+    .frame_done_chn         (frame_done_chn),      // output wire
+    .line_unfinished_chn1   (line_unfinished_chn1),// output[15:0] wire  Not used
+    .suspend_chn1           (suspend_chn1),        // input wire  Not used
+    .xfer_reset_page_rd     (xfer_reset_page_rd),  // output wire
+    .buf_wpage_nxt          (buf_wpage_nxt),       // output wire
+    .buf_wr                 (buf_wr),              // output wire
+    .buf_wdata              (buf_wdata),           // output[63:0] wire
+    .xfer_reset_page_wr     (xfer_reset_page_wr),  // output wire
+    .buf_rpage_nxt          (buf_rpage_nxt),       // output wire
+    .buf_rd                 (buf_rd),              // output wire
+    .buf_rdata              (buf_rdata),           // input[63:0] wire
+    .rdata_done             (rdata_done)           // input wire 
 );
 
 
@@ -531,75 +532,75 @@ V    .MEMBRIDGE_ADDR         (),
     .FRAME_HEIGHT_BITS      (),
     .FRAME_WIDTH_BITS       ()
 )*/ membridge(
-    .mrst                   (hrst), // input
-    .hrst                   (hrst), // input
-    .mclk                   (sclk), // input
-    .hclk                   (hclk), // input
-    .cmd_ad                 (cmd_ad),
-    .cmd_stb                (cmd_stb),
-    .status_ad              (status_ad),
-    .status_rq              (status_rq),
-    .status_start           (status_start),
-    .frame_start_chn        (frame_start_chn),
-    .next_page_chn          (next_page_chn),
-    .cmd_wrmem              (cmd_wrmem),
-    .page_ready_chn         (page_ready_chn),
-    .frame_done_chn         (frame_done_chn),
-    .line_unfinished_chn1   (line_unfinished_chn1),
-    .suspend_chn1           (suspend_chn1),
-    .xfer_reset_page_rd     (xfer_reset_page_rd),
-    .buf_wpage_nxt          (buf_wpage_nxt),
-    .buf_wr                 (buf_wr),
-    .buf_wdata              (buf_wdata),
-    .xfer_reset_page_wr     (xfer_reset_page_wr),
-    .buf_rpage_nxt          (buf_rpage_nxt),
-    .buf_rd                 (buf_rd),
-    .buf_rdata              (buf_rdata),
+    .mrst                   (sata_rst), // hrst),   // input Andrey: Wrong, should be @sclk
+    .hrst                   (hrst),                 // input
+    .mclk                   (sclk),                 // input
+    .hclk                   (hclk),                 // input
+    .cmd_ad                 (cmd_ad),               // input[7:0]
+    .cmd_stb                (cmd_stb),              // input // Nothing here
+    .status_ad              (status_ad),            // output[7:0] 
+    .status_rq              (status_rq),            // output
+    .status_start           (status_start),         // input
+    .frame_start_chn        (frame_start_chn),      // output
+    .next_page_chn          (next_page_chn),        // output
+    .cmd_wrmem              (cmd_wrmem),            // input
+    .page_ready_chn         (page_ready_chn),       // input
+    .frame_done_chn         (frame_done_chn),       // input
+    .line_unfinished_chn1   (line_unfinished_chn1), // input[15:0]
+    .suspend_chn1           (suspend_chn1),         // output
+    .xfer_reset_page_rd     (xfer_reset_page_rd),   // input
+    .buf_wpage_nxt          (buf_wpage_nxt),        // input
+    .buf_wr                 (buf_wr),               // input
+    .buf_wdata              (buf_wdata),            // input[63:0] 
+    .xfer_reset_page_wr     (xfer_reset_page_wr),   // input
+    .buf_rpage_nxt          (buf_rpage_nxt),        // input
+    .buf_rd                 (buf_rd),               // input
+    .buf_rdata              (buf_rdata),            // output[63:0]
 
-    .afi_awaddr             (afi_awaddr), // output[31:0] 
-    .afi_awvalid            (afi_awvalid), // output
-    .afi_awready            (afi_awready), // input
-    .afi_awid               (afi_awid), // output[5:0] 
-    .afi_awlock             (afi_awlock), // output[1:0] 
-    .afi_awcache            (afi_awcache), // output[3:0] 
-    .afi_awprot             (afi_awprot), // output[2:0] 
-    .afi_awlen              (afi_awlen), // output[3:0] 
-    .afi_awsize             (afi_awsize), // output[2:0] 
-    .afi_awburst            (afi_awburst), // output[1:0] 
-    .afi_awqos              (afi_awqos), // output[3:0] 
-    .afi_wdata              (afi_wdata), // output[63:0] 
-    .afi_wvalid             (afi_wvalid), // output
-    .afi_wready             (afi_wready), // input
-    .afi_wid                (afi_wid), // output[5:0] 
-    .afi_wlast              (afi_wlast), // output
-    .afi_wstrb              (afi_wstrb), // output[7:0] 
-    .afi_bvalid             (afi_bvalid), // input
-    .afi_bready             (afi_bready), // output
-    .afi_bid                (afi_bid), // input[5:0] 
-    .afi_bresp              (afi_bresp), // input[1:0] 
-    .afi_wcount             (afi_wcount), // input[7:0] 
-    .afi_wacount            (afi_wacount), // input[5:0] 
-    .afi_wrissuecap1en      (afi_wrissuecap1en), // output
-    .afi_araddr             (afi_araddr), // output[31:0] 
-    .afi_arvalid            (afi_arvalid), // output
-    .afi_arready            (afi_arready), // input
-    .afi_arid               (afi_arid), // output[5:0] 
-    .afi_arlock             (afi_arlock), // output[1:0] 
-    .afi_arcache            (afi_arcache), // output[3:0] 
-    .afi_arprot             (afi_arprot), // output[2:0] 
-    .afi_arlen              (afi_arlen), // output[3:0] 
-    .afi_arsize             (afi_arsize), // output[2:0] 
-    .afi_arburst            (afi_arburst), // output[1:0] 
-    .afi_arqos              (afi_arqos), // output[3:0] 
-    .afi_rdata              (afi_rdata), // input[63:0] 
-    .afi_rvalid             (afi_rvalid), // input
-    .afi_rready             (afi_rready), // output
-    .afi_rid                (afi_rid), // input[5:0] 
-    .afi_rlast              (afi_rlast), // input
-    .afi_rresp              (afi_rresp), // input[2:0] 
-    .afi_rcount             (afi_rcount), // input[7:0] 
-    .afi_racount            (afi_racount), // input[2:0] 
-    .afi_rdissuecap1en      (afi_rdissuecap1en)/*, // output
+    .afi_awaddr             (afi_awaddr),           // output[31:0] 
+    .afi_awvalid            (afi_awvalid),          // output
+    .afi_awready            (afi_awready),          // input
+    .afi_awid               (afi_awid),             // output[5:0] 
+    .afi_awlock             (afi_awlock),           // output[1:0] 
+    .afi_awcache            (afi_awcache),          // output[3:0] 
+    .afi_awprot             (afi_awprot),           // output[2:0] 
+    .afi_awlen              (afi_awlen),            // output[3:0] 
+    .afi_awsize             (afi_awsize),           // output[2:0] 
+    .afi_awburst            (afi_awburst),          // output[1:0] 
+    .afi_awqos              (afi_awqos),            // output[3:0] 
+    .afi_wdata              (afi_wdata),            // output[63:0] 
+    .afi_wvalid             (afi_wvalid),           // output
+    .afi_wready             (afi_wready),           // input
+    .afi_wid                (afi_wid),              // output[5:0] 
+    .afi_wlast              (afi_wlast),            // output
+    .afi_wstrb              (afi_wstrb),            // output[7:0] 
+    .afi_bvalid             (afi_bvalid),           // input
+    .afi_bready             (afi_bready),           // output
+    .afi_bid                (afi_bid),              // input[5:0] 
+    .afi_bresp              (afi_bresp),            // input[1:0] 
+    .afi_wcount             (afi_wcount),           // input[7:0] 
+    .afi_wacount            (afi_wacount),          // input[5:0] 
+    .afi_wrissuecap1en      (afi_wrissuecap1en),    // output
+    .afi_araddr             (afi_araddr),           // output[31:0] 
+    .afi_arvalid            (afi_arvalid),          // output
+    .afi_arready            (afi_arready),          // input
+    .afi_arid               (afi_arid),             // output[5:0] 
+    .afi_arlock             (afi_arlock),           // output[1:0] 
+    .afi_arcache            (afi_arcache),          // output[3:0] 
+    .afi_arprot             (afi_arprot),           // output[2:0] 
+    .afi_arlen              (afi_arlen),            // output[3:0] 
+    .afi_arsize             (afi_arsize),           // output[2:0] 
+    .afi_arburst            (afi_arburst),          // output[1:0] 
+    .afi_arqos              (afi_arqos),            // output[3:0] 
+    .afi_rdata              (afi_rdata),            // input[63:0] 
+    .afi_rvalid             (afi_rvalid),           // input
+    .afi_rready             (afi_rready),           // output
+    .afi_rid                (afi_rid),              // input[5:0] 
+    .afi_rlast              (afi_rlast),            // input
+    .afi_rresp              (afi_rresp),            // input[2:0] 
+    .afi_rcount             (afi_rcount),           // input[7:0] 
+    .afi_racount            (afi_racount),          // input[2:0] 
+    .afi_rdissuecap1en      (afi_rdissuecap1en)/*,  // output
     .rdata_done             (rdata_done)*/
 );
 assign rdata_done = 1'b0;
@@ -657,7 +658,7 @@ sata_host sata_host(
     .al_sh_port_in              (sh_port),
     .al_sh_port_val_in          (sh_port_val),
 
-// outputs from shadow registers
+// outputs from shadow registers - no registers, just MUX-ed and read @ACLK
 
     .sh_data_val_out            (sh_data_val_in),
     .sh_data_out                (sh_data_in),

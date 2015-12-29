@@ -18,6 +18,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
  *******************************************************************************/
+`include "system_defines.vh" 
 module gtxe2_channel_wrapper(
 // clocking ports, UG476 p.37
     input   [2:0]       CPLLREFCLKSEL,

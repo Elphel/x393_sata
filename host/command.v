@@ -255,12 +255,14 @@ always @ (posedge clk)
 always @ (posedge clk)
     raddr   <= rst ? 10'b0 : al_sh_data_strobe_in ? raddr + 1'b1 : raddr;
 
+// Application layer has different clock ?
+
 ram_1kx32_1kx32 rbuf(
       .rclk     (clk),      // clock for read port
       .raddr    (raddr),    // read address
       .ren      (al_sh_data_strobe_in),         // read port enable
       .regen    (1'b0),     // output register enable
-      .data_out (sh_data),    // data out
+      .data_out (sh_data),    // data out 
       
       .wclk     (clk),      // clock for read port
       .waddr    (waddr),    // write address

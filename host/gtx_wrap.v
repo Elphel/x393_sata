@@ -135,9 +135,9 @@ if (DATA_BYTE_WIDTH == 4) begin
     reg     [ 1:0] txcharisk_enc_in_r;
     wire    [38:0] txdata_resync_out;
     wire           txdata_resync_valid;
-    reg            txcomwake_gtx_f;
-    reg            txcominit_gtx_f;
-    reg            txelecidle_gtx_f;
+    reg      [1:0] txcomwake_gtx_f; // 2 registers just to match latency (data to the 3 next) in Alexey's code, probbaly not needed
+    reg      [1:0] txcominit_gtx_f;
+    reg      [1:0] txelecidle_gtx_f;
     
     resync_data #( // TODO: update output register..  OK as it is
         .DATA_WIDTH(39),
@@ -156,7 +156,7 @@ if (DATA_BYTE_WIDTH == 4) begin
     );
     always @ (posedge txreset or posedge txusrclk) begin
         if      (txreset)             txdata_resync_strobe <= 0;
-        else if (txdata_resync_valid) txdata_resync_strobe <= ~txdata_resync_strobe[0];
+        else if (txdata_resync_valid) txdata_resync_strobe <= ~txdata_resync_strobe;
         
         if (txreset) begin
             txdata_enc_in_r <=    0;
@@ -169,18 +169,18 @@ if (DATA_BYTE_WIDTH == 4) begin
         if (txreset) begin
             txcomwake_gtx_f  <= 0;
             txcominit_gtx_f  <= 0;
-            txelecidle_gtx_f <= 0;
+            txelecidle_gtx_f <= ~0;
         end else begin
-            txcomwake_gtx_f  <= txdata_resync_out[36];
-            txcominit_gtx_f  <= txdata_resync_out[37];
-            txelecidle_gtx_f <= txdata_resync_out[38];
+            txcomwake_gtx_f  <= {txdata_resync_out[36],txcomwake_gtx_f[1]};
+            txcominit_gtx_f  <= {txdata_resync_out[37],txcominit_gtx_f[1]};
+            txelecidle_gtx_f <= {txdata_resync_out[38],txelecidle_gtx_f[1]};
         end
     end
     assign  txdata_enc_in       = txdata_enc_in_r;
     assign  txcharisk_enc_in    = txcharisk_enc_in_r;
-    assign  txcominit_gtx       = txcominit_gtx_f;
-    assign  txcomwake_gtx       = txcomwake_gtx_f;
-    assign  txelecidle_gtx      = txelecidle_gtx_f;
+    assign  txcominit_gtx       = txcominit_gtx_f[0];
+    assign  txcomwake_gtx       = txcomwake_gtx_f[0];
+    assign  txelecidle_gtx      = txelecidle_gtx_f[0];
     
     
     /*wire    txdata_resync_nempty;

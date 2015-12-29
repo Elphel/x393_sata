@@ -21,9 +21,10 @@
 /*
  * all signals' and modules' names and interconnections are taken from x393.v
  * to make the final integration easier - just to make an instance of 
- * what is called now 'axi_regs' and connect it
+ * what is called now 'axi_regs' and connect it  
  */
-//`include "system_defines.vh" 
+ // Including system defines at the top level can distinguish between simulation and synthesis?
+`include "system_defines.vh" 
 //`include "sata_top.v"
 module top #(
 `include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
