@@ -100,6 +100,7 @@ axibram_write(
     .dev_ready      (1'b1),
     .bram_wclk      (),
     .bram_waddr     (bram_waddr[15:0]),
+    .pre_bram_wen   (),
     .bram_wen       (bram_wen),
     .bram_wstb      (bram_wstb),
     .bram_wdata     (bram_wdata)

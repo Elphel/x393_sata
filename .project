@@ -6,6 +6,11 @@
 	</projects>
 	<buildSpec>
 		<buildCommand>
+			<name>org.python.pydev.PyDevBuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+		<buildCommand>
 			<name>com.elphel.vdt.veditor.simulateBuilder</name>
 			<arguments>
 				<dictionary>
@@ -41,6 +46,7 @@
 	</buildSpec>
 	<natures>
 		<nature>com.elphel.vdt.veditor.HdlNature</nature>
+		<nature>org.python.pydev.pythonNature</nature>
 	</natures>
 	<linkedResources>
 		<link>
