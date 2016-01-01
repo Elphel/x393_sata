@@ -25,7 +25,8 @@
 
 
 module  axi_ahci_regs#(
-    parameter ADDRESS_BITS = 8 // number of memory address bits
+//    parameter ADDRESS_BITS = 8 // number of memory address bits
+    parameter ADDRESS_BITS = 10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
 )(
     input             aclk,    // clock - should be buffered
     input             arst,     // @aclk sync reset, active high
@@ -84,7 +85,7 @@ module  axi_ahci_regs#(
     output             [31:0] hba_dout
 );
     wire   [ADDRESS_BITS-1:0] bram_waddr;
-    wire   [ADDRESS_BITS-1:0] pre_awaddr;
+//    wire   [ADDRESS_BITS-1:0] pre_awaddr;
     wire   [ADDRESS_BITS-1:0] bram_raddr;
     wire               [31:0] bram_rdata;
     wire                      pre_bram_wen; // one cycle ahead of bram_wen, nut not masked by dev_ready
@@ -94,19 +95,24 @@ module  axi_ahci_regs#(
     wire   [ADDRESS_BITS-1:0] bram_addr; 
    
 
-    wire   [1:0] bram_ren;
-    reg          write_busy_r;
-    wire         write_start_burst;
+    wire             [1:0] bram_ren;
+    reg                    write_busy_r;
+    wire                   write_start_burst;
 //    wire         nowrite;          // delay write in read-modify-write register accesses
-    wire         write_busy_w = write_busy_r || write_start_burst;
-    reg   [31:0] bram_wdata_r;
-    reg   [31:0] bram_rdata_r;
-    reg          bram_wen_d;
-    wire  [63:0] regbit_type;
-    wire  [31:0] ahci_regs_di;
-    wire  [31:0] wmask = {{8{bram_wstb[3]}},{8{bram_wstb[2]}},{8{bram_wstb[1]}},{8{bram_wstb[0]}}};
-    
-    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
+    wire                   write_busy_w = write_busy_r || write_start_burst;
+    reg             [31:0] bram_wdata_r;
+    reg             [31:0] bram_rdata_r;
+//    reg                    bram_wen_d;
+    wire            [63:0] regbit_type;
+    wire            [31:0] ahci_regs_di;
+    reg             [ 3:0] bram_wstb_r;
+    reg                    bram_wen_r;
+//    wire  [31:0] wmask = {{8{bram_wstb[3]}},{8{bram_wstb[2]}},{8{bram_wstb[1]}},{8{bram_wstb[0]}}};
+    wire            [31:0] wmask = {{8{bram_wstb_r[3]}},{8{bram_wstb_r[2]}},{8{bram_wstb_r[1]}},{8{bram_wstb_r[0]}}};
+    reg [ADDRESS_BITS-1:0] bram_waddr_r;
+    wire                   high_sel = bram_waddr_r[ADDRESS_BITS-1]; // high addresses - use single-cycle writes without read-modify-write
+//    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
+    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
     always @(posedge aclk) begin
         if      (arst)              write_busy_r <= 0;
         else if (write_start_burst) write_busy_r <= 1;
@@ -115,18 +121,24 @@ module  axi_ahci_regs#(
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
         if (bram_ren[1])            bram_rdata_r <= bram_rdata;
-        bram_wen_d <= bram_wen;
+        
+        bram_wstb_r <= {4{bram_wen}} & bram_wstb;
+        
+        bram_wen_r <= bram_wen;
+        
+        if (bram_wen) bram_waddr_r <= bram_waddr;
+        
     end
 
     generate
         genvar i;
         for (i=0; i < 32; i=i+1) begin: bit_type_block
-            assign ahci_regs_di[i] = (regbit_type[2*i+1] && wmask[i])?
+            assign ahci_regs_di[i] = (regbit_type[2*i+1] && wmask[i] && !high_sel)?
                                        ((regbit_type[2*i] && wmask[i])?
                                           (bram_rdata[i] || bram_wdata_r[i]):   // 3: RW1
                                           (bram_rdata[i] && !bram_wdata_r[i])): // 2: RWC
-                                       ((regbit_type[2*i] && wmask[i])?
-                                          (bram_wdata_r[i]):                    // 1: RW write new data
+                                       (((regbit_type[2*i] && wmask[i]) || high_sel)?
+                                          (bram_wdata_r[i]):                    // 1: RW write new data - get here for high_sel
                                           (bram_rdata[i]));                     // 0: R0 (keep old data)
         end
     endgenerate    
@@ -153,7 +165,7 @@ module  axi_ahci_regs#(
         .bready      (bready),                   // input
         .bid         (bid),                      // output[11:0] 
         .bresp       (bresp),                    // output[1:0] 
-        .pre_awaddr  (pre_awaddr),               // output[9:0] 
+        .pre_awaddr  (), //pre_awaddr),          // output[9:0] 
         .start_burst (write_start_burst),        // output
 //        .dev_ready   (!nowrite && !bram_ren[0]), // input
         .dev_ready   (!bram_wen),                // input   There will be no 2 bram_wen in a row
@@ -193,33 +205,37 @@ module  axi_ahci_regs#(
         .bram_rdata  (bram_rdata_r)              // input[31:0] 
     );
 
-   wire               [ 9:0] hba_addr_ext =  (ADDRESS_BITS == 10)? hba_addr: {{(10-ADDRESS_BITS){1'b0}}, hba_addr} ;
-   wire               [ 9:0] bram_addr_ext = (ADDRESS_BITS == 10)? bram_addr: {{(10-ADDRESS_BITS){1'b0}}, bram_addr} ;
-   wire               [ 8:0] brom_addr_ext = (ADDRESS_BITS == 9)? bram_addr: {{(9-ADDRESS_BITS){1'b0}}, bram_addr} ;
+    // Register memory, lower half uses read-modify-write using bit type from ahci_regs_type_i ROM, 2 aclk cycles/per write and
+    // high addresses half are just plain write registers, they heve single-cycle write
+    // Only low registers write generates cross-clock writes over the FIFO.
+    // All registers can be accessed in byte/word/dword mode over the AXI
+    
+    // Lower registers are used as AHCI memory registers, high - for AHCI command list(s), to eliminate the need to update transfer count
+    // in the system memory.
 
-    ramt_var_w_var_r #(
+    ramt_var_wb_var_r #(
         .REGISTERS_A (0),
         .REGISTERS_B (1),
         .LOG2WIDTH_A (5),
         .LOG2WIDTH_B (5),
         .WRITE_MODE_A("NO_CHANGE"),
-        .WRITE_MODE_B("NO_CHANGE") 
-        // TODO:  include here init (default values)
+        .WRITE_MODE_B("NO_CHANGE")
+        `include "includes/ahci_defaults.vh" 
     ) ahci_regs_i (
         .clk_a        (aclk),                        // input
-        .addr_a       (bram_addr_ext),               // input[9:0] 
+        .addr_a       (bram_addr),                   // input[9:0] 
         .en_a         (bram_ren[0] || write_busy_w), // input
         .regen_a      (1'b0),                 // input
 //        .we_a         (write_busy_r && !nowrite),    // input
-        .we_a         (bram_wen_d),                  // input
+        .we_a         (bram_wstb_r), //bram_wen_d),  // input[3:0]
 //        
         .data_out_a   (bram_rdata),                  // output[31:0] 
         .data_in_a    (ahci_regs_di),                // input[31:0] 
         .clk_b        (hba_clk),                     // input
-        .addr_b       (hba_addr_ext),                // input[9:0] 
+        .addr_b       (hba_addr),                    // input[9:0] 
         .en_b         (hba_we || hba_re[0]),         // input
         .regen_b      (hba_re[1]),                   // input
-        .we_b         (hba_we),                      // input
+        .we_b         ({4{hba_we}}),                      // input
         .data_out_b   (hba_dout),                    // output[31:0] 
         .data_in_b    (hba_din)                      // input[31:0] 
     );
@@ -229,18 +245,18 @@ module  axi_ahci_regs#(
         .LOG2WIDTH_WR (6),
         .LOG2WIDTH_RD (6),
         .DUMMY(0)
-        // TODO:  include here init (register bit types (RO, RW, RWC, RW1)
+        `include "includes/ahci_types.vh" 
     ) ahci_regs_type_i (
-        .rclk         (aclk),          // input
-        .raddr        (brom_addr_ext), // input[8:0] 
-        .ren          (bram_wen),      // input
-        .regen        (1'b0),          // input
-        .data_out     (regbit_type),   // output[63:0] 
-        .wclk         (1'b0),          // input
-        .waddr        (9'b0),          // input[8:0] 
-        .we           (1'b0),          // input
-        .web          (8'b0),          // input[7:0] 
-        .data_in      (64'b0)          // input[63:0] 
+        .rclk         (aclk),                       // input
+        .raddr        (bram_addr[8:0]),             // input[8:0] 
+        .ren          (bram_wen && !bram_addr[9]),  // input
+        .regen        (1'b0),                       // input
+        .data_out     (regbit_type),                // output[63:0] 
+        .wclk         (1'b0),                       // input
+        .waddr        (9'b0),                       // input[8:0] 
+        .we           (1'b0),                       // input
+        .web          (8'b0),                       // input[7:0] 
+        .data_in      (64'b0)                       // input[63:0] 
     );
 
     fifo_cross_clocks #(
@@ -252,7 +268,7 @@ module  axi_ahci_regs#(
         .wrst       (arst),                              // input
         .rclk       (hba_clk),                           // input
         .wclk       (aclk),                              // input
-        .we         (bram_wen_d),                        // input
+        .we         (bram_wen_r && !high_sel),           // input
         .re         (soft_write_en),                     // input
         .data_in    ({bram_addr, ahci_regs_di}),         // input[15:0] 
         .data_out   ({soft_write_addr,soft_write_data}), // output[15:0] 
