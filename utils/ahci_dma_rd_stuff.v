@@ -37,13 +37,16 @@ module  ahci_dma_rd_stuff(
     reg         hr_full;
     reg         dout_vld_r;
     reg         flushing;
-    wire        din_av_safe = din_av && (din_avm || !din_re);
-    wire  [1:0] dav_in = {2{din_av_safe}} & dm;
+    reg         din_av_safe_r;
+    wire  [1:0] dav_in = {2{din_av_safe_r}} & dm;
     wire        two_words_avail = &dav_in || (|dav_in && hr_full);
-    assign din_re = (din_av_safe && !(|dm)) || ((!dout_vld_r || dout_re) && (two_words_avail)) ; // flush
+    assign din_re = (din_av_safe_r && !(|dm)) || ((!dout_vld_r || dout_re) && (two_words_avail)) ; // flush
     assign dout_vld = dout_vld_r;
     always @ (posedge clk) begin
-        if ((!dout_vld_r || dout_re) && (two_words_avail || flushing) ) begin
+        if (rst) din_av_safe_r <= 0;
+        else     din_av_safe_r <= din_av && (din_avm || !din_re);
+    
+        if ((!dout_vld_r || dout_re) && (two_words_avail || flushing)) begin
             if (hr_full)               dout[15: 0] <= hr;
             else                       dout[15: 0] <= din[15: 0];
             
@@ -52,7 +55,8 @@ module  ahci_dma_rd_stuff(
         end
 
         // todo add reset/flush
-        if (!dout_vld_r || dout_re)
+        if (rst) hr_full <= 0;
+        else if (!dout_vld_r || dout_re)
             // 2 but not 3 sources available
             if (flushing || ((two_words_avail) && ! (&dav_in && hr_full))) hr_full <= 0;
         else if (dav_in[0] ^ dav_in[1]) hr_full <= 1;
@@ -67,11 +71,8 @@ module  ahci_dma_rd_stuff(
         if      (rst)                                               flushing <= 0;
         else if (flush)                                             flushing <= 1;
         else if ((!dout_vld_r || dout_re) && !(&dav_in && hr_full)) flushing <= 0; 
-
         
     end
-    
-
 
 endmodule
 
