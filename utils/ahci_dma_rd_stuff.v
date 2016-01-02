@@ -29,6 +29,7 @@ module  ahci_dma_rd_stuff(
     input      [31:0] din,      // 32-bit input dfata
     input       [1:0] dm,       // data mask showing which (if any) words in input dword are valid 
     output            din_re,   // read input data
+    output reg        flushed,  // flush (end of last PRD is finished - data left module)
     output reg [31:0] dout,     // output 32-bit data
     output            dout_vld, // output data valid
     input             dout_re   // consumer reads output data (should be anded with dout_vld)
@@ -37,6 +38,7 @@ module  ahci_dma_rd_stuff(
     reg         hr_full;
     reg         dout_vld_r;
     reg         flushing;
+    reg         flushing_d;
     reg         din_av_safe_r;
     wire  [1:0] dav_in = {2{din_av_safe_r}} & dm;
     wire        two_words_avail = &dav_in || (|dav_in && hr_full);
@@ -70,8 +72,11 @@ module  ahci_dma_rd_stuff(
         
         if      (rst)                                               flushing <= 0;
         else if (flush)                                             flushing <= 1;
-        else if ((!dout_vld_r || dout_re) && !(&dav_in && hr_full)) flushing <= 0; 
+        else if ((!dout_vld_r || dout_re) && !(&dav_in && hr_full)) flushing <= 0;
         
+        flushing_d <= flushing;
+        
+        flushed <= flushing_d && !flushing; // 1 cycle delay
     end
 
 endmodule
