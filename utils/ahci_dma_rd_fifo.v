@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Module: ahci_dma_rd_fifo
  * Date:2016-01-01  
- * Author: andrey     
+ * Author: Andrey Filippov
  * Description: cross clocks,  word-realign, 64->32
  * Convertion from x64 QWORD-aligned AXI data @hclk to
  * 32-bit word-aligned data at mclk
@@ -135,7 +135,7 @@ module  ahci_dma_rd_fifo#(
         
     end
     
-    always @ (posedge hclk) begin
+    always @ (posedge mclk) begin
         hrst_mclk <= hrst;
 
         if    (hrst_mclk)             raddr <= 0;
