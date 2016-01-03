@@ -44,10 +44,11 @@ module  ahci_dma_wr_fifo#(
     output reg      [3:0] dout_wstb, // word write enable (apply to wstb,  2 wstb input bits for one dout_wstb bit)
     output reg            done,      // this PRD data sent AXI FIFO (Some partial QWORD data may be left in this module if
                                      // last_prd was not set
+    output                busy,                                 
 //    output                done_flush,  // finished last PRD (indicated by last_prd @ start), data left module
 
     // mclk domain
-    output         [31:0] din,
+    input          [31:0] din,
     output                din_rdy, // can accept data from HBA (multiple dwords, so reasonable latency is OK)
     input                 din_avail
 );
@@ -60,13 +61,13 @@ module  ahci_dma_wr_fifo#(
     reg                          en_fifo_wr;
     wire                         flush_hclk; // TODO: Define (less than 4 left to receive)?
     wire                         flush_mclk;
-    wire                         flush_conf;
+//    wire                         flush_conf;
     reg       [ADDRESS_BITS : 0] raddr; // 1 extra bit       
     reg       [ADDRESS_BITS+1:0] waddr; // 1 extra bit       
     reg                  [63:16] fifo_do_prev; // only 48 bits are needed
     reg  [(1<<ADDRESS_BITS)-1:0] fifo_full;  // set in write clock domain
     reg  [(1<<ADDRESS_BITS)-1:0] fifo_nempty;// set in read clock domain
-    wire                         fifo_wr = (din_avail && din_rdy) || (waddr[0] && flush_mclk);
+    wire                         fifo_wr = (din_avail && din_rdy) || (waddr[0] && flush_mclk); // flush may add extra write of junk
 //    wire                         fifo_rd;
     wire [(1<<ADDRESS_BITS)-1:0] fifo_full2 = {fifo_full[0],fifo_full[ADDRESS_NUM-1:1]};
     reg                          hrst_mclk;
@@ -74,6 +75,7 @@ module  ahci_dma_wr_fifo#(
     reg                          fifo_dav2; // @hclk
     reg                          fifo_half_mclk; // Half Fifo is empty, OK to write
     wire                  [63:0] fifo_do =       {fifo1_ram [raddr[ADDRESS_BITS:1]], fifo0_ram [raddr[ADDRESS_BITS:1]]};
+    wire                         dout_we_w;
     reg                    [1:0] dout_we_r;
     
     reg                    [1:0] wp;   // word pointer in the output (0..3)
@@ -85,21 +87,55 @@ module  ahci_dma_wr_fifo#(
     reg                    [2:0] mx2; //6:1
     reg                    [2:0] mx3; //7:1
     reg                    [3:0] pm; // re_dout_wstb;
-    reg                          fifo_rd;
+    wire                         fifo_rd;
+    reg                          fifo_rd_r;
 //    reg                    [1:0] nwp; // Needed? 0 for all but first
     reg                    [1:0] nfp; //  next {fifo_do,fifo_do_prev} pointer (0 - fifo_do_prev[16], ..., 3 - fifo_do[0])
     reg                    [2:0] swl;  // subtract from words_left;
+    reg                          need_fifo; // needs reading fifo
     // TODO: make separate register bits for  wl == 0, wl > =4
+    reg                          busy_r;
+    reg                          is_last_prd;
+    reg          [WCNT_BITS-1:0] wcntr;
+    wire         [WCNT_BITS-1:0] next_wcntr = wcntr[WCNT_BITS-1:0] - swl[2:0];
+    reg                          flushing;
+//    wire                         done_w = dout_we_r[0] && !(next_wcntr[WCNT_BITS];
+    wire                         last_qword= !(|wcntr[WCNT_BITS-1:2]) && 
+                                               ((wcntr[1:0] == 0) ||
+                                                 swl[2] ||
+                                                 (!wcntr[1] && swl[1]) ||
+                                                 (!wcntr[0] && (&swl[1:0])) );
+    wire                         done_w = dout_we_w && last_qword;
     
+    wire                         axi_ready = dout_av && (dout_av_many || (!dout_we_r));
+
+    wire                         fifo_out_ready = en_fifo_rd && (!need_fifo || (fifo_dav && (fifo_dav2 || !fifo_rd_r)));
     
-    
+    assign flush_hclk = is_last_prd && !flushing && !nfp[1] && last_qword && waddr[0]; // waddr[0] - other clock domain, but OK here,
+    // it was last 1->0 before previous FIFO read. flush_hclk will only be generated for odd number of dwords
     
     assign din_rdy = en_fifo_wr && fifo_half_mclk;
-    assign dout_we = dout_we_r[1]; // dout_we_r[0] - write to dout, use dout_av && (!(|dout_we_r) || dout_av_many) to enable dout_we_r[0]<=
+    assign dout_we = dout_we_r[0]; // dout_we_r[0] - write to dout, use dout_av && (!(|dout_we_r) || dout_av_many) to enable dout_we_r[0]<=
+    assign busy = busy_r || dout_we_r[0];
+    
+    assign dout_we_w = axi_ready && fifo_out_ready && busy_r;
+    assign fifo_rd =   dout_we_w && need_fifo;
+    
     always @ (posedge hclk) begin
-        if      (hrst || init) en_fifo_rd <= 0;
-        else if (init_confirm) en_fifo_rd <= 1;
-        else if (flush_conf)   en_fifo_rd <= 0;
+        if      (hrst || init)          en_fifo_rd <= 0;
+        else if (init_confirm)          en_fifo_rd <= 1;
+        else if (done_w && is_last_prd) en_fifo_rd <= 0;
+        
+        done <=      done_w;
+        
+        fifo_rd_r <= fifo_rd;
+        
+        
+        if (hrst || init)               raddr <= 0;
+        else if (fifo_rd)               raddr <= raddr + 1;
+        
+        //    reg       [ADDRESS_BITS : 0] raddr; // 1 extra bit       
+        
 
         if      (hrst || init)        fifo_nempty <= {{(ADDRESS_NUM>>1){1'b0}},{(ADDRESS_NUM>>1){1'b1}}};// 8'b00001111
         else if (fifo_rd && raddr[0]) fifo_nempty <= {fifo_nempty[ADDRESS_NUM-2:0],raddr[ADDRESS_BITS] ^ raddr[ADDRESS_BITS-1]};
@@ -109,8 +145,94 @@ module  ahci_dma_wr_fifo#(
         fifo_dav2 <= !init && en_fifo_rd && (fifo_full2[raddr[ADDRESS_BITS:1]]);
 
         if (fifo_rd) fifo_do_prev[63:16] <= fifo_do[63:16];
+        
+        if      (start)      is_last_prd <= last_prd;
+
+        // flushing will only be set for the last dword in last PRD if total number of dwords is ODD.
+        // Odd number of words should be handled outside of this module (before) 
+        if  (hrst || init || start)  flushing <= 0;
+        else if (flush_hclk)         flushing <= 1;
+        else if (done_w)             flushing <= 0;
+
+        if (hrst || init)            busy_r <= 0;
+        else if (start)              busy_r <= 1;
+        else if (done_w)             busy_r <= 0;
+        
+        dout_we_r <= {dout_we_r[0], dout_we_w};
+        
+        if      (start)     wcntr <= wcnt;
+        else if (dout_we_w) wcntr <= next_wcntr; // wcntr - swl[2:0];
+        
+        if      (start)     wp <= woffs;
+        else if (dout_we_w) wp <= 0; // all but possibly wirst QWORD are aligned to th low word
+        
+        if      (init)       fp <= 3;    // only reset for the first PRD, points to the beginning of the fifo_do (fifo_do_prev - empty)
+        else if (dout_we_w)  fp <= nfp;
+        
+        // words left: 0: 1 word, ..., 3: >=4 words
+        if      (start)     wl <= wcnt[1:0] |        {2{|wcnt[WCNT_BITS-1:2]}};
+        else if (dout_we_w) wl <= next_wcntr[1:0]  | {2{|wcntr[WCNT_BITS-1:3] | next_wcntr[2]}};
+        
+        if (dout_we_w) begin
+            dout_wstb <= pm;
+        
+            case (mx0)
+                2'h0: dout[15: 0] <= fifo_do_prev[31:16];
+                2'h1: dout[15: 0] <= fifo_do_prev[47:32];
+                2'h2: dout[15: 0] <= fifo_do_prev[63:48];
+                2'h3: dout[15: 0] <= fifo_do     [15: 0];
+            endcase
+
+            case (mx1)
+                3'h0: dout[31:16] <= fifo_do_prev[31:16];
+                3'h1: dout[31:16] <= fifo_do_prev[47:32];
+                3'h2: dout[31:16] <= fifo_do_prev[63:48];
+                3'h3: dout[31:16] <= fifo_do     [15: 0];
+                3'h4: dout[31:16] <= fifo_do     [31:16];
+                default: dout[31:16] <= 16'bx; // should never get here
+            endcase
+
+            case (mx2)
+                3'h0: dout[47:32] <= fifo_do_prev[31:16];
+                3'h1: dout[47:32] <= fifo_do_prev[47:32];
+                3'h2: dout[47:32] <= fifo_do_prev[63:48];
+                3'h3: dout[47:32] <= fifo_do     [15: 0];
+                3'h4: dout[47:32] <= fifo_do     [31:16];
+                3'h5: dout[47:32] <= fifo_do     [47:32];
+                default: dout[47:32] <= 16'bx; // should never get here
+            endcase
+
+            case (mx3)
+                3'h0: dout[63:48] <= fifo_do_prev[31:16];
+                3'h1: dout[63:48] <= fifo_do_prev[47:32];
+                3'h2: dout[63:48] <= fifo_do_prev[63:48];
+                3'h3: dout[63:48] <= fifo_do     [15: 0];
+                3'h4: dout[63:48] <= fifo_do     [31:16];
+                3'h5: dout[63:48] <= fifo_do     [47:32];
+                3'h6: dout[63:48] <= fifo_do     [63:48];
+                default: dout[63:48] <= 16'bx; // should never get here
+            endcase
+
+        end
+        
     end
-    
+ /*
+ 
+     output reg     [63:0] dout, // allow only each 3-rd wr if not many
+    input                 dout_av,      // at least one QWORD space avaiable in AXI FIFO
+    input                 dout_av_many, // several QWORD space avaiable in AXI FIFO
+    input                 last_prd, // last prd, flush partial dword if there were odd number of words transferred. valid @ start
+    // Or maybe use "last_prd"?
+    output                dout_we,
+    output reg      [3:0] dout_wstb, // word write enable (apply to wstb,  2 wstb input bits for one dout_wstb bit)
+    output reg            done,      // this PRD data sent AXI FIFO (Some partial QWORD data may be left in this module if
+ 
+  wl3[2:0]
+  
+     always @* case ({wp, fp, wl})
+        6'h00: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0001; fifo_rd <= 0; nfp <= 1; swl <= 1; end
+ 
+ */   
 
     // mclk domain
     always @ (posedge mclk) begin
@@ -169,7 +291,7 @@ module  ahci_dma_wr_fifo#(
         .out_pulse (init_confirm),    // output
         .busy()                       // output
     );
-
+/*
     pulse_cross_clock #(
         .EXTRA_DLY(0)
     ) flush_conf_i (
@@ -180,7 +302,7 @@ module  ahci_dma_wr_fifo#(
         .out_pulse (flush_conf),      // output
         .busy()                       // output
     );
-
+*/
     /*
     wl: 0: left 1 word, 1: left 2 words, 2: left 3 words, 3: left >=4 words
     wp (pointer in the output qword, only first in PRD can be non-zero) 0: word 0 of output QW, ...
@@ -192,85 +314,85 @@ module  ahci_dma_wr_fifo#(
     
     */
     always @* case ({wp, fp, wl})
-        6'h00: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0001; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h01: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0011; fifo_rd <= 0; nfp <= 2; swl <= 2; end
-        6'h02: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0111; fifo_rd <= 0; nfp <= 3; swl <= 3; end
-        6'h03: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1111; fifo_rd <= 1; nfp <= 0; swl <= 4; end
+        6'h00: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0001; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h01: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0011; need_fifo <= 0; nfp <= 2; swl <= 2; end
+        6'h02: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0111; need_fifo <= 0; nfp <= 3; swl <= 3; end
+        6'h03: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1111; need_fifo <= 1; nfp <= 0; swl <= 4; end
 
-        6'h04: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0001; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h05: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0011; fifo_rd <= 0; nfp <= 3; swl <= 2; end
-        6'h06: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0111; fifo_rd <= 1; nfp <= 0; swl <= 3; end
-        6'h07: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1111; fifo_rd <= 1; nfp <= 1; swl <= 4; end
+        6'h04: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0001; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h05: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0011; need_fifo <= 0; nfp <= 3; swl <= 2; end
+        6'h06: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0111; need_fifo <= 1; nfp <= 0; swl <= 3; end
+        6'h07: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1111; need_fifo <= 1; nfp <= 1; swl <= 4; end
 
-        6'h08: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0001; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h09: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0011; fifo_rd <= 1; nfp <= 0; swl <= 2; end
-        6'h0a: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0111; fifo_rd <= 1; nfp <= 1; swl <= 3; end
-        6'h0b: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1111; fifo_rd <= 1; nfp <= 2; swl <= 4; end
+        6'h08: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0001; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h09: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0011; need_fifo <= 1; nfp <= 0; swl <= 2; end
+        6'h0a: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0111; need_fifo <= 1; nfp <= 1; swl <= 3; end
+        6'h0b: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1111; need_fifo <= 1; nfp <= 2; swl <= 4; end
 
-        6'h0c: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0001; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h0d: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0011; fifo_rd <= 1; nfp <= 1; swl <= 2; end
-        6'h0e: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0111; fifo_rd <= 1; nfp <= 2; swl <= 3; end
-        6'h0f: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b1111; fifo_rd <= 1; nfp <= 3; swl <= 4; end
+        6'h0c: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0001; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h0d: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0011; need_fifo <= 1; nfp <= 1; swl <= 2; end
+        6'h0e: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b0111; need_fifo <= 1; nfp <= 2; swl <= 3; end
+        6'h0f: begin mx0 <= 3; mx1 <= 4; mx2 <= 5; mx3  <= 6; pm <= 4'b1111; need_fifo <= 1; nfp <= 3; swl <= 4; end
 
-        6'h10: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0010; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h11: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0110; fifo_rd <= 0; nfp <= 2; swl <= 2; end
-        6'h12: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1110; fifo_rd <= 0; nfp <= 3; swl <= 3; end
-        6'h13: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1110; fifo_rd <= 0; nfp <= 3; swl <= 3; end
+        6'h10: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0010; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h11: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0110; need_fifo <= 0; nfp <= 2; swl <= 2; end
+        6'h12: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1110; need_fifo <= 0; nfp <= 3; swl <= 3; end
+        6'h13: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1110; need_fifo <= 0; nfp <= 3; swl <= 3; end
 
-        6'h14: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0010; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h15: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0110; fifo_rd <= 0; nfp <= 3; swl <= 2; end
-        6'h16: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1110; fifo_rd <= 1; nfp <= 0; swl <= 3; end
-        6'h17: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1110; fifo_rd <= 1; nfp <= 0; swl <= 3; end
+        6'h14: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0010; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h15: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0110; need_fifo <= 0; nfp <= 3; swl <= 2; end
+        6'h16: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1110; need_fifo <= 1; nfp <= 0; swl <= 3; end
+        6'h17: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1110; need_fifo <= 1; nfp <= 0; swl <= 3; end
 
-        6'h18: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0010; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h19: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0110; fifo_rd <= 1; nfp <= 0; swl <= 2; end
-        6'h1a: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1110; fifo_rd <= 1; nfp <= 1; swl <= 3; end
-        6'h1b: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1110; fifo_rd <= 1; nfp <= 1; swl <= 3; end
+        6'h18: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0010; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h19: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0110; need_fifo <= 1; nfp <= 0; swl <= 2; end
+        6'h1a: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1110; need_fifo <= 1; nfp <= 1; swl <= 3; end
+        6'h1b: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1110; need_fifo <= 1; nfp <= 1; swl <= 3; end
         
-        6'h1c: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0010; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h1d: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0110; fifo_rd <= 1; nfp <= 1; swl <= 2; end
-        6'h1e: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1110; fifo_rd <= 1; nfp <= 2; swl <= 3; end
-        6'h1f: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1110; fifo_rd <= 1; nfp <= 2; swl <= 3; end
+        6'h1c: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0010; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h1d: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b0110; need_fifo <= 1; nfp <= 1; swl <= 2; end
+        6'h1e: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1110; need_fifo <= 1; nfp <= 2; swl <= 3; end
+        6'h1f: begin mx0 <= 2; mx1 <= 3; mx2 <= 4; mx3  <= 5; pm <= 4'b1110; need_fifo <= 1; nfp <= 2; swl <= 3; end
         
-        6'h20: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b0100; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h21: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; fifo_rd <= 0; nfp <= 2; swl <= 2; end
-        6'h22: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; fifo_rd <= 0; nfp <= 2; swl <= 2; end
-        6'h23: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; fifo_rd <= 0; nfp <= 2; swl <= 2; end
+        6'h20: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b0100; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h21: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; need_fifo <= 0; nfp <= 2; swl <= 2; end
+        6'h22: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; need_fifo <= 0; nfp <= 2; swl <= 2; end
+        6'h23: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1100; need_fifo <= 0; nfp <= 2; swl <= 2; end
 
-        6'h24: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0100; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h25: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; fifo_rd <= 0; nfp <= 3; swl <= 2; end
-        6'h26: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; fifo_rd <= 0; nfp <= 3; swl <= 2; end
-        6'h27: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; fifo_rd <= 0; nfp <= 3; swl <= 2; end
+        6'h24: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b0100; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h25: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; need_fifo <= 0; nfp <= 3; swl <= 2; end
+        6'h26: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; need_fifo <= 0; nfp <= 3; swl <= 2; end
+        6'h27: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1100; need_fifo <= 0; nfp <= 3; swl <= 2; end
 
-        6'h28: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0100; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h29: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; fifo_rd <= 1; nfp <= 0; swl <= 2; end
-        6'h2a: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; fifo_rd <= 1; nfp <= 0; swl <= 2; end
-        6'h2b: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; fifo_rd <= 1; nfp <= 0; swl <= 2; end
+        6'h28: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b0100; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h29: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; need_fifo <= 1; nfp <= 0; swl <= 2; end
+        6'h2a: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; need_fifo <= 1; nfp <= 0; swl <= 2; end
+        6'h2b: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1100; need_fifo <= 1; nfp <= 0; swl <= 2; end
 
-        6'h2c: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0100; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h2d: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; fifo_rd <= 1; nfp <= 1; swl <= 2; end
-        6'h2e: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; fifo_rd <= 1; nfp <= 1; swl <= 2; end
-        6'h2f: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; fifo_rd <= 1; nfp <= 1; swl <= 2; end
+        6'h2c: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b0100; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h2d: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; need_fifo <= 1; nfp <= 1; swl <= 2; end
+        6'h2e: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; need_fifo <= 1; nfp <= 1; swl <= 2; end
+        6'h2f: begin mx0 <= 1; mx1 <= 2; mx2 <= 3; mx3  <= 4; pm <= 4'b1100; need_fifo <= 1; nfp <= 1; swl <= 2; end
 
-        6'h30: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h31: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h32: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; fifo_rd <= 0; nfp <= 1; swl <= 1; end
-        6'h33: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; fifo_rd <= 0; nfp <= 1; swl <= 1; end
+        6'h30: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h31: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h32: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; need_fifo <= 0; nfp <= 1; swl <= 1; end
+        6'h33: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 0; pm <= 4'b1000; need_fifo <= 0; nfp <= 1; swl <= 1; end
         
-        6'h34: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h35: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h36: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; fifo_rd <= 0; nfp <= 2; swl <= 1; end
-        6'h37: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; fifo_rd <= 0; nfp <= 2; swl <= 1; end
+        6'h34: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h35: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h36: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; need_fifo <= 0; nfp <= 2; swl <= 1; end
+        6'h37: begin mx0 <= 0; mx1 <= 0; mx2 <= 0; mx3  <= 1; pm <= 4'b1000; need_fifo <= 0; nfp <= 2; swl <= 1; end
 
-        6'h38: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h39: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h3a: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; fifo_rd <= 0; nfp <= 3; swl <= 1; end
-        6'h3b: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; fifo_rd <= 0; nfp <= 3; swl <= 1; end
+        6'h38: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h39: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h3a: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; need_fifo <= 0; nfp <= 3; swl <= 1; end
+        6'h3b: begin mx0 <= 0; mx1 <= 0; mx2 <= 1; mx3  <= 2; pm <= 4'b1000; need_fifo <= 0; nfp <= 3; swl <= 1; end
 
-        6'h3c: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h3d: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h3e: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; fifo_rd <= 1; nfp <= 0; swl <= 1; end
-        6'h3f: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; fifo_rd <= 1; nfp <= 0; swl <= 1; end
+        6'h3c: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h3d: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h3e: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; need_fifo <= 1; nfp <= 0; swl <= 1; end
+        6'h3f: begin mx0 <= 0; mx1 <= 1; mx2 <= 2; mx3  <= 3; pm <= 4'b1000; need_fifo <= 1; nfp <= 0; swl <= 1; end
     endcase
 
 endmodule
