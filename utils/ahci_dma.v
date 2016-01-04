@@ -31,10 +31,17 @@ module  ahci_dma (
     input                  [31:7] ctba,         // command table base address
     input                         ctba_ld,      // load command table base address
     input                  [15:0] prdtl,        // number of entries in PRD table (valid at cmd_start)
+    input                         dev_wr,       // write to device (valid at start)
     input                         cmd_start,     // start processing command table, reset prdbc
+    input                         cmd_abort,     // try to abort a command
     // Some data from the command table will be used internally, data will be available on the general
     // sys_out[31:0] port and should be consumed
     output                        ct_busy,      // cleared after 0x20 DWORDs are read out
+    // reading out command table data
+    input                  [ 4:0] ct_addr,     // DWORD address
+    input                         ct_re,       //  
+    output reg             [31:0] ct_data,     // 
+    
     // After the first 0x80 bytes of the Command Table are read out, this module will read/process PRDs,
     // not forwarding them to the output 
     output                        prd_done,     // prd done (regardless of the interrupt)
@@ -43,12 +50,12 @@ module  ahci_dma (
     output                        cmd_done,
     
     // Data System memory -> HBA interface @ mclk
-    output                 [31:0] sys_out,      // 32-bit data from the system memory to HBA - command table, dma data
+    output                 [31:0] sys_out,      // 32-bit data from the system memory to HBA (dma data)
     output                        sys_dav,      // at least one dword is ready to be read
-    output                        sys_dav_many, // several DWORDs are in the FIFO (TODO: decide how many)
+//    output                        sys_dav_many, // several DWORDs are in the FIFO (TODO: decide how many)
     input                         sys_re,       // sys_out data read, advance internal FIFO
     // Data HBA -> System memory  interface @ mclk
-    output                 [31:0] sys_out,      // 32-bit data from the system memory to HBA - command table, dma data
+    input                  [31:0] sys_in,       // HBA -> system memory
     output                        sys_nfull,    // internal FIFO has room for more data (will decide - how big reserved space to keep)
     input                         sys_we,    
     
@@ -83,14 +90,14 @@ module  ahci_dma (
     output         afi_wrissuecap1en,
     // AXI_HP signals - read channel
     // read address
-    output  [31:0] afi_araddr,
-    output         afi_arvalid,
-    input          afi_arready,  // @SuppressThisWarning VEditor unused - used FIF0 level
+    output reg [31:0] afi_araddr,
+    output            afi_arvalid,
+    input             afi_arready,  // @SuppressThisWarning VEditor unused - used FIF0 level
     output  [ 5:0] afi_arid,
     output  [ 1:0] afi_arlock,
     output  [ 3:0] afi_arcache,
     output  [ 2:0] afi_arprot,
-    output  [ 3:0] afi_arlen,
+    output reg  [ 3:0] afi_arlen,
     output  [ 1:0] afi_arsize,
     output  [ 1:0] afi_arburst,
     output  [ 3:0] afi_arqos,
@@ -106,6 +113,210 @@ module  ahci_dma (
     input   [ 2:0] afi_racount,
     output         afi_rdissuecap1en
 );
+
+
+// Read command table
+//    localparam AFI_FIFO_LAT = 2; // >=2
+   localparam SAFE_RD_BITS =   3; //2; // 3;
+
+    reg     [31:0] ct_data_ram [0:31];
+    reg      [3:0] int_data_addr;    // internal (ct,prd) data address
+    reg     [31:7] ctba_r;
+    reg     [15:0] prdtl_mclk;
+    wire           cmd_start_hclk;
+    wire           cmd_abort_hclk;
+    reg     [31:4] ct_maddr; // granularity matches PRDT entry - 4xDWORD, 2xQWORD
+    reg            ct_done_r;
+    reg            prd_done_r;
+    wire           axi_set_raddr_ready = !(|afi_racount[2:1]); // What is the size of ra fifo?
+    wire           axi_set_raddr_w;
+    wire           axi_set_raddr_ct_w;   // next will be setting address/len/... to read command table
+    reg            axi_set_raddr_prd;  // next will be setting address/len/... to read PRD entry
+    wire           axi_set_raddr_data_w; // next will be setting address/len/... to read DATA  
+    reg            axi_set_raddr_r; // [0] - actual write address to fifo
+    reg            was_ct_addr; // AXI RD channel was set to read command table 
+    reg            was_prd_addr;// AXI RD channel was set to read prd table
+    
+    reg     [31:1] data_addr; // 2 lower addresses will be used in in/out fifo modules
+    reg      [3:0] data_len; //
+    reg            data_irq; // interrupt at the end of this PRD
+    reg     [21:1] wcount;  // Word count
+    reg            wcount_set; 
+    reg     [21:1] qwcount; // only [21:3] are used
+    reg            next_data16; // next data r/w address incremented by 16 QWORDS
+    wire           data_afi_re;
+    
+    reg     [15:0] prds_left;
+    reg            last_prd;
+    
+    reg     [1:0]  afi_rd_ctl; // read non-data (CT or PRD)
+    reg     [1:0]  ct_busy_r;
+    reg            prd_rd_busy; // reading PRD
+    
+    wire           prd_done; // data transfer of one PRD is finished (any direction)
+    reg            dev_wr_mclk;
+    reg            dev_wr_hclk;
+    reg            prd_wr;    // write PRD data to memory
+    reg            prd_rd;    // read  PRD data from memory
+    wire     [3:0] afi_wstb4;
+//    reg      [1:0] afi_rready_ctl_r; 
+    
+    assign afi_arvalid = axi_set_raddr_r[0];
+    assign axi_set_raddr_w = (axi_set_raddr_ct_w || axi_set_raddr_prd || axi_set_raddr_data_w) && axi_set_raddr_ready ;
+    assign afi_rready = afi_rd_ctl[0] || data_afi_re;
+    assign ct_busy = ct_busy_r[0];
+    
+    assign         afi_wstrb = {{2{afi_wstb4[3]}},{2{afi_wstb4[2]}},{2{afi_wstb4[1]}},{2{afi_wstb4[0]}}};
+    
+//    assign afi_rready = data_afi_re || ((was_ct_addr || was_prd_addr) &&
+//                                        ((|afi_rcount[6:SAFE_RD_BITS]) || (afi_rvalid && !afi_rready &&!(|afi_rready_r))));
+    
+    always @ (posedge mclk) begin
+        if (ct_re) ct_data <=         ct_data_ram[ct_addr];
+        if (ctba_ld) ctba_r <=        ctba[31:7];
+        if (cmd_start) prdtl_mclk <=  prdtl;
+        if (cmd_start) dev_wr_mclk <= dev_wr;
+    end
+       
+        
+        
+    always @ (posedge hclk) begin
+        if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
+        else if (ct_done_r)  ct_maddr[31:4] <= ct_maddr[31:4] + 16;
+        else if (prd_done_r) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
+        
+        if (hrst) axi_set_raddr_r <= 0;
+        else      axi_set_raddr_r <= axi_set_raddr_w;
+        
+        if (axi_set_raddr_w) begin
+            was_ct_addr <= axi_set_raddr_ct_w;
+            was_prd_addr <= axi_set_raddr_prd;
+        end
+
+        if      (cmd_start_hclk)                  prds_left  <= prdtl_mclk;
+        else if (axi_set_raddr_r && was_prd_addr) prds_left  <= prds_left  - 1;
+
+        if (axi_set_raddr_r && was_prd_addr) last_prd  <= prds_left == 1;
+        
+        if (axi_set_raddr_r) begin
+            if (was_ct_addr || was_prd_addr) afi_araddr <= {ct_maddr[31:4],4'b0};
+            else                             afi_araddr <= {data_addr[31:3],3'b0};
+            
+            if      (was_ct_addr)            afi_arlen  <= 4'hf; // 16 QWORDS
+            else if (was_prd_addr)           afi_arlen  <= 4'h1; //  2 QWORDS
+            else                             afi_arlen  <= data_len; // TBD - all but last are 4'hf
+        end
+        
+        if      (axi_set_raddr_r)                                int_data_addr <= 0; //  && (was_ct_addr || was_prd_addr))
+        else if (afi_rd_ctl[0] && (was_ct_addr || was_prd_addr)) int_data_addr <= int_data_addr + 1;
+        
+        if (afi_rd_ctl[0] && was_ct_addr) {ct_data_ram[{int_data_addr,1'b1}],ct_data_ram[{int_data_addr,1'b0}]} <= afi_rdata; // make sure it is synthesized correctly
+        
+        if      (hrst)                                      ct_busy_r[0] <= 0;
+        else if (cmd_start_hclk)                            ct_busy_r[0] <= 1;
+        else if (afi_rd_ctl[0] && was_ct_addr && (&int_data_addr)) ct_busy_r[0] <= 0;
+        ct_busy_r[1] <= ct_busy_r[0]; // delayed version to detect end of command
+        
+        if      (hrst)        prd_rd_busy <= 0;
+        else if (prd_rd_busy) prd_rd_busy <= 1;
+        else if (wcount_set)  prd_rd_busy <= 0;
+        
+        
+        
+        // start PRD read
+        if (hrst) axi_set_raddr_prd <= 0;
+        else      axi_set_raddr_prd <= ((|prds_left) && ((ct_busy_r==2'b10) || prd_done));
+        
+        // store data address from PRD
+        if (afi_rd_ctl[0] && was_prd_addr && (!int_data_addr[0])) data_addr[31:1] <= afi_rdata[31:1];
+        else if (next_data16)                              data_addr[31:7] <= data_addr[31:7] + 1; // add 64 bytes to address, keep low bits
+        
+        if (afi_rd_ctl[0] && was_prd_addr && (int_data_addr[0])) data_irq <=     afi_rdata[63];
+
+        if (afi_rd_ctl[0] && was_prd_addr && (int_data_addr[0])) wcount[21:1] <= afi_rdata[37:17];
+
+        wcount_set <= afi_rd_ctl[0] && was_prd_addr && (int_data_addr[0]);
+
+        if (wcount_set) qwcount[21:1] <= wcount[21:1] + data_addr[2:1];
+        
+        if (cmd_start_hclk) dev_wr_hclk <= dev_wr_mclk; // 1: memory -> device, 0: device -> memory
+        
+        prd_wr <= wcount_set && !dev_wr_hclk;
+        prd_rd <= wcount_set &&  dev_wr_hclk;
+        
+        afi_rd_ctl <= { afi_rd_ctl[0],(ct_busy_r[0] || prd_rd_busy) && ((|afi_rcount[7:SAFE_RD_BITS]) || (afi_rvalid && !(|afi_rd_ctl)))};
+        
+    end
+    
+    ahci_dma_rd_fifo #( // memory to device
+        .WCNT_BITS    (21),
+        .ADDRESS_BITS (3)
+    ) ahci_dma_rd_fifo_i (
+        .mrst         (mrst),                        // input
+        .hrst         (hrst),                        // input
+        .mclk         (mclk),                        // input
+        .hclk         (hclk),                        // input
+        .wcnt         (wcount[21:1]),                // input[20:0] 
+        .woffs        (data_addr[2:1]),              // input[1:0] 
+        .start        (prd_rd),                      // input
+        .din          (afi_rdata),                   // input[63:0] 
+        .din_av       (afi_rvalid),                  // input
+        .din_av_many  (|afi_rcount[7:SAFE_RD_BITS]), // input
+        .last_prd     (last_prd),                    // input
+        .din_re       (data_afi_re),                 // output
+        .done         (), // output reg 
+        .done_flush   (), // output
+        .dout         (sys_out),                     // output[31:0] 
+        .dout_vld     (sys_dav),                     // output
+        .dout_re      (sys_re)                       // input
+    );
+    
+    ahci_dma_wr_fifo #( // device to memory
+        .WCNT_BITS    (21),
+        .ADDRESS_BITS (3)
+    ) ahci_dma_wr_fifo_i (
+        .mrst         (mrst),           // input
+        .hrst         (hrst),           // input
+        .mclk         (mclk),           // input
+        .hclk         (hclk),           // input
+        .wcnt         (wcount[21:1]),   // input[20:0] 
+        .woffs        (data_addr[2:1]), // input[1:0] 
+        .init         (cmd_start_hclk), // input
+        .start        (prd_wr),         // input
+        .dout         (afi_wdata),      // output[63:0] reg 
+        .dout_av      (), // input
+        .dout_av_many (), // input
+        .last_prd     (last_prd),       // input
+        .dout_we      (afi_wvalid),     // output
+        .dout_wstb    (afi_wstb4),      // output[3:0] reg 
+        .done         (), // output reg 
+        .busy         (), // output
+        .din          (sys_in),         // input[31:0] 
+        .din_rdy      (sys_nfull),      // output
+        .din_avail    (sys_we)          // input
+    );
+    
+    // mclk -> hclk cross-clock synchronization
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) cmd_start_hclk_i (
+        .rst       (mrst),            // input
+        .src_clk   (mclk),            // input
+        .dst_clk   (hclk),            // input
+        .in_pulse  (cmd_start),       // input
+        .out_pulse (cmd_start_hclk),    // output
+        .busy()                       // output
+    );
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) cmd_abort_hclk_i (
+        .rst       (mrst),            // input
+        .src_clk   (mclk),            // input
+        .dst_clk   (hclk),            // input
+        .in_pulse  (cmd_abort),       // input
+        .out_pulse (cmd_abort_hclk),    // output
+        .busy()                       // output
+    );
 
 
 endmodule
