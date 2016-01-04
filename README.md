@@ -14,6 +14,7 @@ git clone https://github.com/Elphel/x393_sata **--recursive**
 
 # Swtich between synthesis & simulation
 See update below
+
 Edit *.editor_defines*:
 * simulation:
   `define SIMULATION 1
@@ -40,7 +41,7 @@ so *.editor_defines* is now just for the editor (which branches to parse). No re
   
 # Current step in try2 branch:
 Not yet tested in hardware, started AHCI implementation (currently coded registers and DMA engine, that processes command table/PRD list,
-Transfers data between clock domains, re-aligns between WORD size granularity, HAB 32-bit data and 64-bit AFI accesses.
+Transfers data between clock domains, re-aligns between WORD size granularity, HAB 32-bit data and 64-bit AXI accesses.
 # Current step in main branch:
 Testing basic functionallity of a host.  
 Trying out pio access.  
