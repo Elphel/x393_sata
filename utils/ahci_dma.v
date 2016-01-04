@@ -36,7 +36,7 @@ module  ahci_dma (
     input                         cmd_abort,     // try to abort a command
     // Some data from the command table will be used internally, data will be available on the general
     // sys_out[31:0] port and should be consumed
-    output                        ct_busy,      // cleared after 0x20 DWORDs are read out
+    output reg                    ct_busy,      // cleared after 0x20 DWORDs are read out
     // reading out command table data
     input                  [ 4:0] ct_addr,     // DWORD address
     input                         ct_re,       //  
@@ -44,9 +44,10 @@ module  ahci_dma (
     
     // After the first 0x80 bytes of the Command Table are read out, this module will read/process PRDs,
     // not forwarding them to the output 
-    output                        prd_done,     // prd done (regardless of the interrupt)
+    output                        prd_done,     // prd done (regardless of the interrupt) - data transfer of one PRD is finished (any direction)
+    
     output                        prd_irq,      // prd interrupt, if enabled
-    output                        cmd_busy,     // all command 
+    output reg                    cmd_busy,     // all commands
     output                        cmd_done,
     
     // Data System memory -> HBA interface @ mclk
@@ -90,7 +91,7 @@ module  ahci_dma (
     output         afi_wrissuecap1en,
     // AXI_HP signals - read channel
     // read address
-    output reg [31:0] afi_araddr,
+    output  [31:0] afi_araddr,
     output            afi_arvalid,
     input             afi_arready,  // @SuppressThisWarning VEditor unused - used FIF0 level
     output  [ 5:0] afi_arid,
@@ -126,14 +127,16 @@ module  ahci_dma (
     wire           cmd_start_hclk;
     wire           cmd_abort_hclk;
     reg     [31:4] ct_maddr; // granularity matches PRDT entry - 4xDWORD, 2xQWORD
-    reg            ct_done_r;
-    reg            prd_done_r;
+    wire           ct_done;
+    reg     [31:0] afi_addr; // common for afi_araddr and afi_awaddr
     wire           axi_set_raddr_ready = !(|afi_racount[2:1]); // What is the size of ra fifo?
     wire           axi_set_raddr_w;
+    wire           axi_set_waddr_w;
     wire           axi_set_raddr_ct_w;   // next will be setting address/len/... to read command table
     reg            axi_set_raddr_prd;  // next will be setting address/len/... to read PRD entry
     wire           axi_set_raddr_data_w; // next will be setting address/len/... to read DATA  
     reg            axi_set_raddr_r; // [0] - actual write address to fifo
+    reg            axi_set_waddr_r; // [0] - actual write address to fifo
     reg            was_ct_addr; // AXI RD channel was set to read command table 
     reg            was_prd_addr;// AXI RD channel was set to read prd table
     
@@ -153,40 +156,60 @@ module  ahci_dma (
     reg     [1:0]  ct_busy_r;
     reg            prd_rd_busy; // reading PRD
     
-    wire           prd_done; // data transfer of one PRD is finished (any direction)
     reg            dev_wr_mclk;
     reg            dev_wr_hclk;
     reg            prd_wr;    // write PRD data to memory
     reg            prd_rd;    // read  PRD data from memory
     wire     [3:0] afi_wstb4;
-//    reg      [1:0] afi_rready_ctl_r; 
+
+    wire           done_dev_wr; // finished PRD mem -> device
+    wire           done_dev_rd; // finished PRD device -> mem
+    wire           done_flush;  // done flushing last partial dword
+    wire           cmd_done_hclk;
+    wire           ct_done_mclk;
     
-    assign afi_arvalid = axi_set_raddr_r[0];
+    assign afi_arvalid = axi_set_raddr_r;
+    assign afi_awvalid = axi_set_waddr_r;
     assign axi_set_raddr_w = (axi_set_raddr_ct_w || axi_set_raddr_prd || axi_set_raddr_data_w) && axi_set_raddr_ready ;
     assign afi_rready = afi_rd_ctl[0] || data_afi_re;
-    assign ct_busy = ct_busy_r[0];
+//    assign ct_busy = ct_busy_r[0];
     
     assign         afi_wstrb = {{2{afi_wstb4[3]}},{2{afi_wstb4[2]}},{2{afi_wstb4[1]}},{2{afi_wstb4[0]}}};
-    
-//    assign afi_rready = data_afi_re || ((was_ct_addr || was_prd_addr) &&
-//                                        ((|afi_rcount[6:SAFE_RD_BITS]) || (afi_rvalid && !afi_rready &&!(|afi_rready_r))));
+    assign prd_done = done_dev_wr || done_dev_rd;
+    assign prd_irq = data_irq && prd_done;
+    assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || done_flush || done_dev_rd;
+    assign ct_done = (ct_busy_r == 2'b10);
+    assign afi_awaddr = afi_addr;
+    assign afi_araddr = afi_addr;
     
     always @ (posedge mclk) begin
         if (ct_re) ct_data <=         ct_data_ram[ct_addr];
         if (ctba_ld) ctba_r <=        ctba[31:7];
         if (cmd_start) prdtl_mclk <=  prdtl;
         if (cmd_start) dev_wr_mclk <= dev_wr;
+        
+        if      (mrst)      cmd_busy <= 0;
+        else if (cmd_start) cmd_busy <= 1; 
+        else if (cmd_done)  cmd_busy <= 0;
+
+        if      (mrst)         ct_busy <= 0;
+        else if (cmd_start)    ct_busy <= 1; 
+        else if (ct_done_mclk) ct_busy <= 0;
+
     end
        
         
         
     always @ (posedge hclk) begin
         if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
-        else if (ct_done_r)  ct_maddr[31:4] <= ct_maddr[31:4] + 16;
-        else if (prd_done_r) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
+        else if (ct_done)    ct_maddr[31:4] <= ct_maddr[31:4] + 16;
+        else if (wcount_set) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
         
         if (hrst) axi_set_raddr_r <= 0;
         else      axi_set_raddr_r <= axi_set_raddr_w;
+
+        if (hrst) axi_set_waddr_r <= 0;
+        else      axi_set_waddr_r <= axi_set_waddr_w;
         
         if (axi_set_raddr_w) begin
             was_ct_addr <= axi_set_raddr_ct_w;
@@ -198,12 +221,15 @@ module  ahci_dma (
 
         if (axi_set_raddr_r && was_prd_addr) last_prd  <= prds_left == 1;
         
-        if (axi_set_raddr_r) begin
-            if (was_ct_addr || was_prd_addr) afi_araddr <= {ct_maddr[31:4],4'b0};
-            else                             afi_araddr <= {data_addr[31:3],3'b0};
+        if (axi_set_raddr_w || axi_set_waddr_w) begin
+//            if (was_ct_addr || was_prd_addr) afi_addr <= {ct_maddr[31:4],4'b0};
+            if (axi_set_raddr_ct_w || axi_set_raddr_prd) afi_addr <= {ct_maddr[31:4],4'b0};
+            else                                         afi_addr <= {data_addr[31:3],3'b0};
             
-            if      (was_ct_addr)            afi_arlen  <= 4'hf; // 16 QWORDS
-            else if (was_prd_addr)           afi_arlen  <= 4'h1; //  2 QWORDS
+//            if      (was_ct_addr)            afi_arlen  <= 4'hf; // 16 QWORDS
+//            else if (was_prd_addr)           afi_arlen  <= 4'h1; //  2 QWORDS
+            if      (axi_set_raddr_ct_w)     afi_arlen  <= 4'hf; // 16 QWORDS
+            else if (axi_set_raddr_prd)      afi_arlen  <= 4'h1; //  2 QWORDS
             else                             afi_arlen  <= data_len; // TBD - all but last are 4'hf
         end
         
@@ -212,8 +238,8 @@ module  ahci_dma (
         
         if (afi_rd_ctl[0] && was_ct_addr) {ct_data_ram[{int_data_addr,1'b1}],ct_data_ram[{int_data_addr,1'b0}]} <= afi_rdata; // make sure it is synthesized correctly
         
-        if      (hrst)                                      ct_busy_r[0] <= 0;
-        else if (cmd_start_hclk)                            ct_busy_r[0] <= 1;
+        if      (hrst)                                             ct_busy_r[0] <= 0;
+        else if (cmd_start_hclk)                                   ct_busy_r[0] <= 1;
         else if (afi_rd_ctl[0] && was_ct_addr && (&int_data_addr)) ct_busy_r[0] <= 0;
         ct_busy_r[1] <= ct_busy_r[0]; // delayed version to detect end of command
         
@@ -225,7 +251,7 @@ module  ahci_dma (
         
         // start PRD read
         if (hrst) axi_set_raddr_prd <= 0;
-        else      axi_set_raddr_prd <= ((|prds_left) && ((ct_busy_r==2'b10) || prd_done));
+        else      axi_set_raddr_prd <= ((|prds_left) && (ct_done || prd_done));
         
         // store data address from PRD
         if (afi_rd_ctl[0] && was_prd_addr && (!int_data_addr[0])) data_addr[31:1] <= afi_rdata[31:1];
@@ -248,6 +274,12 @@ module  ahci_dma (
         
     end
     
+   // TODO: Push addresses for Data read/data Write (different address FIFO depth), use IDs
+   // - different for commands (increment for each next command) and data (increment for each PRD) - not really needed, just for debugging
+   // Generate afi_wlast - each 16-th and the very last QWORD
+   
+    
+    
     ahci_dma_rd_fifo #( // memory to device
         .WCNT_BITS    (21),
         .ADDRESS_BITS (3)
@@ -264,8 +296,8 @@ module  ahci_dma (
         .din_av_many  (|afi_rcount[7:SAFE_RD_BITS]), // input
         .last_prd     (last_prd),                    // input
         .din_re       (data_afi_re),                 // output
-        .done         (), // output reg 
-        .done_flush   (), // output
+        .done         (done_dev_wr),                 // output reg 
+        .done_flush   (done_flush),                  // output
         .dout         (sys_out),                     // output[31:0] 
         .dout_vld     (sys_dav),                     // output
         .dout_re      (sys_re)                       // input
@@ -289,12 +321,13 @@ module  ahci_dma (
         .last_prd     (last_prd),       // input
         .dout_we      (afi_wvalid),     // output
         .dout_wstb    (afi_wstb4),      // output[3:0] reg 
-        .done         (), // output reg 
+        .done         (done_dev_rd), // output reg 
         .busy         (), // output
         .din          (sys_in),         // input[31:0] 
         .din_rdy      (sys_nfull),      // output
         .din_avail    (sys_we)          // input
     );
+    
     
     // mclk -> hclk cross-clock synchronization
     pulse_cross_clock #(
@@ -317,7 +350,29 @@ module  ahci_dma (
         .out_pulse (cmd_abort_hclk),    // output
         .busy()                       // output
     );
+    
+    // hclk -> mclk;
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) cmd_done_i (
+        .rst       (hrst),            // input
+        .src_clk   (hclk),            // input
+        .dst_clk   (mclk),            // input
+        .in_pulse  (cmd_done_hclk),            // input
+        .out_pulse (cmd_done),       // output
+        .busy()                       // output
+    );
 
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) ct_done_mclk_i (
+        .rst       (hrst),            // input
+        .src_clk   (hclk),            // input
+        .dst_clk   (mclk),            // input
+        .in_pulse  (ct_done),         // input
+        .out_pulse (ct_done_mclk),    // output
+        .busy()                       // output
+    );
 
 endmodule
 
