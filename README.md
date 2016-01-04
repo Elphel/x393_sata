@@ -13,6 +13,7 @@ git clone https://github.com/Elphel/x393_sata **--recursive**
 2. ssh-copy-id user@ip  
 
 # Swtich between synthesis & simulation
+See update below
 Edit *.editor_defines*:
 * simulation:
   `define SIMULATION 1
@@ -26,6 +27,9 @@ Edit *.editor_defines*:
   `define PRELOAD_BRAMS
 
 Refresh the project and update hierarchy (or rescan)
+
+**Update:** Not needed anymore with updated VDT plugin - it now calculates closure per-tool and per-top file defines,
+so *.editor_defines* is now just for the editor (which branches to parse). No refresh/rescan is required.
   
 # Simulation
 * Get unisims library - refresh project files otherwise nothing will work  
@@ -34,7 +38,10 @@ Refresh the project and update hierarchy (or rescan)
 * Add constraints file through Synthesis parameters
 * Bitstream Tool parameters - check *Force(overwrite)*
   
-# Current step:
+# Current step in try2 branch:
+Not yet tested in hardware, started AHCI implementation (currently coded registers and DMA engine, that processes command table/PRD list,
+Transfers data between clock domains, re-aligns between WORD size granularity, HAB 32-bit data and 64-bit AFI accesses.
+# Current step in main branch:
 Testing basic functionallity of a host.  
 Trying out pio access.  
 Fullfilling device-side drivers and monitors via tasks.  
