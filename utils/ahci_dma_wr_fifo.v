@@ -36,7 +36,7 @@ module  ahci_dma_wr_fifo#(
     input                 init,  // initializes cross-clock 32->64 FIFO, disables FIFO read until confirmed back form mclk domain
     input                 start, // start transfer
     output reg     [63:0] dout, // allow only each 3-rd wr if not many
-    input                 dout_av,      // at least one QWORD space avaiable in AXI FIFO
+//    input                 dout_av,      // at least one QWORD space avaiable in AXI FIFO
     input                 dout_av_many, // several QWORD space avaiable in AXI FIFO
     input                 last_prd, // last prd, flush partial dword if there were odd number of words transferred. valid @ start
     // Or maybe use "last_prd"?
@@ -107,7 +107,8 @@ module  ahci_dma_wr_fifo#(
                                                  (!wcntr[0] && (&swl[1:0])) );
     wire                         done_w = dout_we_w && last_qword;
     
-    wire                         axi_ready = dout_av && (dout_av_many || (!dout_we_r));
+//    wire                         axi_ready = dout_av && (dout_av_many || (!dout_we_r));
+    wire                         axi_ready = dout_av_many;
 
     wire                         fifo_out_ready = en_fifo_rd && (!need_fifo || (fifo_dav && (fifo_dav2 || !fifo_rd_r)));
     
