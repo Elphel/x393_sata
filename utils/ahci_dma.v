@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Module: ahci_dma
  * Date:2016-01-01  
- * Author: andrey     
+ * Author: Andrey Filippov     
  * Description: DMA R/W over 64-AXI channel for AHCI implementation
  *
  * Copyright (c) 2016 Elphel, Inc .

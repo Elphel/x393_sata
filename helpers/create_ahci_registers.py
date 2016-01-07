@@ -25,6 +25,27 @@ __maintainer__ = "Andrey Filippov"
 __email__ = "andrey@elphel.com"
 __status__ = "Development"
 import sys
+
+# All unspecified ranges/fields default to fT:RO, fC:0 (readonly, reset value = 0)
+VID = 0xfffe # What to use for non-PCI "vendorID"?
+DID = 0x0001
+SSVID = 0xfffe
+SSID =  0x0001
+IPIN = 0x01 # TODO: Put a real number for "Interrupt pin"
+ILINE = 0x00 # Interrupt line - software is supposed to fill it - maybe here we need to put some predefined value?
+HBA_OFFS = 0x0 # All offsets are in bytes
+CLB_OFFS = 0x800 # In the second half of the register space (0x800..0xbff - 1KB)
+FB_OFFS =  0xc00 # Needs 0x100 bytes 
+#HBA_PORT0 = 0x100 Not needed, always HBA_OFFS + 0x100
+PCIHEAD = 0x180
+PMCAP =   0x1C0
+AXI_BASEADDR =     0x80000000
+
+reg_defaults_path= "../includes/ahci_defaults.vh"
+reg_types_path=    "../includes/ahci_types.vh"
+localparams_path=  "../includes/ahci_localparams.vh"
+
+
 gN = "groupName"
 gS = "groupStart"
 gE = "groupEnd"
@@ -47,23 +68,6 @@ RW =  "RW"
 RO=   "RO"
 RWC = "RWC"
 RW1 = "RW1"
-# All unspecified ranges/fields default to fT:RO, fC:0 (readonly, reset value = 0)
-VID = 0xfffe # What to use for non-PCI "vendorID"?
-DID = 0x0001
-SSVID = 0xfffe
-SSID =  0x0001
-IPIN = 0x01 # TODO: Put a real number for "Interrupt pin"
-ILINE = 0x00 # Interrupt line - software is supposed to fill it - maybe here we need to put some predefined value?
-HBA_OFFS = 0x0
-CLB_OFFS = 0x800 # In the second half of the register space (0x800..0xbff - 1KB)
-FB_OFFS =  0xc00 # Needs 0x100 bytes 
-#HBA_PORT0 = 0x100 Not needed, always HBA_OFFS + 0x100
-PCIHEAD = 0x180
-PMCAP =   0x1C0
-AXI_BASEADDR =     0x80000000
-
-reg_defaults_path= "../includes/ahci_defaults.vh"
-reg_types_path=    "../includes/ahci_types.vh"
 
 
 ABAR =             AXI_BASEADDR + HBA_OFFS
@@ -197,9 +201,9 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
             [{fN:"IPS",                 fT:RWC,fC:0, fD:"Interrupt Pending Status (per port)"}]}, 
         {rN:"PI",  rS:0x0c, rE:0x0f,                 rD:"Interrupt Status Register", rC:
             [{fN:"PI",                  fT:RO, fC:1, fD:"Ports Implemented"}]}, 
-        {rN:"VS",  rS:0x10,  rE:0x13,                rD:"AHCI Verion", rC:
-            [{fN:"MJR",   fS:16, fE:31, fT:RO, fC:0x0001, fD:"AHCI Major Verion 1."},
-             {fN:"MNR",   fS: 0, fE:15, fT:RO, fC:0x0301, fD:"AHCI Minor Verion 3.1"}]}, 
+        {rN:"VS",  rS:0x10,  rE:0x13,                rD:"AHCI Version", rC:
+            [{fN:"MJR",   fS:16, fE:31, fT:RO, fC:0x0001, fD:"AHCI Major Version 1."},
+             {fN:"MNR",   fS: 0, fE:15, fT:RO, fC:0x0301, fD:"AHCI Minor Version 3.1"}]}, 
         {rN:"CCC_CTL",   rS:0x14, rE:0x17,           rD:"Command Completion Coalescing Control", rC:
             [{                          fT:RO, fC:0, fD:"Not Implemented"}]}, 
         {rN:"CCC_PORTS", rS:0x18, rE:0x1b,           rD:"Command Completion Coalescing Ports", rC:
@@ -308,12 +312,17 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
         {rN:"PxTFD",  rS:0x20, rE:0x23,               rD:"Port x Task File Data (copy of error/status from device)", rC:
             [{            fS:16, fE:31, fT:RO, fC:0, fD:"Reserved"},
              {fN:"ERR",   fS: 8, fE:15, fT:RO, fC:0, fD:"Latest Copy of Task File Error Register"},
-             {fN:"STS",   fS: 0, fE: 7, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register"},
-                                                      # bit  7 -    BSY
-                                                      # bits 6..4 - command-specific
-                                                      # bit  3 -    DRQ
-                                                      # bits 1..2 - command-specific
-                                                      # bit  0 -    ERR
+#             {fN:"STS",   fS: 0, fE: 7, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register"},
+#                                                      # bit  7 -    BSY
+#                                                      # bits 6..4 - command-specific
+#                                                      # bit  3 -    DRQ
+#                                                      # bits 1..2 - command-specific
+#                                                      # bit  0 -    ERR
+             {fN:"STS.BSY",   fS: 7, fE: 7, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register: BSY"},
+             {fN:"STS.64",    fS: 4, fE: 6, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register: command-specific bits 4..6 "},
+             {fN:"STS.DRQ",   fS: 3, fE: 3, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register: DRQ"},
+             {fN:"STS.12",    fS: 1, fE: 2, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register: command-specific bits 1..2 "},
+             {fN:"STS.ERR",   fS: 0, fE: 0, fT:RO, fC:0, fD:"Latest Copy of Task File Status Register: ERR"}
              ]}, 
         {rN:"PxSIG",  rS:0x24, rE:0x27,               rD:"Port x Signature (first D2H data after reset)", rC:
             [{fN:"SIG",   fS: 0, fE:31, fT:RO, fC:0xffffffff, fD:"Data in the first D2H Register FIS"},
@@ -322,7 +331,7 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
                                                       # bits  8..15 - LBA Low Register
                                                       # bits  0.. 7 - Sector Count Register
              ]}, 
-        {rN:"PxSIG",  rS:0x28, rE:0x2b,               rD:"Port x SATA Status (SCR0:SStatus)", rC:
+        {rN:"PxSSTS",  rS:0x28, rE:0x2b,               rD:"Port x SATA Status (SCR0:SStatus)", rC:
             [{            fS:12, fE:31, fT:RO, fC:0, fD:"Reserved"},
              {fN:"IPM",   fS: 8, fE:11, fT:RO, fC:0, fD:"Interface Power Management"},
                                                       # 0 - Device not present or communication not established
@@ -365,17 +374,17 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              ]}, 
         {rN:"PxSERR",  rS:0x30, rE:0x34,               rD:"Port x SATA Error (SCR1:SError)", rC:
             [{            fS:27, fE:31, fT:RO, fC:0, fD:"Reserved"},
-             {fN:"DIAD.X",fS:26,        fT:RWC,fC:0, fD:"Exchanged (set on COMINIT), reflected in PxIS.PCS"},
-             {fN:"DIAD.F",fS:25,        fT:RWC,fC:0, fD:"Unknown FIS"},
-             {fN:"DIAD.T",fS:24,        fT:RWC,fC:0, fD:"Transport state transition error"},
-             {fN:"DIAD.S",fS:23,        fT:RWC,fC:0, fD:"Link sequence error"},
-             {fN:"DIAD.H",fS:22,        fT:RWC,fC:0, fD:"Handshake Error (i.e. Device got CRC error)"},
-             {fN:"DIAD.C",fS:21,        fT:RWC,fC:0, fD:"CRC error in Link layer"},
-             {fN:"DIAD.D",fS:20,        fT:RWC,fC:0, fD:"Disparity Error - not used by AHCI"},
-             {fN:"DIAD.B",fS:19,        fT:RWC,fC:0, fD:"10B to 8B decode error"},
-             {fN:"DIAD.W",fS:18,        fT:RWC,fC:0, fD:"COMMWAKE signal was detected"},
-             {fN:"DIAD.I",fS:17,        fT:RWC,fC:0, fD:"PHY Internal Error"},
-             {fN:"DIAD.N",fS:16,        fT:RWC,fC:0, fD:"PhyRdy changed. Reflected in PxIS.PRCS bit."},
+             {fN:"DIAG.X",fS:26,        fT:RWC,fC:0, fD:"Exchanged (set on COMINIT), reflected in PxIS.PCS"},
+             {fN:"DIAG.F",fS:25,        fT:RWC,fC:0, fD:"Unknown FIS"},
+             {fN:"DIAG.T",fS:24,        fT:RWC,fC:0, fD:"Transport state transition error"},
+             {fN:"DIAG.S",fS:23,        fT:RWC,fC:0, fD:"Link sequence error"},
+             {fN:"DIAG.H",fS:22,        fT:RWC,fC:0, fD:"Handshake Error (i.e. Device got CRC error)"},
+             {fN:"DIAG.C",fS:21,        fT:RWC,fC:0, fD:"CRC error in Link layer"},
+             {fN:"DIAG.D",fS:20,        fT:RWC,fC:0, fD:"Disparity Error - not used by AHCI"},
+             {fN:"DIAG.B",fS:19,        fT:RWC,fC:0, fD:"10B to 8B decode error"},
+             {fN:"DIAG.W",fS:18,        fT:RWC,fC:0, fD:"COMMWAKE signal was detected"},
+             {fN:"DIAG.I",fS:17,        fT:RWC,fC:0, fD:"PHY Internal Error"},
+             {fN:"DIAG.N",fS:16,        fT:RWC,fC:0, fD:"PhyRdy changed. Reflected in PxIS.PRCS bit."},
              {            fS:12, fE:15, fT:RO, fC:0, fD:"Reserved"},
              {fN:"ERR.E", fS:11,        fT:RWC,fC:0, fD:"Internal Error"},
              {fN:"ERR.P", fS:10,        fT:RWC,fC:0, fD:"Protocol Error - a violation of SATA protocol detected"},
@@ -383,7 +392,7 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              {fN:"ERR.T", fS: 8,        fT:RWC,fC:0, fD:"Transient Data Integrity Error (error not recovered by the interface)"},
              {            fS: 2, fE: 7, fT:RO, fC:0, fD:"Reserved"},
              {fN:"ERR.M", fS: 1,        fT:RWC,fC:0, fD:"Communication between the device and host was lost but re-established"},
-             {fN:"ERR.I", fS: 1,        fT:RWC,fC:0, fD:"Recovered Data integrity Error"}
+             {fN:"ERR.I", fS: 0,        fT:RWC,fC:0, fD:"Recovered Data integrity Error"}
              ]}, 
         {rN:"PxSACT",  rS:0x34, rE:0x37,               rD:"Port x SATA Active (SCR3:SActive), only set when PxCMD.ST==1", rC:
             [{fN:"DS",                  fT:RW1,fC:0, fD:"Device Status: bit per Port, for TAG in native queued command"}
@@ -428,7 +437,7 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
 
 reg_defaults = [0]*4096 # array of bytes, default value = 0
 bit_types    = [0]*2048 # array of words, default value = 0
-
+localparams =[]
 for group in src:
     groupName =  group[gN]
     groupStart = group[gS]
@@ -544,7 +553,27 @@ for group in src:
                 if (offs+b) < len(bit_types):
                     bit_types[offs+b] = ((bit_types[offs+b] ^ bt) & bm16) ^ bit_types[offs+b]
                     print ("bit_types[0x%x] = 0x%x"%(offs+b,bit_types[offs+b]))
-
+            fullName=("%s__%s__%s"%(groupName,rangeName,fieldName)).replace(".","__") # no dots in field names
+            comment= "%s: %s"%(dataField[fT], fieldDescription)
+            dwas = (offs*8 + fieldStart) // 32 # 32-bit address
+            dwae = (offs*8 + fieldEnd)   // 32 # 32-bit address
+            fe=fieldEnd
+            if dwae > dwas:
+                print ("***** WARNING: Field %s spans several DWORDs, truncating to the first one"%(fullName))
+                fe = 32*dwas +31 - offs*8 # Later AND fieldValue with field mask
+            fieldMask = ((1 << (fe - fieldStart + 1)) -1) << ((offs % 4) * 8 + fieldStart)
+            fieldShiftedValue = fieldValue << ((offs % 4) * 8 + fieldStart)
+            fieldShiftedValue &= fieldMask
+            if fieldName: # Skip reserved fields
+                localparams.append("// %s"%(comment))
+                localparams.append("    localparam %s__ADDR = 'h%x;"%(fullName, dwas))
+                localparams.append("    localparam %s__MASK = 'h%x;"%(fullName, fieldMask))
+                localparams.append("    localparam %s__DFLT = 'h%x;"%(fullName, fieldShiftedValue))
+localparams.append("")
+localparams_txt="\n".join(localparams)
+#print(localparams_txt)
+                
+            
 def create_no_parity (init_data, # numeric data
                       num_bits,    # number of bits in item
                       start_bit,   # bit number to start filling from 
@@ -574,6 +603,7 @@ def print_params(data,out_file_name):
         for i, v in enumerate(data['data_p']):
             if v:
                 print (", .INITP_%02X (256'h%064X)"%(i,v), file=out_file)
+                
 import os
 #print (os.path.abspath(__file__))
 #print (os.path.dirname(__file__))
@@ -591,3 +621,8 @@ print_params(create_no_parity(reg_defaults, 8, 0, True),os.path.abspath(os.path.
 print ("AHCI register defaults are written to        %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), reg_defaults_path))))
 print_params(create_no_parity(bit_types,   16, 0, True),os.path.abspath(os.path.join(os.path.dirname(__file__), reg_types_path)))
 print ("AHCI register bit field types are written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), reg_types_path))))
+#print(localparams_txt)
+with open(os.path.abspath(os.path.join(os.path.dirname(__file__), localparams_path)),"w") as out_file:
+    print(localparams_txt, file=out_file)
+print ("AHCI localparam definitions are written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), localparams_path))))
+

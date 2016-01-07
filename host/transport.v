@@ -514,7 +514,7 @@ always @ (posedge clk)
                 if (ll_data_val_in)
                 begin
                     if (dword_cnt == 14'd2049)
-                    // if too much data for a data FIS TODO handle this excpetion properly
+                    // if too much data for a data FIS TODO handle this exception properly
                         state       <= STATE_IDLE; 
                     else
                     // continuing receiving data
