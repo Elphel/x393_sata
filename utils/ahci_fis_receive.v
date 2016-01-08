@@ -43,14 +43,21 @@ module  ahci_fis_receive#(
     input                         get_sdbfis,
     input                         get_ufis,
     input                         get_data_fis,
-    input                         get_ignore,    // ignore whatever FIS data in the
+    input                         get_ignore,    // ignore whatever FIS (use for DMA activate too?)
     output reg                    get_fis_busy,  // busy processing FIS 
     output reg                    fis_first_vld, // fis_first contains valid FIS header, reset by get_*
     output reg                    fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     output reg                    fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     output                        fis_ferr,      // FIS done, fatal error - FIS too long
     input                         update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
+    input                         clear_bsy_drq, // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
+    input                         set_bsy,       // set PxTFD.STS.BSY, update
+    input                         set_sts_7f,    // set PxTFD.STS = 0x7f, update
+    input                         set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
+    // TODO: Add writing PRDBC here?
+    
     output                  [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
+                                                 // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
     output                  [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
     output reg                    fis_i,         // value of "I" field in received regsD2H or SDB FIS
     output reg                    sdb_n,         // value of "N" field in received SDB FIS 
@@ -85,6 +92,8 @@ HBA_OFFS = 0x0 # All offsets are in bytes
 CLB_OFFS = 0x800 # In the second half of the register space (0x800..0xbff - 1KB)
 FB_OFFS =  0xc00 # Needs 0x100 bytes 
 #HBA_PORT0 = 0x100 Not needed, always HBA_OFFS + 0x100
+
+
 
 */
 localparam HBA_OFFS32 =         0;
@@ -147,6 +156,7 @@ localparam DATA_TYPE_ERR =      3;
     
 
     reg          [15:0] tf_err_sts;
+    reg                 update_err_sts_r;
     
     // Forward data to DMA (dev->mem) engine
     assign              dma_in_valid = dma_in_ready && (hda_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
@@ -162,8 +172,6 @@ localparam DATA_TYPE_ERR =      3;
     
     assign tfd_sts = tf_err_sts[ 7:0];
     assign tfd_err = tf_err_sts[15:8];
-    
-    
      
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop) dma_in <= 0;
@@ -237,29 +245,36 @@ localparam DATA_TYPE_ERR =      3;
         if      (hba_rst || get_fis)          fis_err <= 0;
         else if (fis_end_w)                   fis_err <= hda_data_in_type != DATA_TYPE_OK;
         
-        if (reg_we_w)            reg_data[31:8] <= hda_data_in[31:8];
-        else if (update_sig[1])  reg_data[31:8] <= hda_data_in[23:0];
-        else if (update_err_sts) reg_data[31:8] <= {16'b0,tf_err_sts[15:8]};
+        if (reg_we_w)                         reg_data[31:8] <= hda_data_in[31:8];
+        else if (update_sig[1])               reg_data[31:8] <= hda_data_in[23:0];
+        else if (update_err_sts_r)            reg_data[31:8] <= {16'b0,tf_err_sts[15:8]};
 
-        if (reg_we_w)            reg_data[ 7:0] <=  hda_data_in[ 7:0];
-        else if (update_sig[3])  reg_data[ 7:0] <=  hda_data_in[ 7:0];
-        else if (update_err_sts) reg_data[ 7:0] <=  tf_err_sts [ 7:0];
+        if (reg_we_w)                         reg_data[ 7:0] <=  hda_data_in[ 7:0];
+        else if (update_sig[3])               reg_data[ 7:0] <=  hda_data_in[ 7:0];
+        else if (update_err_sts_r)            reg_data[ 7:0] <=  tf_err_sts [ 7:0];
         
-        if (reg_d2h || update_sig[0]) tf_err_sts  <= hda_data_in[15:0];
-        else if (reg_sdb)             tf_err_sts  <= {hda_data_in[15:8], tf_err_sts[7], hda_data_in[6:4], tf_err_sts[3],hda_data_in[2:0]};
+        if (reg_d2h || update_sig[0])         tf_err_sts  <= hda_data_in[15:0];
+        else if (reg_sdb)                     tf_err_sts  <= {hda_data_in[15:8], tf_err_sts[7], hda_data_in[6:4], tf_err_sts[3],hda_data_in[2:0]};
+        else if (clear_bsy_drq || set_bsy)    tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,7'h0};
+        else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
         
-        reg_we <= reg_we_w || update_sig[3] || update_err_sts;
-        if (reg_we_w || update_sig[3]) reg_addr <=  reg_addr_r;
-        else if (update_err_sts)     reg_addr <=  PXTFD_OFFS32;
+        reg_we <= reg_we_w || update_sig[3] || update_err_sts_r;
+        
+        if (reg_we_w || update_sig[3])        reg_addr <=  reg_addr_r;
+        else if (update_err_sts_r)            reg_addr <=  PXTFD_OFFS32;
 
-        if (reg_d2h || reg_sdb || reg_ds[0]) fis_i <=           hda_data_in[14];
-        if (reg_sdb)                         sdb_n <=           hda_data_in[15];
-        if (reg_ds[0])                       {dma_a,dma_d}  <=  {hda_data_in[15],hda_data_in[13]};
+        if (reg_d2h || reg_sdb || reg_ds[0])  fis_i <=           hda_data_in[14];
+        if (reg_sdb)                          sdb_n <=           hda_data_in[15];
+        if (reg_ds[0])                        {dma_a,dma_d}  <=  {hda_data_in[15],hda_data_in[13]};
 
-        if (reg_ps[0])                       {pio_i,pio_d}  <=  {hda_data_in[14],hda_data_in[13]};
-        if (reg_ps[3])                       pio_es  <=         hda_data_in[31:24];
+        if (reg_ps[0])                        {pio_i,pio_d}  <=  {hda_data_in[14],hda_data_in[13]};
         
-        if (reg_ps[4] || reg_ds[5])          xfer_cntr[31:1] <= {reg_ds[5]?hda_data_in[31:16]:16'b0,hda_data_in[15:1]};
+        if (hba_rst)                          pio_es  <=         0;
+        else if (reg_ps[3])                   pio_es  <=         hda_data_in[31:24];
+        
+        if (reg_ps[4] || reg_ds[5])           xfer_cntr[31:1] <= {reg_ds[5]?hda_data_in[31:16]:16'b0,hda_data_in[15:1]};
+        
+        update_err_sts_r <= update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
         
     end
 
