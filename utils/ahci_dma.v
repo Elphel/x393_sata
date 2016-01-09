@@ -46,6 +46,7 @@ module  ahci_dma (
     input                  [15:0] prdtl,        // number of entries in PRD table (valid at cmd_start)
     input                         dev_wr,       // write to device (valid at start)
     input                         cmd_start,     // start processing command table, reset prdbc
+    input                         prd_start,     // at or after cmd_start - enable reading PRD/data (if any)
     input                         cmd_abort,     // try to abort a command TODO: Implement
 
 // Optional control of the AXI cache mode, default will be set to 4'h3, 4'h3 at mrst
@@ -145,9 +146,16 @@ module  ahci_dma (
     reg     [31:7] ctba_r;
     reg     [15:0] prdtl_mclk;
     wire           cmd_start_hclk;
+    reg            prd_start_r;
+    wire           prd_start_hclk;
+    reg            prd_start_hclk_r; // to make sure it is with/after prd_start_hclk if in mclk they are in the same cycle
     wire           cmd_abort_hclk; // TODO: Implement as graceful as possible command abort
+    reg            prd_enabled;
+    reg      [1:0] ct_over_prd_enabled; // prd read and data r/w enabled, command table fetch done
+    
     reg     [31:4] ct_maddr; // granularity matches PRDT entry - 4xDWORD, 2xQWORD
     wire           ct_done;
+    wire           first_prd_fetch; // CT read done, prd enabled
     reg     [31:0] afi_addr; // common for afi_araddr and afi_awaddr
     wire           axi_set_raddr_ready = !(|afi_racount[2:1]) && (!axi_set_raddr_r || !afi_racount[0]); // What is the size of ra fifo - just 4? Latency?
 //    wire           axi_set_raddr_ready = !(|afi_racount) && !axi_set_raddr_r); // Most pessimistic
@@ -198,7 +206,9 @@ module  ahci_dma (
     
     reg            data_next_burst;
     
-    wire           raddr_prd_rq = (|prds_left) && (ct_done || prd_done);
+//    wire           raddr_prd_rq = (|prds_left) && (ct_done || prd_done);
+    wire           raddr_prd_rq = (|prds_left) && (first_prd_fetch || prd_done);
+    
     reg            raddr_prd_pend;
             
     wire           raddr_ct_rq = cmd_start_hclk;
@@ -222,6 +232,7 @@ module  ahci_dma (
     assign prd_irq = data_irq && prd_done;
     assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || done_flush || done_dev_rd;
     assign ct_done = (ct_busy_r == 2'b10);
+    assign first_prd_fetch = ct_over_prd_enabled == 2'b01;
     assign axi_set_raddr_w = axi_set_raddr_ready && (raddr_ct_pend || raddr_prd_pend || raddr_data_pend);    
     assign axi_set_waddr_w = axi_set_raddr_ready && raddr_data_pend;    
     assign axi_set_addr_data_w = (axi_set_raddr_ready && raddr_data_pend) || (axi_set_waddr_ready && waddr_data_pend);
@@ -278,12 +289,21 @@ module  ahci_dma (
 
         if      (mrst)                  afi_awcache <= 4'h3;
         else if (set_axi_wr_cache_mode) afi_awcache <= axi_wr_cache_mode;
+        
+        prd_start_r <= prd_start;
 
     end
        
         
         
     always @ (posedge hclk) begin
+        prd_start_hclk_r <= prd_start_hclk;
+        
+        if      (hrst || cmd_abort_hclk) prd_enabled <= 0;
+        else if (prd_start_hclk_r)       prd_enabled <= 1; // presedence over  cmd_start_hclk
+        else if (cmd_start_hclk)         prd_enabled <= 0;
+    
+    
         if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
         else if (ct_done)    ct_maddr[31:4] <= ct_maddr[31:4] + 16;
         else if (wcount_set) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
@@ -363,6 +383,10 @@ module  ahci_dma (
         else if (cmd_start_hclk)                                  ct_busy_r[0] <= 1;
         else if (afi_rd_ctl[0] && is_ct_addr && (&int_data_addr)) ct_busy_r[0] <= 0;
         ct_busy_r[1] <= ct_busy_r[0]; // delayed version to detect end of command
+        
+        if (hrst || ct_busy_r[0])                   ct_over_prd_enabled[0] <= 0;
+        else if (prd_enabled)                       ct_over_prd_enabled[0] <= 1;
+        ct_over_prd_enabled[1] <= ct_over_prd_enabled[0];  // detecting 0->1 transition
         
         // generate busy for PRD table entry read
         if      (hrst)        prd_rd_busy <= 0;
@@ -475,6 +499,18 @@ module  ahci_dma (
         .out_pulse (cmd_abort_hclk),    // output
         .busy()                       // output
     );
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) prd_start_hclk_i (
+        .rst       (mrst),            // input
+        .src_clk   (mclk),            // input
+        .dst_clk   (hclk),            // input
+        .in_pulse  (prd_start_r),     // input
+        .out_pulse (prd_start_hclk),  // output
+        .busy()                       // output
+    );
+
+
     
     // hclk -> mclk;
     pulse_cross_clock #(

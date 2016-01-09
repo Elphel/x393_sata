@@ -45,7 +45,7 @@ module  ahci_dma_rd_stuff(
     output reg        flushed,  // flush (end of last PRD is finished - data left module)
     output reg [31:0] dout,     // output 32-bit data
     output            dout_vld, // output data valid
-    input             dout_re   // consumer reads output data (should be anded with dout_vld)
+    input             dout_re   // consumer reads output data (should be AND-ed with dout_vld)
 );
     reg  [15:0] hr; // holds 16-bit data from previous din_re if not consumed
     reg         hr_full;
