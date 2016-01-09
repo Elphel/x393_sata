@@ -40,8 +40,12 @@ module  ahci_fis_transmit #(
     input                         dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     input                         syncesc_recv, // These two inputs interrupt transmit
-    input                         xmit_err,     //
+    input                         xmit_err,     // 
+    output                        dx_busy,
+    output                        dx_done,      // single-clock dx_transmit is finished, check dx_err
+    output                 [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
     
+    input                         atapi_xmit,   // tarsmit ATAPI command FIS
     
     output                 [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     output                        ch_c,        // Clear busy upon R_OK for this FIS
@@ -52,7 +56,8 @@ module  ahci_fis_transmit #(
     output                        ch_a,        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
     output                  [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
-//    output                 [31:7] ch_ctba,     // command table base address - use   reg_rdata[31:7] - outside                                    
+//    output                 [31:7] ch_ctba,     // command table base address - use   reg_rdata[31:7] - outside
+    output reg             [11:2] dwords_sent, // number of DWORDs transmitted (up to 2048)                                 
     
 
     // register memory interface
@@ -149,9 +154,13 @@ module  ahci_fis_transmit #(
     reg                      fis_dw_first;
     wire                     fis_dw_last;
     
-    reg               [11:2] tx_dwords_left;
-    reg                      tx_fis_pend_r; // waiting to send first DWORD of the  H2D data transfer
-    wire                     tx_dma_last_w; // sending last adat word
+    reg               [11:2] dx_dwords_left;
+    reg                      dx_fis_pend_r; // waiting to send first DWORD of the  H2D data transfer
+    wire                     dx_dma_last_w; // sending last adat word
+    reg                      dx_busy_r;
+    reg               [ 1:0] dx_err_r;
+    reg                      dx_done_r;
+    wire                     any_cmd_start = fetch_cmd || cfis_xmit || dx_transmit || atapi_xmit;
     
     assign todev_valid = todev_full_r;
     assign dma_re =   dma_re_w;
@@ -176,10 +185,14 @@ module  ahci_fis_transmit #(
     assign fis_data_valid = ct_stb; // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
     assign ct_re_w = todev_ready && ((ch_cfl_r[4:1] != 0) || (ch_cfl_r[0] && !ct_re_r[0]));  // Later add more sources
     assign fis_dw_last = (ch_cfl_out_r == 1);
-    assign fis_data_type = {fis_dw_last, (write_or_w && tx_fis_pend_r) | (fis_dw_first && ct_stb)};
+    assign fis_data_type = {fis_dw_last, (write_or_w && dx_fis_pend_r) | (fis_dw_first && ct_stb)};
     
-    assign fis_data_out = ({32{tx_fis_pend_r}} & DATA_FIS) | ({32{ct_stb}} & ct_data) ;
-    assign tx_dma_last_w = dma_en_r && dma_re_w && (tx_dwords_left[11:2] == 1);
+    assign fis_data_out = ({32{dx_fis_pend_r}} & DATA_FIS) | ({32{ct_stb}} & ct_data) ;
+    assign dx_dma_last_w = dma_en_r && dma_re_w && (dx_dwords_left[11:2] == 1);
+
+    assign dx_busy = dx_busy_r;
+    assign dx_done = dx_done_r;
+    assign dx_err = dx_err_r;
     
 
     always @ (posedge mclk) begin
@@ -192,7 +205,7 @@ module  ahci_fis_transmit #(
         if (write_or_w)       todev_data <= dma_en_r? dma_out: fis_data_out;
         
         if      (hba_rst)     todev_type <= 3; // invalid? - no, now first and last word in command FIS (impossible?)
-        else if (write_or_w)  todev_type <= dma_en_r? {tx_dma_last_w, 1'b0} : fis_data_type;
+        else if (write_or_w)  todev_type <= dma_en_r? {dx_dma_last_w, 1'b0} : fis_data_type;
         
         if (hba_rst)          fetch_chead_r <= 0;
         else if (fetch_cmd) fetch_chead_r <= 1;
@@ -269,15 +282,35 @@ module  ahci_fis_transmit #(
        //    input                         syncesc_recv, // These two inputs interrupt transmit
        // input                         xmit_err,     //
        
-       if   (dx_transmit) tx_dwords_left[11:2] <= (|xfer_cntr[31:11])?10'h200:{1'b0,xfer_cntr[10:2]};
-       else if (dma_re_w) tx_dwords_left[11:2] <= tx_dwords_left[11:2] - 1;
+       //TODO: update xfer length, prdtl (only after R_OK)?
+       if   (dx_transmit) dx_dwords_left[11:2] <= (|xfer_cntr[31:11])?10'h200:{1'b0,xfer_cntr[10:2]};
+       else if (dma_re_w) dx_dwords_left[11:2] <= dx_dwords_left[11:2] - 1;
+       
+       if   (dx_transmit) dwords_sent <= 0;
+       else if (dma_re_w) dwords_sent[11:2] <= dwords_sent[11:2] + 1;
 
        // send FIS header
-       if (hba_rst || write_or_w) tx_fis_pend_r <= 0;
-       else if (dx_transmit)      tx_fis_pend_r <= 1;
+       if (hba_rst || write_or_w) dx_fis_pend_r <= 0;
+       else if (dx_transmit)      dx_fis_pend_r <= 1;
        
-       if      (hba_rst ||  tx_dma_last_w)    dma_en_r  <= 0;
-       else if (tx_fis_pend_r &&  write_or_w) dma_en_r  <= 1;
+       if (hba_rst || dx_dma_last_w || (|dx_err_r)) dma_en_r  <= 0;
+       else if (dx_fis_pend_r &&  write_or_w)       dma_en_r  <= 1;
+       
+       // Abort on transmit errors
+       if (hba_rst || any_cmd_start) dx_err_r[0] <= 0;
+       else if (syncesc_recv)        dx_err_r[0] <= 1;
+
+       if (hba_rst || any_cmd_start) dx_err_r[1] <= 0;
+       else if (xmit_err)            dx_err_r[1] <= 1;
+       
+       if      (hba_rst)                      dx_busy_r <= 0;
+       else if (dx_transmit)                  dx_busy_r <= 1;
+       else if (dx_dma_last_w || (|dx_err_r)) dx_busy_r <= 0;
+       // done on last transmit or error
+       if      (hba_rst)                      dx_done_r <= 0;
+       else                                   dx_done_r <= dx_dma_last_w || ((|dx_err_r) && dx_busy_r);
+       // TODO: Make commmon done for all commands?
+       
         
     end 
     
