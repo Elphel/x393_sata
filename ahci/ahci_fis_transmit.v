@@ -22,8 +22,8 @@
 
 module  ahci_fis_transmit #(
     parameter PREFETCH_ALWAYS =   0,
-    parameter READ_REG_LATENCY =  2, // 0 if  reg_rdata is available with reg_re/reg_addr
-    parameter READ_CT_LATENCY =   2, // 0 if  reg_rdata is available with reg_re/reg_addr
+    parameter READ_REG_LATENCY =  2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter READ_CT_LATENCY =   1, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =     10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
 
 )(
@@ -60,7 +60,7 @@ module  ahci_fis_transmit #(
     
     // register memory interface
     output reg [ADDRESS_BITS-1:0] reg_addr,      
-    output                        reg_re,
+    output                 [ 1:0] reg_re,
     input                  [31:0] reg_rdata,
 
     // ahci_fis_receive interface
@@ -73,11 +73,11 @@ module  ahci_fis_transmit #(
     input                         dma_ct_busy,   // dma module is busy reading command table from the system memory
     // issue dma_prd_start same time as dma_start if prefetch enabled, otherwise with cfis_xmit
     output reg                    dma_prd_start, // at or after cmd_start - enable reading PRD/data (if any) ch_prdtl should be valid, twice - OK
-    output reg                    cmd_abort,   // try to abort a command TODO: Implement
+    output reg                    dma_cmd_abort,   // try to abort a command TODO: Implement
     
     // reading out command table data from DMA module
     output reg             [ 4:0] ct_addr,     // DWORD address
-    output                        ct_re,       //  
+    output                 [ 1:0] ct_re,       // [0] - re, [1] - regen 
     input                  [31:0] ct_data,     // 
     
     // DMA (memory -> device) interface
@@ -157,7 +157,7 @@ module  ahci_fis_transmit #(
     
     assign todev_valid = todev_full_r;
     assign dma_re =   dma_re_w;
-    assign reg_re =   reg_re_r[0]; 
+    assign reg_re =   reg_re_r[1:0]; 
     
     assign ch_prdtl = ch_prdtl_r;
     assign ch_c =     ch_c_r;
@@ -172,7 +172,7 @@ module  ahci_fis_transmit #(
     assign dma_start =   fetch_chead_stb_r[3]; // next cycle after dma_ctba_ld 
     assign pCmdToIssue = pCmdToIssue_r;
 //    assign dmaCntrZero = dmaCntrZero_r;
-    assign ct_re =       ct_re_r[0];
+    assign ct_re =       ct_re_r[1:0];
     assign fis_data_valid = ct_stb; // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
     assign ct_re_w = todev_ready && ((cfis_acmd_left_r[4:1] != 0) || (cfis_acmd_left_r[0] && !ct_re_r[0]));  // Later add more sources
     assign fis_dw_last = (cfis_acmd_left_out_r == 1);
@@ -310,7 +310,7 @@ module  ahci_fis_transmit #(
        else if (any_cmd_start)                busy <= 1;
        else if (done_w)                       busy <= 0;
 
-       cmd_abort <= done_w && (|dx_err_r);
+       dma_cmd_abort <= done_w && (|dx_err_r);
 
 
     end 

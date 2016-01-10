@@ -82,9 +82,9 @@ module  ahci_fis_receive#(
     output reg                    reg_we,
     output reg             [31:0] reg_data,        
     
-    input                  [31:0] hda_data_in,         // FIFO output data
-    input                  [ 1:0] hda_data_in_type,    // 0 - data, 1 - FIS head, 2 - R_OK, 3 - R_ERR
-    input                         hba_data_in_avalid,  // Data available from the transport layer in FIFO                
+    input                  [31:0] hba_data_in,         // FIFO output data
+    input                  [ 1:0] hba_data_in_type,    // 0 - data, 1 - FIS head, 2 - R_OK, 3 - R_ERR
+    input                         hba_data_in_valid,  // Data available from the transport layer in FIFO                
     input                         hba_data_in_many,    // Multiple DWORDs available from the transport layer in FIFO           
     output                        hba_data_in_ready,   // This module or DMA consumes DWORD
 
@@ -141,16 +141,16 @@ localparam DATA_TYPE_ERR =      3;
     reg [ADDRESS_BITS-1:0] reg_addr_r;
     reg           [3:0] fis_dcount; // number of DWORDS left to be written to the "memory"
     reg                 fis_save;   // save FIS data
-    wire                fis_end = (hda_data_in_type == DATA_TYPE_OK) || (hda_data_in_type == DATA_TYPE_ERR);
+    wire                fis_end = (hba_data_in_type == DATA_TYPE_OK) || (hba_data_in_type == DATA_TYPE_ERR);
     wire                fis_end_w = data_in_ready && fis_end & ~(|fis_end_r);
     reg           [1:0] fis_end_r;
      
     reg                 fis_rec_run; // running received FIS
     reg                 is_data_fis;
     
-    wire                is_FIS_HEAD = data_in_ready && (hda_data_in_type == DATA_TYPE_FIS_HEAD);
+    wire                is_FIS_HEAD = data_in_ready && (hba_data_in_type == DATA_TYPE_FIS_HEAD);
     
-    wire                data_in_ready =  hba_data_in_avalid && (hba_data_in_many || !(|was_data_in || hba_data_in_ready) );
+    wire                data_in_ready =  hba_data_in_valid && (hba_data_in_many || !(|was_data_in || hba_data_in_ready) );
     
     wire                get_fis = get_dsfis || get_psfis || get_rfis || get_sdbfis || get_ufis || get_data_fis ||  get_ignore;
     reg                 wreg_we_r; 
@@ -171,8 +171,8 @@ localparam DATA_TYPE_ERR =      3;
     reg                 update_prdbc_r;
     
     // Forward data to DMA (dev->mem) engine
-    assign              dma_in_valid = dma_in_ready && (hda_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
-    assign              dma_in_stop = dma_in && data_in_ready && (hda_data_in_type != DATA_TYPE_DMA); // ||
+    assign              dma_in_valid = dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
+    assign              dma_in_stop = dma_in && data_in_ready && (hba_data_in_type != DATA_TYPE_DMA); // ||
     
     
     assign reg_we_w = wreg_we_r && !dwords_over && fis_save;
@@ -255,23 +255,23 @@ localparam DATA_TYPE_ERR =      3;
         else if (is_FIS_HEAD)                 fis_first_vld <= 1;
         
         if      (hba_rst || get_fis)          fis_ok <= 0;
-        else if (fis_end_w)                   fis_ok <= hda_data_in_type == DATA_TYPE_OK;
+        else if (fis_end_w)                   fis_ok <= hba_data_in_type == DATA_TYPE_OK;
         
         if      (hba_rst || get_fis)          fis_err <= 0;
-        else if (fis_end_w)                   fis_err <= hda_data_in_type != DATA_TYPE_OK;
+        else if (fis_end_w)                   fis_err <= hba_data_in_type != DATA_TYPE_OK;
         
-        if (reg_we_w)                         reg_data[31:8] <= hda_data_in[31:8];
-        else if (update_sig[1])               reg_data[31:8] <= hda_data_in[23:0];
+        if (reg_we_w)                         reg_data[31:8] <= hba_data_in[31:8];
+        else if (update_sig[1])               reg_data[31:8] <= hba_data_in[23:0];
         else if (update_err_sts_r)            reg_data[31:8] <= {16'b0,tf_err_sts[15:8]};
         else if (update_prdbc_r)              reg_data[31:8] <= {xfer_cntr_r[31:8]};
 
-        if (reg_we_w)                         reg_data[ 7:0] <=  hda_data_in[ 7:0];
-        else if (update_sig[3])               reg_data[ 7:0] <=  hda_data_in[ 7:0];
+        if (reg_we_w)                         reg_data[ 7:0] <=  hba_data_in[ 7:0];
+        else if (update_sig[3])               reg_data[ 7:0] <=  hba_data_in[ 7:0];
         else if (update_err_sts_r)            reg_data[ 7:0] <=  tf_err_sts [ 7:0];
         else if (update_prdbc_r)              reg_data[ 7:0] <=  {xfer_cntr_r[ 7:2],2'b0};
         
-        if (reg_d2h || update_sig[0])         tf_err_sts  <= hda_data_in[15:0];
-        else if (reg_sdb)                     tf_err_sts  <= {hda_data_in[15:8], tf_err_sts[7], hda_data_in[6:4], tf_err_sts[3],hda_data_in[2:0]};
+        if (reg_d2h || update_sig[0])         tf_err_sts  <= hba_data_in[15:0];
+        else if (reg_sdb)                     tf_err_sts  <= {hba_data_in[15:8], tf_err_sts[7], hba_data_in[6:4], tf_err_sts[3],hba_data_in[2:0]};
         else if (clear_bsy_drq || set_bsy)    tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,7'h0};
         else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
         
@@ -281,17 +281,17 @@ localparam DATA_TYPE_ERR =      3;
         else if (update_err_sts_r)            reg_addr <=  PXTFD_OFFS32;
         else if (update_prdbc_r)              reg_addr <=  CLB_OFFS32 + 1; // location of PRDBC
 
-        if (reg_d2h || reg_sdb || reg_ds[0])  fis_i <=           hda_data_in[14];
-        if (reg_sdb)                          sdb_n <=           hda_data_in[15];
-        if (reg_ds[0])                        {dma_a,dma_d}  <=  {hda_data_in[15],hda_data_in[13]};
+        if (reg_d2h || reg_sdb || reg_ds[0])  fis_i <=           hba_data_in[14];
+        if (reg_sdb)                          sdb_n <=           hba_data_in[15];
+        if (reg_ds[0])                        {dma_a,dma_d}  <=  {hba_data_in[15],hba_data_in[13]};
 
-        if (reg_ps[0])                        {pio_i,pio_d}  <=  {hda_data_in[14],hda_data_in[13]};
+        if (reg_ps[0])                        {pio_i,pio_d}  <=  {hba_data_in[14],hba_data_in[13]};
         
         if (hba_rst)                          pio_es  <=         0;
-        else if (reg_ps[3])                   pio_es  <=         hda_data_in[31:24];
+        else if (reg_ps[3])                   pio_es  <=         hba_data_in[31:24];
         
         if (hba_rst || reg_sdb)               xfer_cntr_r[31:2] <= 0;
-        else if (reg_ps[4] || reg_ds[5])      xfer_cntr_r[31:2] <= {reg_ds[5]?hda_data_in[31:16]:16'b0, hda_data_in[15:2]} + hda_data_in[1]; // round up
+        else if (reg_ps[4] || reg_ds[5])      xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0, hba_data_in[15:2]} + hba_data_in[1]; // round up
         else if (decr_dwc)                    xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - {20'b0, decr_DXC_dw[11:2]};
         
         if (hba_rst || reg_sdb || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
