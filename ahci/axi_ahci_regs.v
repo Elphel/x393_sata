@@ -39,7 +39,8 @@
 
 module  axi_ahci_regs#(
 //    parameter ADDRESS_BITS = 8 // number of memory address bits
-    parameter ADDRESS_BITS = 10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+    parameter ADDRESS_BITS =  10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+    parameter HBA_RESET_BITS = 9 // duration of HBA reset in aclk periods (9: ~10usec)
 )(
     input             aclk,    // clock - should be buffered
     input             arst,     // @aclk sync reset, active high
@@ -84,12 +85,13 @@ module  axi_ahci_regs#(
 // 1. Notification of data written @ hba_clk
     output [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
     output             [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
-    output                    soft_write_en,     // write enable for data write
-    output                    soft_arst,        // reset SATA PHY not relying on SATA clock
-                                                // TODO: Decode from {bram_addr, ahci_regs_di}, bram_wen_d
+    output                    soft_write_en,    // write enable for data write
+    output                    hba_arst,          // hba async reset (currently does ~ the same as port reset)
+    output                    port_arst,         // port0 async reset by software
+
 // 2. HBA R/W registers, use hba clock
-    input                     hba_clk,
-    input                     hba_rst,
+    input                     hba_clk,          // SATA clock, now 75MHz
+    input                     hba_rst,          // when PLL locked, SATA PHY reset is over, this signal is released
     input  [ADDRESS_BITS-1:0] hba_addr,
     input                     hba_we,
 //   input               [3:0] hba_wstb, Needed?
@@ -97,6 +99,18 @@ module  axi_ahci_regs#(
     input              [31:0] hba_din,
     output             [31:0] hba_dout
 );
+
+`include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
+/*
+    localparam GHC__GHC__HR__ADDR = 'h1;
+    localparam GHC__GHC__HR__MASK = 'h1;
+    localparam GHC__GHC__HR__DFLT = 'h0;
+// RO: Device Detection Initialization
+    localparam HBA_PORT__PxSCTL__DET__ADDR = 'h4b;
+    localparam HBA_PORT__PxSCTL__DET__MASK = 'hf;
+    localparam HBA_PORT__PxSCTL__DET__DFLT = 'h0;
+    
+*/
     wire   [ADDRESS_BITS-1:0] bram_waddr;
 //    wire   [ADDRESS_BITS-1:0] pre_awaddr;
     wire   [ADDRESS_BITS-1:0] bram_raddr;
@@ -123,9 +137,19 @@ module  axi_ahci_regs#(
 //    wire  [31:0] wmask = {{8{bram_wstb[3]}},{8{bram_wstb[2]}},{8{bram_wstb[1]}},{8{bram_wstb[0]}}};
     wire            [31:0] wmask = {{8{bram_wstb_r[3]}},{8{bram_wstb_r[2]}},{8{bram_wstb_r[1]}},{8{bram_wstb_r[0]}}};
     reg [ADDRESS_BITS-1:0] bram_waddr_r;
+    
+    reg [HBA_RESET_BITS-1:0] hba_reset_cntr = 1; // time to keep hba_reset_r active after writing to GHC.HR
+    reg                      hba_nrst_r;      // hba _reset (currently does ~ the same as port reset)
+    reg                      port_nrst_r;     // port _reset by software
+    
     wire                   high_sel = bram_waddr_r[ADDRESS_BITS-1]; // high addresses - use single-cycle writes without read-modify-write
 //    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
     assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+    assign hba_arst =  !hba_nrst_r;       // hba _reset (currently does ~ the same as port reset)
+    assign port_arst = !port_nrst_r;     // port _reset by software
+    
+    
+    
     always @(posedge aclk) begin
         if      (arst)              write_busy_r <= 0;
         else if (write_start_burst) write_busy_r <= 1;
@@ -155,6 +179,57 @@ module  axi_ahci_regs#(
                                           (bram_rdata[i]));                     // 0: R0 (keep old data)
         end
     endgenerate    
+
+    always @(posedge aclk) begin
+        if (arst) hba_reset_cntr <= 1;
+        else if (bram_wen_r && !high_sel && 
+                 (bram_addr == GHC__GHC__HR__ADDR) &&
+                 (ahci_regs_di & GHC__GHC__HR__MASK)) hba_reset_cntr <= {HBA_RESET_BITS{1'b1}};
+        else if (|hba_reset_cntr)                     hba_reset_cntr <= hba_reset_cntr - 1;
+        
+        hba_nrst_r <= hba_reset_cntr == 0;
+        
+        if (arst) port_nrst_r <= 0;
+        else if (bram_wen_r && !high_sel &&
+                 (bram_addr == HBA_PORT__PxSCTL__DET__ADDR) &&
+                 ((ahci_regs_di & HBA_PORT__PxSCTL__DET__MASK | 1) == HBA_PORT__PxSCTL__DET__MASK))
+                     port_nrst_r <= !ahci_regs_di[0]; // write "1" - reset on, write 0 - reset off
+    end
+
+/*
+Will generate async reset on both HBA reset(for some time) and port reset (until released) 
+until it is more clear about GTX reset options. Such reset will be applied to both PLL and GTX,
+sata_phy_rst_out will be released after the sata clock is stable
+    output                    soft_arst,        // reset SATA PHY not relying on SATA clock
+                                                // TODO: Decode from {bram_addr, ahci_regs_di}, bram_wen_d
+    input                     sata_phy_rst_out,  // when PLL locked, SATA PHY reset is over, this signal is released
+    localparam GHC__GHC__HR__ADDR = 'h1;
+    localparam GHC__GHC__HR__MASK = 'h1;
+    localparam GHC__GHC__HR__DFLT = 'h0;
+    
+    reg [HBA_RESET_BITS-1:0] hba_reset_cntr; // time to keep hba_reset_r active after writing to GHC.HR
+    reg                      hba_rst_r;      // hba reset (currently does ~ the same as port reset)
+    reg                      port_rst_r;     // port reset by software
+        .rst        (1'b0),                              // input
+        .rrst       (hba_rst),                           // input
+        .wrst       (arst),                              // input
+        .rclk       (hba_clk),                           // input
+        .wclk       (aclk),                              // input
+        .we         (bram_wen_r && !high_sel),           // input
+        .re         (soft_write_en),                     // input
+        .data_in    ({bram_addr, ahci_regs_di}),         // input[15:0] 
+        .data_out   ({soft_write_addr,soft_write_data}), // output[15:0] 
+        .nempty     (soft_write_en),                     // output
+        .half_empty ()                                   // output
+ 
+// RO: Device Detection Initialization
+    localparam HBA_PORT__PxSCTL__DET__ADDR = 'h4b;
+    localparam HBA_PORT__PxSCTL__DET__MASK = 'hf;
+    localparam HBA_PORT__PxSCTL__DET__DFLT = 'h0;
+    
+
+*/
+
 
     axibram_write #(
         .ADDRESS_BITS(ADDRESS_BITS)

@@ -29,7 +29,11 @@ module  ahci_top#(
     input             aclk,    // clock - should be buffered
     input             arst,    // @aclk sync reset, active high
     input             mclk,    // SATA system clock (current 75MHz for SATA2)
-    input             mrst,    // reset in mclk clock domain
+    input             mrst,    // reset in mclk clock domain (after SATA PLL is on)
+    // async reset for SATA (mrst will be responce to it)
+    output            hba_arst,          // hba async reset (currently does ~ the same as port reset)
+    output            port_arst,         // port0 async reset by software
+    
     input             hclk,    // AXI HP interface clock for 64-bit DMA (current - 150MHz
     input             hrst,    // reset in hclk clock domain
 // MAXIGP1   
@@ -142,18 +146,29 @@ module  ahci_top#(
 // 1. Notification of data written @ hba_clk
     wire [ADDRESS_BITS-1:0] soft_write_addr;  // register address written by software
     wire             [31:0] soft_write_data;  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
-    wire                    soft_write_en;     // write enable for data write
-    wire                    soft_arst;        // reset SATA PHY not relying on SATA clock
-                                                // TODO: Decode from {bram_addr, ahci_regs_di}, bram_wen_d
+    wire                    soft_write_en;    // write enable for data write
+//    wire                    hba_arst;       // hba async reset (currently does ~ the same as port reset)
+//    wire                    port_arst;      // port0 async reset by software
 // 2. HBA R/W registers, use hba clock
     wire                    hba_rst;
-    wire                    regs_we;
-    wire              [1:0] regs_re; // [0] - re, [1] - regen
+    wire                    regs_we_fsm;
+    wire              [1:0] regs_re_fsm;
+    wire             [31:0] regs_din_from_fsm; // from fsm
+    wire                    regs_we_freceive;
+    wire              [1:0] regs_re_ftransmit; // [0] - re, [1] - regen
+    wire [ADDRESS_BITS-1:0] regs_faddr; // read/write adderss from ahci_fsm
     wire [ADDRESS_BITS-1:0] regs_waddr;
     wire [ADDRESS_BITS-1:0] regs_raddr;
-    wire             [31:0] regs_din;
+    wire             [31:0] regs_din_from_freceive;
     wire             [31:0] regs_dout;
-    wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we}} & regs_waddr) | ({ADDRESS_BITS{regs_re[0]}} & regs_raddr);
+    wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we}} & regs_waddr) |
+                                        ({ADDRESS_BITS{regs_re[0]}} & regs_raddr) |
+                                        ({ADDRESS_BITS{regs_re_fsm[0] | regs_we_fsm}} & regs_faddr);
+                                        
+    wire             [31:0] regs_din =  ({32{regs_we_freceive}} & regs_din_from_freceive) |
+                                        ({32{regs_we_fsm}} &      regs_din_from_fsm);
+    wire              [1:0] regs_re = regs_re_ftransmit | regs_re_fsm; // [0] - re, [1] - regen
+    wire                    regs_we = regs_we_freceive | regs_we_fsm;
     
 //---------------------    
 
@@ -179,9 +194,84 @@ module  ahci_top#(
     wire             [31:0] dma_dout;    // output[31:0] 
     wire                    dma_dav; // output
     wire                    dma_re;      // input
-    wire             [31:0] d2h_data;// input[31:0] 
     wire                    dma_in_ready; // output
     wire                    dma_we;      // input
+// ---------------------------------------
+    wire             [31:0] xfer_cntr; 
+    wire                    xfer_cntr_zero; 
+
+    /* Instance template for module ahci_fsm */
+    ahci_fsm #(
+        .READ_REG_LATENCY(2),
+        .ADDRESS_BITS(10)
+    ) ahci_fsm_i (
+        .hba_rst         (hba_rst),            // input
+        .mclk            (mclk),               // input
+        .soft_write_addr (soft_write_addr),    // input[9:0] 
+        .soft_write_data (soft_write_data),    // input[31:0] 
+        .soft_write_en   (soft_write_en),      // input
+        .regs_addr       (regs_faddr),         // output[9:0] 
+        .regs_we         (regs_we_fsm),        // output
+        .regs_re         (regs_re_fsm),        // output[1:0] 
+        .regs_din        (regs_din_from_fsm),  // output[31:0] 
+        .regs_dout       (regs_dout),          // input[31:0]
+         
+        .phy_ready(), // input
+        .fis_first_vld(), // input
+        .get_sig(), // output
+        .get_dsfis(), // output
+        .get_psfis(), // output
+        .get_rfis(), // output
+        .get_sdbfis(), // output
+        .get_ufis(), // output
+        .get_data_fis(), // output
+        .get_ignore(), // output
+        .get_fis_busy(), // input
+        .get_fis_done(), // input
+        .fis_ok(), // input
+        .fis_err(), // input
+        .fis_ferr(), // input
+        .update_err_sts (), // output
+        .update_prdbc(), // output
+        .clear_bsy_drq(), // output
+        .set_bsy(), // output
+        .set_sts_7f(), // output
+        .set_sts_80(), // output
+        .decr_dwc(), // output
+        .decr_DXC_dw(), // output[11:2] 
+        .tfd_sts(), // input[7:0] 
+        .tfd_err(), // input[7:0] 
+        .fis_i(), // input
+        .sdb_n(), // input
+        .dma_a(), // input
+        .dma_d(), // input
+        .pio_i(), // input
+        .pio_d(), // input
+        .pio_es(), // input[7:0] 
+        .xfer_cntr(), // input[31:2] 
+        .xfer_cntr_zero(), // input
+        .fetch_cmd(), // output
+        .cfis_xmit(), // output
+        .dx_transmit(), // output
+        .atapi_xmit(), // output
+        .done(), // input
+        .busy(), // input
+        .clearCmdToIssue(), // output
+        .pCmdToIssue(), // input
+        .fetch_cmd_busy(), // input
+        .syncesc_recv(), // output
+        .xmit_err(), // output
+        .dx_err(), // input[1:0] 
+        .ch_prdtl(), // input[15:0] 
+        .ch_c(), // input
+        .ch_b(), // input
+        .ch_r(), // input
+        .ch_p(), // input
+        .ch_w(), // input
+        .ch_a(), // input
+        .ch_cfl(), // input[4:0] 
+        .dwords_sent() // input[11:2] 
+    );
 
 
 
@@ -223,26 +313,27 @@ module  ahci_top#(
         .soft_write_addr  (soft_write_addr), // output[9:0] 
         .soft_write_data  (soft_write_data), // output[31:0] 
         .soft_write_en    (soft_write_en),   // output
-        .soft_arst        (soft_arst),       // output
-        .hba_clk          (mclk),         // input
-        .hba_rst          (hba_rst),         // input
-        .hba_addr         (regs_addr),        // input[9:0] 
-        .hba_we           (regs_we),          // input
-        .hba_re           (regs_re),          // input[1:0] 
-        .hba_din          (regs_din),         // input[31:0] 
-        .hba_dout         (regs_dout)         // output[31:0] 
+        .hba_arst         (hba_arst),        // output
+        .port_arst        (port_arst),        // output
+        .hba_clk          (mclk),            // input
+        .hba_rst          (hba_rst),         // input   
+        .hba_addr         (regs_addr),       // input[9:0] 
+        .hba_we           (regs_we),         // input
+        .hba_re           (regs_re),         // input[1:0] 
+        .hba_din          (regs_din),        // input[31:0] 
+        .hba_dout         (regs_dout)        // output[31:0] 
     );
 
 
     ahci_dma ahci_dma_i (
-        .mrst                  (mrst), // input
-        .hrst                  (hrst), // input
-        .mclk                  (mclk), // input
-        .hclk                  (hclk), // input
-        .ctba                  (regs_dout[31:7]), // input[31:7] 
-        .ctba_ld               (ctba_ld), // input
-        .prdtl                 (prdtl), // input[15:0] 
-        .dev_wr                (dev_wr), // input
+        .mrst                  (mrst),          // input
+        .hrst                  (hrst),          // input
+        .mclk                  (mclk),          // input
+        .hclk                  (hclk),          // input
+        .ctba                  (regs_dout[31:7]),// input[31:7] 
+        .ctba_ld               (ctba_ld),       // input
+        .prdtl                 (prdtl),         // input[15:0] 
+        .dev_wr                (dev_wr),        // input
         .cmd_start             (dma_cmd_start), // input
         .prd_start             (dma_prd_start), // input
         .cmd_abort             (dma_cmd_abort), // input
@@ -250,31 +341,21 @@ module  ahci_top#(
         .axi_rd_cache_mode     (axi_rd_cache_mode), // input[3:0] 
         .set_axi_wr_cache_mode (set_axi_wr_cache_mode), // input
         .set_axi_rd_cache_mode (set_axi_rd_cache_mode), // input
-        .ct_busy               (dma_ct_busy), // output reg 
-        .ct_addr               (dma_ct_addr), // input[4:0] 
-        .ct_re                 (dma_ct_re[0]), // input
-        .ct_data               (dma_ct_data), // output[31:0] reg 
-        .prd_done              (dma_prd_done), // output
-        .prd_irq               (dma_prd_irq), // output
-        .cmd_busy              (dma_cmd_busy), // output reg 
-        .cmd_done              (dma_cmd_done), // output
-        .sys_out               (dma_dout),    // output[31:0] 
-        .sys_dav               (dma_dav), // output
-        .sys_re                (dma_re),      // input
-        .sys_in                (d2h_data), // input[31:0] 
-        .sys_nfull             (dma_in_ready), // output
-        .sys_we                (dma_we),      // input
-/*
-    // xmit: DMA (memory -> device) interface
-    input                  [31:0] dma_out,      // 32-bit data from the DMA module, HBA -> device port
-    input                         dma_dav,      // at least one dword is ready to be read from DMA module
-    output                        dma_re,       // read dword from DMA module to the output register
-    // rcv: Forwarding data to the DMA engine
-    input                         dma_in_ready,        // DMA engine ready to accept data
-    output                        dma_in_valid         // Write data to DMA dev->memory channel
+        .ct_busy               (dma_ct_busy),   // output reg 
+        .ct_addr               (dma_ct_addr),   // input[4:0] 
+        .ct_re                 (dma_ct_re[0]),  // input
+        .ct_data               (dma_ct_data),   // output[31:0] reg 
+        .prd_done              (dma_prd_done),  // output
+        .prd_irq               (dma_prd_irq),   // output
+        .cmd_busy              (dma_cmd_busy),  // output reg 
+        .cmd_done              (dma_cmd_done),  // output
+        .sys_out               (dma_dout),      // output[31:0] 
+        .sys_dav               (dma_dav),       // output
+        .sys_re                (dma_re),        // input
+        .sys_in                (d2h_data),      // input[31:0] 
+        .sys_nfull             (dma_in_ready),  // output
+        .sys_we                (dma_we),        // input
 
-
-*/        
         .afi_awaddr        (afi_awaddr),        // output[31:0] 
         .afi_awvalid       (afi_awvalid),       // output
         .afi_awready       (afi_awready),       // input
@@ -324,8 +405,11 @@ module  ahci_top#(
     ahci_fis_receive #(
         .ADDRESS_BITS      (ADDRESS_BITS)
     ) ahci_fis_receive_i (
-        .hba_rst           (hba_rst), // input
-        .mclk              (mclk), // input
+        .hba_rst           (hba_rst),           // input
+        .mclk              (mclk),              // input
+        
+        .fis_first_vld     (), // output reg 
+
         .get_sig           (), // input
         .get_dsfis         (), // input
         .get_psfis         (), // input
@@ -334,8 +418,9 @@ module  ahci_top#(
         .get_ufis          (), // input
         .get_data_fis      (), // input
         .get_ignore        (), // input
+        
         .get_fis_busy      (), // output reg 
-        .fis_first_vld     (), // output reg 
+        .get_fis_done      (), // output reg 
         .fis_ok            (), // output reg 
         .fis_err           (), // output reg 
         .fis_ferr          (), // output
@@ -356,18 +441,19 @@ module  ahci_top#(
         .pio_i             (), // output reg 
         .pio_d             (), // output reg 
         .pio_es            (), // output[7:0] reg 
-        .xfer_cntr         (), // output[31:2] 
-        .xfer_cntr_zero    (), // output reg 
-        .reg_addr          (regs_waddr), // output[9:0] reg 
-        .reg_we            (regs_we),    // output reg 
-        .reg_data          (regs_din),   // output[31:0] reg 
-        .hba_data_in       (d2h_data),   // input[31:0] 
-        .hba_data_in_type  (d2h_type),   // input[1:0] 
-        .hba_data_in_valid (d2h_valid),  // input
-        .hba_data_in_many  (d2h_many),   // input
-        .hba_data_in_ready (d2h_ready),  // output
-        .dma_in_ready      (), // input
-        .dma_in_valid      () // output
+        .xfer_cntr         (xfer_cntr[31:2]),        // output[31:2] 
+        .xfer_cntr_zero    (xfer_cntr_zero),         // output reg
+         
+        .reg_addr          (regs_waddr),             // output[9:0] reg 
+        .reg_we            (regs_we_freceive),       // output reg 
+        .reg_data          (regs_din_from_freceive), // output[31:0] reg 
+        .hba_data_in       (d2h_data),               // input[31:0] 
+        .hba_data_in_type  (d2h_type),               // input[1:0] 
+        .hba_data_in_valid (d2h_valid),              // input
+        .hba_data_in_many  (d2h_many),               // input
+        .hba_data_in_ready (d2h_ready),              // output
+        .dma_in_ready      (dma_in_ready),           // input
+        .dma_in_valid      (dma_we)                  // output
     );
 
     ahci_fis_transmit #(
@@ -376,12 +462,14 @@ module  ahci_top#(
         .READ_CT_LATENCY  (READ_CT_LATENCY),
         .ADDRESS_BITS     (ADDRESS_BITS)
     ) ahci_fis_transmit_i (
-        .hba_rst           (hba_rst), // input
-        .mclk              (mclk), // input
+        .hba_rst           (hba_rst),                // input
+        .mclk              (mclk),                   // input
+
         .fetch_cmd         (), // input
         .cfis_xmit         (), // input
         .dx_transmit       (), // input
         .atapi_xmit        (), // input
+        
         .done              (), // output reg 
         .busy              (), // output reg 
         .clearCmdToIssue   (), // input
@@ -395,30 +483,30 @@ module  ahci_top#(
         .ch_b              (), // output
         .ch_r              (), // output
         .ch_p              (), // output
-        .ch_w              (), // output
+        .ch_w              (),        // output
         .ch_a              (), // output
         .ch_cfl            (), // output[4:0] 
         .dwords_sent       (), // output[11:2] reg 
-        .reg_addr          (regs_raddr), // output[9:0] reg 
-        .reg_re            (regs_re),    // output[1:0]
-        .reg_rdata         (regs_dout),  // input[31:0] 
-        .xfer_cntr         (), // input[31:2] 
-        .dma_ctba_ld       (ctba_ld), // output
-        .dma_start         (dma_cmd_start), // output
-        .dma_dev_wr        (), // output
-        .dma_ct_busy       (), // input
-        .dma_prd_start     (dma_prd_start), // output reg 
-        .dma_cmd_abort     (dma_cmd_abort), // output reg 
-        .ct_addr           (dma_ct_addr), // output[4:0] reg 
-        .ct_re             (dma_ct_re), // output[1:0]
-        .ct_data           (), // input[31:0] 
-        .dma_out           (), // input[31:0] 
-        .dma_dav           (), // input
-        .dma_re            (), // output
-        .todev_data        (h2d_data),   // output[31:0] reg 
-        .todev_type        (h2d_type),   // output[1:0] reg 
-        .todev_valid       (h2d_valid),  // output
-        .todev_ready       (h2d_ready)   // input
+        .reg_addr          (regs_raddr),        // output[9:0] reg 
+        .reg_re            (regs_re_ftransmit), // output[1:0]
+        .reg_rdata         (regs_dout),         // input[31:0] 
+        .xfer_cntr         (xfer_cntr[31:2]),   // input[31:2] 
+        .dma_ctba_ld       (ctba_ld),           // output
+        .dma_start         (dma_cmd_start),     // output
+        .dma_dev_wr        (dev_wr),            // output
+        .dma_ct_busy       (dma_ct_busy),       // input
+        .dma_prd_start     (dma_prd_start),     // output reg 
+        .dma_cmd_abort     (dma_cmd_abort),     // output reg 
+        .ct_addr           (dma_ct_addr),       // output[4:0] reg 
+        .ct_re             (dma_ct_re),         // output[1:0]
+        .ct_data           (dma_ct_data),       // input[31:0] 
+        .dma_out           (dma_dout),          // input[31:0] 
+        .dma_dav           (dma_dav),           // input
+        .dma_re            (dma_re),            // output
+        .todev_data        (h2d_data),          // output[31:0] reg 
+        .todev_type        (h2d_type),          // output[1:0] reg 
+        .todev_valid       (h2d_valid),         // output
+        .todev_ready       (h2d_ready)          // input
     );
 
 

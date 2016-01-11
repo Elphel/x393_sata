@@ -35,6 +35,7 @@ module  ahci_fis_receive#(
     input                         hba_rst, // @posedge mclk - sync reset
     input                         mclk, // for command/status
     // Control Interface
+    output reg                    fis_first_vld, // fis_first contains valid FIS header, reset by get_*
     // Receiving FIS
     input                         get_sig,        // update signature
     input                         get_dsfis,
@@ -44,8 +45,8 @@ module  ahci_fis_receive#(
     input                         get_ufis,
     input                         get_data_fis,
     input                         get_ignore,    // ignore whatever FIS (use for DMA activate too?)
-    output reg                    get_fis_busy,  // busy processing FIS 
-    output reg                    fis_first_vld, // fis_first contains valid FIS header, reset by get_*
+    output                        get_fis_busy,  // busy processing FIS 
+    output reg                    get_fis_done,  // done processing FIS (see fis_ok, fis_err, fis_ferr)
     output reg                    fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     output reg                    fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     output                        fis_ferr,      // FIS done, fatal error - FIS too long
@@ -169,6 +170,7 @@ localparam DATA_TYPE_ERR =      3;
     reg          [15:0] tf_err_sts;
     reg                 update_err_sts_r;
     reg                 update_prdbc_r;
+    reg                 get_fis_busy_r;
     
     // Forward data to DMA (dev->mem) engine
     assign              dma_in_valid = dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
@@ -186,7 +188,7 @@ localparam DATA_TYPE_ERR =      3;
     assign tfd_err = tf_err_sts[15:8];
     
     assign xfer_cntr = xfer_cntr_r[31:2];
-    
+    assign get_fis_busy = get_fis_busy_r;
      
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop) dma_in <= 0;
@@ -247,9 +249,11 @@ localparam DATA_TYPE_ERR =      3;
 
         fis_end_r <= {fis_end_r[0], fis_end_w};
         
-        if      (hba_rst)                     get_fis_busy <= 0;
-        else if (get_fis)                     get_fis_busy <= 1;
-        else if (too_long_err || fis_end_w)   get_fis_busy <= 0; 
+        if      (hba_rst)                     get_fis_busy_r <= 0;
+        else if (get_fis)                     get_fis_busy_r <= 1;
+        else if (too_long_err || fis_end_w)   get_fis_busy_r <= 0;
+        
+        get_fis_done <=  get_fis_busy_r && (too_long_err || fis_end_w);
         
         if      (hba_rst || get_fis)          fis_first_vld <= 0;
         else if (is_FIS_HEAD)                 fis_first_vld <= 1;
