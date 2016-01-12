@@ -52,6 +52,7 @@ module  ahci_fis_receive#(
     output                        fis_ferr,      // FIS done, fatal error - FIS too long
     // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
     input                         update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
+    input                         update_pio,    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
     input                         update_prdbc,  // update PRDBC in registers
     input                         clear_bsy_drq, // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
     input                         set_bsy,       // set PxTFD.STS.BSY, update
@@ -62,7 +63,7 @@ module  ahci_fis_receive#(
     input                  [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
     
     // TODO: Add writing PRDBC here?
-    
+    output reg                    pPioXfer,      // state variable
     output                  [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
     output                  [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
@@ -72,7 +73,7 @@ module  ahci_fis_receive#(
     output reg                    dma_d,         // value of "D" field in received DMA Setup FIS
     output reg                    pio_i,         // value of "I" field in received PIO Setup FIS
     output reg                    pio_d,         // value of "D" field in received PIO Setup FIS
-    output reg              [7:0] pio_es,        // value of PIO E_Status
+    output                  [7:0] pio_es,        // value of PIO E_Status
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     output                 [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
     output reg                    xfer_cntr_zero,// valid next cycle
@@ -172,8 +173,14 @@ localparam DATA_TYPE_ERR =      3;
 
     reg          [15:0] tf_err_sts;
     reg                 update_err_sts_r;
+//    reg                 update_pio_r;
     reg                 update_prdbc_r;
     reg                 get_fis_busy_r;
+    
+    
+    reg              [7:0] pio_es_r;        // value of PIO E_Status
+    reg              [7:0] pio_err_r;
+    
     
     // Forward data to DMA (dev->mem) engine
     assign              dma_in_valid = dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
@@ -192,7 +199,10 @@ localparam DATA_TYPE_ERR =      3;
     
     assign xfer_cntr = xfer_cntr_r[31:2];
     assign get_fis_busy = get_fis_busy_r;
-    assign data_in_dwords = data_out_dwords_r;
+//    assign data_in_dwords = data_out_dwords_r;
+    assign data_in_dwords = data_in_dwords_r;
+    
+    assign pio_es = pio_es_r;
      
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop) dma_in <= 0;
@@ -271,14 +281,20 @@ localparam DATA_TYPE_ERR =      3;
         if (reg_we_w)                         reg_data[31:8] <= hba_data_in[31:8];
         else if (update_sig[1])               reg_data[31:8] <= hba_data_in[23:0];
         else if (update_err_sts_r)            reg_data[31:8] <= {16'b0,tf_err_sts[15:8]};
+//        else if (update_pio_r)                reg_data[31:8] <= {16'b0,pio_err_r[7:0]};
         else if (update_prdbc_r)              reg_data[31:8] <= {xfer_cntr_r[31:8]};
 
         if (reg_we_w)                         reg_data[ 7:0] <=  hba_data_in[ 7:0];
         else if (update_sig[3])               reg_data[ 7:0] <=  hba_data_in[ 7:0];
         else if (update_err_sts_r)            reg_data[ 7:0] <=  tf_err_sts [ 7:0];
+//        else if (update_pio_r)                reg_data[ 7:0] <=  pio_es_r   [ 7:0];
         else if (update_prdbc_r)              reg_data[ 7:0] <=  {xfer_cntr_r[ 7:2],2'b0};
         
         if (reg_d2h || update_sig[0])         tf_err_sts  <= hba_data_in[15:0];
+        //  Sets pPioErr[pPmpCur] to Error field of the FIS
+        //  Updates PxTFD.STS.ERR with pPioErr[pPmpCur] ??
+        else if (reg_ps[0])                   tf_err_sts  <= {hba_data_in[31:24],hba_data_in[23:16]};
+        else if (update_pio)                  tf_err_sts  <= {pio_err_r, pio_es_r};
         else if (reg_sdb)                     tf_err_sts  <= {hba_data_in[15:8], tf_err_sts[7], hba_data_in[6:4], tf_err_sts[3],hba_data_in[2:0]};
         else if (clear_bsy_drq || set_bsy)    tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,7'h0};
         else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
@@ -295,8 +311,11 @@ localparam DATA_TYPE_ERR =      3;
 
         if (reg_ps[0])                        {pio_i,pio_d}  <=  {hba_data_in[14],hba_data_in[13]};
         
-        if (hba_rst)                          pio_es  <=         0;
-        else if (reg_ps[3])                   pio_es  <=         hba_data_in[31:24];
+        if (hba_rst)                          pio_err_r  <=        0;
+        else if (reg_ps[0])                   pio_err_r  <=        hba_data_in[31:24];
+
+        if (hba_rst)                          pio_es_r  <=         0;
+        else if (reg_ps[3])                   pio_es_r  <=         hba_data_in[31:24];
         
         if (hba_rst || reg_sdb)               xfer_cntr_r[31:2] <= 0;
         else if (reg_ps[4] || reg_ds[5])      xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0, hba_data_in[15:2]} + hba_data_in[1]; // round up
@@ -307,8 +326,14 @@ localparam DATA_TYPE_ERR =      3;
         
         xfer_cntr_zero <=                     xfer_cntr_r[31:2] == 0;
         
-        update_err_sts_r <= update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
+        update_err_sts_r <= update_pio || update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
+//        update_pio_r <=  update_pio;
         update_prdbc_r <= update_prdbc; // same latency as update_err_sts
+        
+        if (hba_rst || update_pio) pPioXfer <= 0;
+        else if (reg_ps[4])        pPioXfer <= 1;
+        
+        
         
         // Maybe it is not needed if the fsm will send this pulse?
 //        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);

@@ -28,6 +28,9 @@ module  ahci_fsm #(
 )(
     input                         hba_rst, // @posedge mclk
     input                         mclk, // for command/status
+    input                         was_hba_rst,    // last reset was hba reset (not counting system reset)
+    input                         was_port_rst,   // last reset was port reset
+    
     // notification from axi_ahci_regs that software has written data to register
     input      [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
     input                  [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
@@ -72,6 +75,8 @@ module  ahci_fsm #(
     input                         fis_ferr,      // FIS done, fatal error - FIS too long
     // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
     output                        update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
+    output                        update_pio,    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
+    
     output                        update_prdbc,  // update PRDBC in registers
     output                        clear_bsy_drq, // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
     output                        set_bsy,       // set PxTFD.STS.BSY, update
@@ -79,6 +84,7 @@ module  ahci_fsm #(
     output                        set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
     output                        decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
     output                 [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
+    input                         pPioXfer,      // state variable
     input                   [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
     input                   [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)

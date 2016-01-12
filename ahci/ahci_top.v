@@ -220,6 +220,8 @@ module  ahci_top#(
     // short commands:
     // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
     wire                    frcv_update_err_sts;// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
+    wire                    frcv_update_pio;    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
+    
     wire                    frcv_update_prdbc;  // update PRDBC in registers
     wire                    frcv_clear_bsy_drq; // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
     wire                    frcv_set_bsy;       // set PxTFD.STS.BSY, update
@@ -245,6 +247,8 @@ module  ahci_top#(
     wire                    pio_i;         // value of "I" field in received PIO Setup FIS
     wire                    pio_d;         // value of "D" field in received PIO Setup FIS
     wire              [7:0] pio_es;        // value of PIO E_Status
+    
+    wire                    pPioXfer;
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     
     wire             [31:0] xfer_cntr; 
@@ -278,6 +282,8 @@ module  ahci_top#(
 
     wire             [11:0] data_out_dwords; // number of DWORDs sent in data FIS
 
+    wire                    was_hba_rst; 
+    wire                    was_port_rst; 
 
     ahci_fsm #(
         .READ_REG_LATENCY(2),
@@ -285,6 +291,8 @@ module  ahci_top#(
     ) ahci_fsm_i (
         .hba_rst         (mrst),               // input
         .mclk            (mclk),               // input
+        .was_hba_rst     (was_hba_rst),        // input 
+        .was_port_rst    (was_port_rst),       // input 
         .soft_write_addr (soft_write_addr),    // input[9:0] 
         .soft_write_data (soft_write_data),    // input[31:0] 
         .soft_write_en   (soft_write_en),      // input
@@ -318,6 +326,7 @@ module  ahci_top#(
         .fis_err         (frcv_err),           // input
         .fis_ferr        (frcv_ferr),          // input
         .update_err_sts  (frcv_update_err_sts),// output
+        .update_pio      (frcv_update_pio),    // output 
         .update_prdbc    (frcv_update_prdbc),  // output
         .clear_bsy_drq   (frcv_clear_bsy_drq), // output
         .set_bsy         (frcv_set_bsy),       // output
@@ -325,6 +334,7 @@ module  ahci_top#(
         .set_sts_80      (frcv_set_sts_80),    // output
         .decr_dwc        (frcv_decr_dwc),      // output
         .decr_DXC_dw     (data_out_dwords),    // output[11:2] **** Probably not needed
+        .pPioXfer        (pPioXfer),           // input      
          
         .tfd_sts         (tfd_sts),            // input[7:0] 
         .tfd_err         (tfd_err),            // input[7:0] 
@@ -398,8 +408,8 @@ module  ahci_top#(
         .soft_write_addr  (soft_write_addr), // output[9:0] 
         .soft_write_data  (soft_write_data), // output[31:0] 
         .soft_write_en    (soft_write_en),   // output
-        .hba_arst         (hba_arst),        // output
-        .port_arst        (port_arst),       // output
+        .hba_arst         (hba_arst),        // output // does not include arst
+        .port_arst        (port_arst),       // output // does not include arst
         .hba_clk          (mclk),            // input
         .hba_rst          (mrst),            // input   // deasserted when mclk is stable
         .hba_addr         (regs_addr),       // input[9:0] 
@@ -409,7 +419,10 @@ module  ahci_top#(
         .hba_dout         (regs_dout),        // output[31:0] 
         .afi_wcache       (axi_wr_cache_mode),// output[3:0] reg 
         .afi_rcache       (axi_rd_cache_mode),// output[3:0] reg 
-        .afi_cache_set    (set_axi_cache_mode) // output
+        .afi_cache_set    (set_axi_cache_mode), // output
+        .was_hba_rst      (was_hba_rst),     // output 
+        .was_port_rst     (was_port_rst)     // output 
+        
         
     );
 
@@ -515,6 +528,8 @@ module  ahci_top#(
         .fis_ferr          (frcv_ferr),              // output
         
         .update_err_sts    (frcv_update_err_sts),    // input
+        .update_pio        (frcv_update_pio),        // input  update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
+        
         .update_prdbc      (frcv_update_prdbc),      // input
         .clear_bsy_drq     (frcv_clear_bsy_drq),     // input
         .set_bsy           (frcv_set_bsy),           // input
@@ -522,6 +537,7 @@ module  ahci_top#(
         .set_sts_80        (frcv_set_sts_80),        // input
         .decr_dwc          (frcv_decr_dwc),          // input
         .decr_DXC_dw       (data_out_dwords),        // input[11:2] 
+        .pPioXfer          (pPioXfer),               // output reg 
         
         .tfd_sts           (tfd_sts),                // output[7:0] 
         .tfd_err           (tfd_err),                // output[7:0] 
