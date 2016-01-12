@@ -778,4 +778,12 @@
     localparam HBA_PORT__PxDEVSLP__ADSE__ADDR = 'h51;
     localparam HBA_PORT__PxDEVSLP__ADSE__MASK = 'h2;
     localparam HBA_PORT__PxDEVSLP__ADSE__DFLT = 'h0;
+// RW: SAXIHP write channel cache mode 
+    localparam HBA_PORT__AFI_CACHE__WR_CM__ADDR = 'h5c;
+    localparam HBA_PORT__AFI_CACHE__WR_CM__MASK = 'hf0;
+    localparam HBA_PORT__AFI_CACHE__WR_CM__DFLT = 'h30;
+// RW: SAXIHP read channel cache mode 
+    localparam HBA_PORT__AFI_CACHE__RD_CM__ADDR = 'h5c;
+    localparam HBA_PORT__AFI_CACHE__RD_CM__MASK = 'hf;
+    localparam HBA_PORT__AFI_CACHE__RD_CM__DFLT = 'h3;
 

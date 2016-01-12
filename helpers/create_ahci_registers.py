@@ -425,9 +425,14 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              {fN:"DSP",   fS: 1,        fT:RO, fC:0, fD:"Device Sleep Present"},
              {fN:"ADSE",  fS: 1,        fT:RO, fC:0, fD:"Aggressive Device Sleep Enable"}
              ]},
+        {rN:"AFI_CACHE",  rS:0x70, rE:0x73,               rD:"Port x Vendor Specific", rC:
+            [{            fS: 8, fE:31, fT:RO, fC:0, fD:"Reserved"},
+             {fN:"WR_CM", fS: 4, fE: 7, fT:RW, fC:3, fD:"SAXIHP write channel cache mode "},
+             {fN:"RD_CM", fS: 0, fE: 3, fT:RW, fC:3, fD:"SAXIHP read channel cache mode "},
+             ]},
         # 0x48..0x6f - reserved
-        {rN:"PxVS",    rS:0x70, rE:0x7f,               rD:"Port x Vendor Specific", rC:
-            [{                          fT:RW, fC:0, fD:"Vendor-specific data - 128 bits"}
+        {rN:"PxVS",    rS:0x74, rE:0x7f,               rD:"Other Port x Vendor Specific", rC:
+            [{                          fT:RW, fC:0, fD:"Vendor-specific data - 96 bits"}
              ]},
        
        ]},  

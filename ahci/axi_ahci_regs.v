@@ -97,7 +97,14 @@ module  axi_ahci_regs#(
 //   input               [3:0] hba_wstb, Needed?
     input               [1:0] hba_re, // [0] - re, [1] - regen
     input              [31:0] hba_din,
-    output             [31:0] hba_dout
+    output             [31:0] hba_dout,
+    
+//  other control signals
+    output reg         [ 3:0] afi_wcache,
+    output reg         [ 3:0] afi_rcache,
+    output                    afi_cache_set
+    
+    
 );
 
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
@@ -109,6 +116,14 @@ module  axi_ahci_regs#(
     localparam HBA_PORT__PxSCTL__DET__ADDR = 'h4b;
     localparam HBA_PORT__PxSCTL__DET__MASK = 'hf;
     localparam HBA_PORT__PxSCTL__DET__DFLT = 'h0;
+// RW: SAXIHP write channel cache mode 
+    localparam HBA_PORT__AFI_CACHE__WR_CM__ADDR = 'h5c;
+    localparam HBA_PORT__AFI_CACHE__WR_CM__MASK = 'hf0;
+    localparam HBA_PORT__AFI_CACHE__WR_CM__DFLT = 'h30;
+// RW: SAXIHP read channel cache mode 
+    localparam HBA_PORT__AFI_CACHE__RD_CM__ADDR = 'h5c;
+    localparam HBA_PORT__AFI_CACHE__RD_CM__MASK = 'hf;
+    localparam HBA_PORT__AFI_CACHE__RD_CM__DFLT = 'h3;
     
 */
     wire   [ADDRESS_BITS-1:0] bram_waddr;
@@ -143,6 +158,8 @@ module  axi_ahci_regs#(
     reg                      port_nrst_r;     // port _reset by software
     
     wire                   high_sel = bram_waddr_r[ADDRESS_BITS-1]; // high addresses - use single-cycle writes without read-modify-write
+    wire                   afi_cache_set_w = bram_wen_r && !high_sel && (bram_addr == HBA_PORT__AFI_CACHE__WR_CM__ADDR);
+    
 //    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
     assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
     assign hba_arst =  !hba_nrst_r;       // hba _reset (currently does ~ the same as port reset)
@@ -195,6 +212,11 @@ module  axi_ahci_regs#(
                  ((ahci_regs_di & HBA_PORT__PxSCTL__DET__MASK | 1) == HBA_PORT__PxSCTL__DET__MASK))
                      port_nrst_r <= !ahci_regs_di[0]; // write "1" - reset on, write 0 - reset off
     end
+
+    always @(posedge aclk) begin
+        if      (arst)             {afi_wcache,afi_rcache}  <= 8'h33;
+        else if (afi_cache_set_w)  {afi_wcache,afi_rcache}  <= ahci_regs_di[7:0];
+    end    
 
 /*
 Will generate async reset on both HBA reset(for some time) and port reset (until released) 
@@ -364,6 +386,16 @@ sata_phy_rst_out will be released after the sata clock is stable
         .half_empty ()                                   // output
     );
 
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) afi_cache_set_i (
+        .rst       (arst),             // input
+        .src_clk   (aclk),             // input
+        .dst_clk   (hba_clk),          // input
+        .in_pulse  (afi_cache_set_w),  // input
+        .out_pulse (afi_cache_set),    // output
+        .busy()                        // output
+    );
 
 
 endmodule

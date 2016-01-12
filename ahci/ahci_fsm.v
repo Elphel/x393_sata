@@ -42,12 +42,20 @@ module  ahci_fsm #(
     input                  [31:0] regs_dout,
     
     // direct communication with transposrt, link and phy layers
-    input                         phy_ready, // goes up after comreset,cominit, align, ...
+    input                         phy_ready,     // goes up after comreset,cominit, align, ...
+    output                        syncesc_send,  // Send sync escape
     
     // Other signals....
     
+    // inputs from the DMA engine
+    input                         dma_prd_done, // output (finished next prd)
+    input                         dma_prd_irq, // output (finished next prd and prd irq is enabled)
+    input                         dma_cmd_busy, // output reg (DMA engine is processing PRDs)
+    input                         dma_cmd_done, // output (last PRD is over)
+    
     // Communication with ahci_fis_receive (some are unused
-    input                         fis_first_vld, // fis_first contains valid FIS header, reset by get_*
+    input                         fis_first_vld, // fis_first contains valid FIS header, reset by 'get_*'
+    input                   [7:0] fis_type,      // FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
     // Receiving FIS
     output                        get_sig,        // update signature
     output                        get_dsfis,
@@ -70,7 +78,7 @@ module  ahci_fsm #(
     output                        set_sts_7f,    // set PxTFD.STS = 0x7f, update
     output                        set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
     output                        decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
-    output                 [11:2] decr_DXC_dw,   // decrement value (in DWORDs)
+    output                 [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
     input                   [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
     input                   [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
@@ -99,9 +107,8 @@ module  ahci_fsm #(
     output                        clearCmdToIssue, // From CFIS:SUCCESS 
     input                         pCmdToIssue, // AHCI port variable
 //    output                        dmaCntrZero, // DMA counter is zero - would be a duplicate to the one in receive module and dwords_sent output
-    input                         fetch_cmd_busy, // does not include prefetching CT
-    output                        syncesc_recv, // These two inputs interrupt transmit
-    output                        xmit_err,     // 
+//    input                         syncesc_recv, // These two inputs interrupt transmit
+//    input                         xmit_err,     // 
     input                  [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
     
     input                  [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
@@ -113,7 +120,7 @@ module  ahci_fsm #(
     input                         ch_a,        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
     input                   [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
-    input                  [11:2] dwords_sent // number of DWORDs transmitted (up to 2048)                                 
+    input                  [11:0] dwords_sent // number of DWORDs transmitted (up to 2048)                                 
 
 );
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams

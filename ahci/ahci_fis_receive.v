@@ -59,7 +59,7 @@ module  ahci_fis_receive#(
     input                         set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
     
     input                         decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
-    input                  [11:2] decr_DXC_dw,   // decrement value (in DWORDs)
+    input                  [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
     
     // TODO: Add writing PRDBC here?
     
@@ -75,7 +75,10 @@ module  ahci_fis_receive#(
     output reg              [7:0] pio_es,        // value of PIO E_Status
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     output                 [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
-    output reg                    xfer_cntr_zero,// valid next cycle                   
+    output reg                    xfer_cntr_zero,// valid next cycle
+    output                 [11:0] data_in_dwords, // number of data dwords received (valid with 'done')
+    // FSM will send this pulse
+//    output reg                    data_in_words_apply, // apply data_in_words
 
 // Registers interface
 // 2. HBA R/W registers, may be added external register layer
@@ -135,7 +138,7 @@ localparam DATA_TYPE_ERR =      3;
     wire                dma_in_stop;
     reg                 dma_in;
     reg           [1:0] was_data_in;
-    reg          [12:0] data_in_words;
+    reg          [11:0] data_in_dwords_r;
     reg                 dwords_over;
     reg                 too_long_err;
     
@@ -189,6 +192,7 @@ localparam DATA_TYPE_ERR =      3;
     
     assign xfer_cntr = xfer_cntr_r[31:2];
     assign get_fis_busy = get_fis_busy_r;
+    assign data_in_dwords = data_out_dwords_r;
      
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop) dma_in <= 0;
@@ -197,11 +201,11 @@ localparam DATA_TYPE_ERR =      3;
         if   (hba_rst) was_data_in <= 0;
         else           was_data_in <= {was_data_in[0], hba_data_in_ready};
         
-        if      (dma_in_start) data_in_words <= 0;
-        else if (dma_in_valid) data_in_words <=  data_in_words + 1;
+        if      (dma_in_start) data_in_dwords_r <= 0;
+        else if (dma_in_valid) data_in_dwords_r <=  data_in_dwords_r + 1;
         
         if      (hba_rst)                                 too_long_err <= 0; // it is a fatal error, only reset
-        else if ((dma_in_valid && data_in_words[12]) ||
+        else if ((dma_in_valid && data_in_dwords_r[11]) ||
                   (wreg_we_r && dwords_over))             too_long_err <= 1;
         
         if (get_fis) begin
@@ -296,18 +300,18 @@ localparam DATA_TYPE_ERR =      3;
         
         if (hba_rst || reg_sdb)               xfer_cntr_r[31:2] <= 0;
         else if (reg_ps[4] || reg_ds[5])      xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0, hba_data_in[15:2]} + hba_data_in[1]; // round up
-        else if (decr_dwc)                    xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - {20'b0, decr_DXC_dw[11:2]};
+        else if (decr_dwc)                    xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - {18'b0, decr_DXC_dw[11:0]};
         
         if (hba_rst || reg_sdb || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
-        else if (decr_dwc)                                 prdbc_r[31:2] <= {prdbc_r[31:2]} + {20'b0, decr_DXC_dw[11:2]};
-        
-        
+        else if (decr_dwc)                                 prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_DXC_dw[11:0]};
         
         xfer_cntr_zero <=                     xfer_cntr_r[31:2] == 0;
         
         update_err_sts_r <= update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
         update_prdbc_r <= update_prdbc; // same latency as update_err_sts
         
+        // Maybe it is not needed if the fsm will send this pulse?
+//        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);
     end
 
 endmodule

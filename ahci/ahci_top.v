@@ -138,8 +138,14 @@ module  ahci_top#(
     input       [ 1:0] d2h_type,    // 0 - data, 1 - FIS head, 2 - R_OK, 3 - R_ERR
     input              d2h_valid,  // Data available from the transport layer in FIFO                
     input              d2h_many,    // Multiple DWORDs available from the transport layer in FIFO           
-    output             d2h_ready   // This module or DMA consumes DWORD
-
+    output             d2h_ready,   // This module or DMA consumes DWORD
+    
+    // communication with transport/link/phys layers
+//    input              phy_rst,      // frome phy, as a responce to hba_arst || port_arst. It is deasserted when clock is stable
+    input              phy_ready,
+    input              syncesc_recv, // These two inputs interrupt transmit
+    input              xmit_err,     // Error during sending of a FIS
+    output             syncesc_send  // Send sync escape
     
 );
 // axi_ahci_regs signals:
@@ -150,7 +156,7 @@ module  ahci_top#(
 //    wire                    hba_arst;       // hba async reset (currently does ~ the same as port reset)
 //    wire                    port_arst;      // port0 async reset by software
 // 2. HBA R/W registers, use hba clock
-    wire                    hba_rst;
+//    wire                    hba_rst;
     wire                    regs_we_fsm;
     wire              [1:0] regs_re_fsm;
     wire             [31:0] regs_din_from_fsm; // from fsm
@@ -170,42 +176,114 @@ module  ahci_top#(
     wire              [1:0] regs_re = regs_re_ftransmit | regs_re_fsm; // [0] - re, [1] - regen
     wire                    regs_we = regs_we_freceive | regs_we_fsm;
     
+    
 //---------------------    
 
 //    wire             [31:7] ctba; // input[31:7] 
     wire                    ctba_ld; // input
-    wire             [15:0] prdtl; // input[15:0] 
+    wire             [15:0] prdtl; // input[15:0]
+     
     wire                    dev_wr; // input
     wire                    dma_cmd_start; // input
     wire                    dma_prd_start; // input
     wire                    dma_cmd_abort; // input
+// Use some of the custom registers in the adderss space?    
+    
     wire             [ 3:0] axi_wr_cache_mode; // input[3:0] 
     wire             [ 3:0] axi_rd_cache_mode; // input[3:0] 
-    wire                    set_axi_wr_cache_mode; // input
-    wire                    set_axi_rd_cache_mode; // input
+    wire                    set_axi_cache_mode; // input (both axi_wr_cache_mode and axi_rd_cache_mode)
     wire                    dma_ct_busy; // output reg 
     wire             [ 4:0] dma_ct_addr; // input[4:0] 
     wire             [ 1:0] dma_ct_re; // input
     wire             [31:0] dma_ct_data; // output[31:0] reg 
-    wire                    dma_prd_done; // output
-    wire                    dma_prd_irq; // output
-    wire                    dma_cmd_busy; // output reg 
-    wire                    dma_cmd_done; // output
+    wire                    dma_prd_done; // output (finished next prd)
+    wire                    dma_prd_irq; // output (finished next prd and prd irq is enabled)
+    wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
+    wire                    dma_cmd_done; // output (last PRD is over)
     wire             [31:0] dma_dout;    // output[31:0] 
     wire                    dma_dav; // output
     wire                    dma_re;      // input
     wire                    dma_in_ready; // output
     wire                    dma_we;      // input
 // ---------------------------------------
+    // fsm <-> ahc_fis_receive
+    // fsm ->
+    wire                    frcv_first_vld;
+    wire                    frcv_get_sig;        // update signature
+    wire                    frcv_get_dsfis;
+    wire                    frcv_get_psfis;
+    wire                    frcv_get_rfis;
+    wire                    frcv_get_sdbfis;
+    wire                    frcv_get_ufis;
+    wire                    frcv_get_data_fis;
+    wire                    frcv_get_ignore;    // ignore whatever FIS (use for DMA activate too?)
+    // short commands:
+    // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
+    wire                    frcv_update_err_sts;// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
+    wire                    frcv_update_prdbc;  // update PRDBC in registers
+    wire                    frcv_clear_bsy_drq; // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
+    wire                    frcv_set_bsy;       // set PxTFD.STS.BSY, update
+    wire                    frcv_set_sts_7f;    // set PxTFD.STS = 0x7f, update
+    wire                    frcv_set_sts_80;    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
+    wire                    frcv_decr_dwc;      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
+    
+    // fsm <-
+    wire                    frcv_busy;          // busy processing FIS 
+    wire                    frcv_done;          // done processing FIS (see fis_ok, fis_err, fis_ferr)
+    wire                    frcv_ok;            // FIS done,  checksum OK reset by starting a new get FIS
+    wire                    frcv_err;           // FIS done, checksum ERROR reset by starting a new get FIS
+    wire                    frcv_ferr;          // FIS done, fatal error - FIS too long
+    
+    // fsm <- state variables that are maintained inside 'ahc_fis_receive'
+    wire              [7:0] tfd_sts;       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
+                                           // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
+    wire              [7:0] tfd_err;       // Current PxTFD error field (updated after regFIS and SDB)
+    wire                    fis_i;         // value of "I" field in received regsD2H or SDB FIS
+    wire                    sdb_n;         // value of "N" field in received SDB FIS 
+    wire                    dma_a;         // value of "A" field in received DMA Setup FIS 
+    wire                    dma_d;         // value of "D" field in received DMA Setup FIS
+    wire                    pio_i;         // value of "I" field in received PIO Setup FIS
+    wire                    pio_d;         // value of "D" field in received PIO Setup FIS
+    wire              [7:0] pio_es;        // value of PIO E_Status
+    // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
+    
     wire             [31:0] xfer_cntr; 
     wire                    xfer_cntr_zero; 
+                                             
+    wire             [11:0] data_in_dwords;  // number of DWORDs received in data FIS (can be updated internally). Is it needed?
 
-    /* Instance template for module ahci_fsm */
+    // fsm <-> ahc_fis_transmit
+    // Command pulses to execute states fsm -> ahc_fis_transmit
+    wire                    fsnd_fetch_cmd;   // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
+                                               // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
+    wire                    fsnd_cfis_xmit;    // transmit command (wait for dma_ct_busy == 0)
+    wire                    fsnd_dx_transmit;  // send FIS header DWORD, (just 0x46), then forward DMA data
+                                                // transmit until error, 2048DWords or pDmaXferCnt 
+    wire                    fsnd_atapi_xmit;  // tarsmit ATAPI command FIS
+    // responses fsm <- ahc_fis_transmit
+    wire                    fsnd_done;
+    wire                    fsnd_busy;
+    // Short action pulses fsm -> ahc_fis_transmit
+    wire                    fsnd_clearCmdToIssue; // From CFIS:SUCCESS 
+    // State variables fsm <- ahc_fis_transmit 
+    wire                    fsnd_pCmdToIssue; // AHCI port variable
+    wire             [ 1:0] fsnd_dx_err;       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
+    wire                    fsnd_ch_c;        // Clear busy upon R_OK for this FIS
+    wire                    fsnd_ch_b;        // Built-in self test command
+    wire                    fsnd_ch_r;        // reset - may need to send SYNC escape before this command
+    wire                    fsnd_ch_p;        // prefetchable - only used with non-zero PRDTL or ATAPI bit set
+    wire                    fsnd_ch_w;        // Write: system memory -> device
+    wire                    fsnd_ch_a;        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
+    wire              [4:0] fsnd_ch_cfl;      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal, ... Maybe not needed outside ahc_fis_transmit
+
+    wire             [11:0] data_out_dwords; // number of DWORDs sent in data FIS
+
+
     ahci_fsm #(
         .READ_REG_LATENCY(2),
         .ADDRESS_BITS(10)
     ) ahci_fsm_i (
-        .hba_rst         (hba_rst),            // input
+        .hba_rst         (mrst),               // input
         .mclk            (mclk),               // input
         .soft_write_addr (soft_write_addr),    // input[9:0] 
         .soft_write_data (soft_write_data),    // input[31:0] 
@@ -216,61 +294,68 @@ module  ahci_top#(
         .regs_din        (regs_din_from_fsm),  // output[31:0] 
         .regs_dout       (regs_dout),          // input[31:0]
          
-        .phy_ready(), // input
-        .fis_first_vld(), // input
-        .get_sig(), // output
-        .get_dsfis(), // output
-        .get_psfis(), // output
-        .get_rfis(), // output
-        .get_sdbfis(), // output
-        .get_ufis(), // output
-        .get_data_fis(), // output
-        .get_ignore(), // output
-        .get_fis_busy(), // input
-        .get_fis_done(), // input
-        .fis_ok(), // input
-        .fis_err(), // input
-        .fis_ferr(), // input
-        .update_err_sts (), // output
-        .update_prdbc(), // output
-        .clear_bsy_drq(), // output
-        .set_bsy(), // output
-        .set_sts_7f(), // output
-        .set_sts_80(), // output
-        .decr_dwc(), // output
-        .decr_DXC_dw(), // output[11:2] 
-        .tfd_sts(), // input[7:0] 
-        .tfd_err(), // input[7:0] 
-        .fis_i(), // input
-        .sdb_n(), // input
-        .dma_a(), // input
-        .dma_d(), // input
-        .pio_i(), // input
-        .pio_d(), // input
-        .pio_es(), // input[7:0] 
-        .xfer_cntr(), // input[31:2] 
-        .xfer_cntr_zero(), // input
-        .fetch_cmd(), // output
-        .cfis_xmit(), // output
-        .dx_transmit(), // output
-        .atapi_xmit(), // output
-        .done(), // input
-        .busy(), // input
-        .clearCmdToIssue(), // output
-        .pCmdToIssue(), // input
-        .fetch_cmd_busy(), // input
-        .syncesc_recv(), // output
-        .xmit_err(), // output
-        .dx_err(), // input[1:0] 
-        .ch_prdtl(), // input[15:0] 
-        .ch_c(), // input
-        .ch_b(), // input
-        .ch_r(), // input
-        .ch_p(), // input
-        .ch_w(), // input
-        .ch_a(), // input
-        .ch_cfl(), // input[4:0] 
-        .dwords_sent() // input[11:2] 
+        .phy_ready       (phy_ready),          // input
+        .syncesc_send    (syncesc_send),       // output Send sync escape
+
+        .dma_prd_done    (dma_prd_done),       // input
+        .dma_prd_irq     (dma_prd_irq),        // input
+        .dma_cmd_busy    (dma_cmd_busy),       // input
+        .dma_cmd_done    (dma_cmd_done),       // input
+        
+        .fis_first_vld   (frcv_first_vld),     // input
+        .fis_type        (d2h_data[7:0]),      // input[7:0] FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
+        .get_sig         (frcv_get_sig),       // output
+        .get_dsfis       (frcv_get_dsfis),     // output
+        .get_psfis       (frcv_get_psfis),     // output
+        .get_rfis        (frcv_get_rfis),      // output
+        .get_sdbfis      (frcv_get_sdbfis),    // output
+        .get_ufis        (frcv_get_ufis),      // output
+        .get_data_fis    (frcv_get_data_fis),  // output
+        .get_ignore      (frcv_get_ignore),    // output
+        .get_fis_busy    (frcv_busy),          // input
+        .get_fis_done    (frcv_done),          // input
+        .fis_ok          (frcv_ok),            // input
+        .fis_err         (frcv_err),           // input
+        .fis_ferr        (frcv_ferr),          // input
+        .update_err_sts  (frcv_update_err_sts),// output
+        .update_prdbc    (frcv_update_prdbc),  // output
+        .clear_bsy_drq   (frcv_clear_bsy_drq), // output
+        .set_bsy         (frcv_set_bsy),       // output
+        .set_sts_7f      (frcv_set_sts_7f),    // output
+        .set_sts_80      (frcv_set_sts_80),    // output
+        .decr_dwc        (frcv_decr_dwc),      // output
+        .decr_DXC_dw     (data_out_dwords),    // output[11:2] **** Probably not needed
+         
+        .tfd_sts         (tfd_sts),            // input[7:0] 
+        .tfd_err         (tfd_err),            // input[7:0] 
+        .fis_i           (fis_i),              // input
+        .sdb_n           (sdb_n),              // input
+        .dma_a           (dma_a),              // input
+        .dma_d           (dma_d),              // input
+        .pio_i           (pio_i),              // input
+        .pio_d           (pio_d),              // input
+        .pio_es          (pio_es),             // input[7:0] 
+        .xfer_cntr       (xfer_cntr[31:2]),    // input[31:2] 
+        .xfer_cntr_zero  (xfer_cntr_zero),     // input
+        
+        .fetch_cmd       (fsnd_fetch_cmd),     // output
+        .cfis_xmit       (fsnd_cfis_xmit),     // output
+        .dx_transmit     (fsnd_dx_transmit),   // output
+        .atapi_xmit      (fsnd_atapi_xmit),    // output
+        .done            (fsnd_done),          // input
+        .busy            (fsnd_busy),          // input
+        .clearCmdToIssue (fsnd_clearCmdToIssue),// output // From CFIS:SUCCESS 
+        .pCmdToIssue     (fsnd_pCmdToIssue),   // input
+        .dx_err          (fsnd_dx_err),        // input[1:0] 
+        .ch_prdtl        (prdtl),              // input[15:0] 
+        .ch_c            (fsnd_ch_c),          // input
+        .ch_b            (fsnd_ch_b),          // input
+        .ch_r            (fsnd_ch_r),          // input
+        .ch_p            (fsnd_ch_p),          // input
+        .ch_w            (fsnd_ch_w),          // input
+        .ch_a            (fsnd_ch_a),          // input
+        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
+        .dwords_sent     (data_out_dwords)     // input[11:0] 
     );
 
 
@@ -314,14 +399,18 @@ module  ahci_top#(
         .soft_write_data  (soft_write_data), // output[31:0] 
         .soft_write_en    (soft_write_en),   // output
         .hba_arst         (hba_arst),        // output
-        .port_arst        (port_arst),        // output
+        .port_arst        (port_arst),       // output
         .hba_clk          (mclk),            // input
-        .hba_rst          (hba_rst),         // input   
+        .hba_rst          (mrst),            // input   // deasserted when mclk is stable
         .hba_addr         (regs_addr),       // input[9:0] 
         .hba_we           (regs_we),         // input
         .hba_re           (regs_re),         // input[1:0] 
         .hba_din          (regs_din),        // input[31:0] 
-        .hba_dout         (regs_dout)        // output[31:0] 
+        .hba_dout         (regs_dout),        // output[31:0] 
+        .afi_wcache       (axi_wr_cache_mode),// output[3:0] reg 
+        .afi_rcache       (axi_rd_cache_mode),// output[3:0] reg 
+        .afi_cache_set    (set_axi_cache_mode) // output
+        
     );
 
 
@@ -339,8 +428,8 @@ module  ahci_top#(
         .cmd_abort             (dma_cmd_abort), // input
         .axi_wr_cache_mode     (axi_wr_cache_mode), // input[3:0] 
         .axi_rd_cache_mode     (axi_rd_cache_mode), // input[3:0] 
-        .set_axi_wr_cache_mode (set_axi_wr_cache_mode), // input
-        .set_axi_rd_cache_mode (set_axi_rd_cache_mode), // input
+        .set_axi_wr_cache_mode (set_axi_cache_mode), // input
+        .set_axi_rd_cache_mode (set_axi_cache_mode), // input
         .ct_busy               (dma_ct_busy),   // output reg 
         .ct_addr               (dma_ct_addr),   // input[4:0] 
         .ct_re                 (dma_ct_re[0]),  // input
@@ -405,44 +494,47 @@ module  ahci_top#(
     ahci_fis_receive #(
         .ADDRESS_BITS      (ADDRESS_BITS)
     ) ahci_fis_receive_i (
-        .hba_rst           (hba_rst),           // input
-        .mclk              (mclk),              // input
+        .hba_rst           (mrst),                   // input
+        .mclk              (mclk),                   // input
         
-        .fis_first_vld     (), // output reg 
+        .fis_first_vld     (frcv_first_vld),         // output reg 
 
-        .get_sig           (), // input
-        .get_dsfis         (), // input
-        .get_psfis         (), // input
-        .get_rfis          (), // input
-        .get_sdbfis        (), // input
-        .get_ufis          (), // input
-        .get_data_fis      (), // input
-        .get_ignore        (), // input
+        .get_sig           (frcv_get_sig),           // input
+        .get_dsfis         (frcv_get_dsfis),         // input
+        .get_psfis         (frcv_get_psfis),         // input
+        .get_rfis          (frcv_get_rfis),          // input
+        .get_sdbfis        (frcv_get_sdbfis),        // input
+        .get_ufis          (frcv_get_ufis),          // input
+        .get_data_fis      (frcv_get_data_fis),      // input
+        .get_ignore        (frcv_get_ignore),        // input
         
-        .get_fis_busy      (), // output reg 
-        .get_fis_done      (), // output reg 
-        .fis_ok            (), // output reg 
-        .fis_err           (), // output reg 
-        .fis_ferr          (), // output
-        .update_err_sts    (), // input
-        .update_prdbc      (), // input
-        .clear_bsy_drq     (), // input
-        .set_bsy           (), // input
-        .set_sts_7f        (), // input
-        .set_sts_80        (), // input
-        .decr_dwc          (), // input
-        .decr_DXC_dw       (), // input[11:2] 
-        .tfd_sts           (), // output[7:0] 
-        .tfd_err           (), // output[7:0] 
-        .fis_i             (), // output reg 
-        .sdb_n             (), // output reg 
-        .dma_a             (), // output reg 
-        .dma_d             (), // output reg 
-        .pio_i             (), // output reg 
-        .pio_d             (), // output reg 
-        .pio_es            (), // output[7:0] reg 
+        .get_fis_busy      (frcv_busy),              // output reg 
+        .get_fis_done      (frcv_done),              // output reg 
+        .fis_ok            (frcv_ok),                // output reg 
+        .fis_err           (frcv_err),               // output reg 
+        .fis_ferr          (frcv_ferr),              // output
+        
+        .update_err_sts    (frcv_update_err_sts),    // input
+        .update_prdbc      (frcv_update_prdbc),      // input
+        .clear_bsy_drq     (frcv_clear_bsy_drq),     // input
+        .set_bsy           (frcv_set_bsy),           // input
+        .set_sts_7f        (frcv_set_sts_7f),        // input
+        .set_sts_80        (frcv_set_sts_80),        // input
+        .decr_dwc          (frcv_decr_dwc),          // input
+        .decr_DXC_dw       (data_out_dwords),        // input[11:2] 
+        
+        .tfd_sts           (tfd_sts),                // output[7:0] 
+        .tfd_err           (tfd_err),                // output[7:0] 
+        .fis_i             (fis_i),                  // output reg 
+        .sdb_n             (sdb_n),                  // output reg 
+        .dma_a             (dma_a),                  // output reg 
+        .dma_d             (dma_d),                  // output reg 
+        .pio_i             (pio_i),                  // output reg 
+        .pio_d             (pio_d),                  // output reg 
+        .pio_es            (pio_es),                 // output[7:0] reg 
         .xfer_cntr         (xfer_cntr[31:2]),        // output[31:2] 
         .xfer_cntr_zero    (xfer_cntr_zero),         // output reg
+        .data_in_dwords    (data_in_dwords),         // output[11:0] 
          
         .reg_addr          (regs_waddr),             // output[9:0] reg 
         .reg_we            (regs_we_freceive),       // output reg 
@@ -462,51 +554,51 @@ module  ahci_top#(
         .READ_CT_LATENCY  (READ_CT_LATENCY),
         .ADDRESS_BITS     (ADDRESS_BITS)
     ) ahci_fis_transmit_i (
-        .hba_rst           (hba_rst),                // input
-        .mclk              (mclk),                   // input
+        .hba_rst           (mrst),                 // input
+        .mclk              (mclk),                 // input
 
-        .fetch_cmd         (), // input
-        .cfis_xmit         (), // input
-        .dx_transmit       (), // input
-        .atapi_xmit        (), // input
+        .fetch_cmd         (fsnd_fetch_cmd),       // input
+        .cfis_xmit         (fsnd_cfis_xmit),       // input
+        .dx_transmit       (fsnd_dx_transmit),     // input
+        .atapi_xmit        (fsnd_atapi_xmit),      // input
         
-        .done              (), // output reg 
-        .busy              (), // output reg 
-        .clearCmdToIssue   (), // input
-        .pCmdToIssue       (), // output
-        .fetch_cmd_busy    (), // output reg 
-        .syncesc_recv      (), // input
-        .xmit_err          (), // input
-        .dx_err            (), // output[1:0] 
-        .ch_prdtl          (), // output[15:0] 
-        .ch_c              (), // output
-        .ch_b              (), // output
-        .ch_r              (), // output
-        .ch_p              (), // output
-        .ch_w              (),        // output
-        .ch_a              (), // output
-        .ch_cfl            (), // output[4:0] 
-        .dwords_sent       (), // output[11:2] reg 
-        .reg_addr          (regs_raddr),        // output[9:0] reg 
-        .reg_re            (regs_re_ftransmit), // output[1:0]
-        .reg_rdata         (regs_dout),         // input[31:0] 
-        .xfer_cntr         (xfer_cntr[31:2]),   // input[31:2] 
-        .dma_ctba_ld       (ctba_ld),           // output
-        .dma_start         (dma_cmd_start),     // output
-        .dma_dev_wr        (dev_wr),            // output
-        .dma_ct_busy       (dma_ct_busy),       // input
-        .dma_prd_start     (dma_prd_start),     // output reg 
-        .dma_cmd_abort     (dma_cmd_abort),     // output reg 
-        .ct_addr           (dma_ct_addr),       // output[4:0] reg 
-        .ct_re             (dma_ct_re),         // output[1:0]
-        .ct_data           (dma_ct_data),       // input[31:0] 
-        .dma_out           (dma_dout),          // input[31:0] 
-        .dma_dav           (dma_dav),           // input
-        .dma_re            (dma_re),            // output
-        .todev_data        (h2d_data),          // output[31:0] reg 
-        .todev_type        (h2d_type),          // output[1:0] reg 
-        .todev_valid       (h2d_valid),         // output
-        .todev_ready       (h2d_ready)          // input
+        .done              (fsnd_done),            // output reg 
+        .busy              (fsnd_busy),            // output reg 
+        .clearCmdToIssue   (fsnd_clearCmdToIssue), // input
+        .pCmdToIssue       (fsnd_pCmdToIssue),     // output
+        .syncesc_recv      (syncesc_recv),         // input
+        .xmit_err          (xmit_err),             // input
+        .dx_err            (fsnd_dx_err),          // output[1:0] 
+        .ch_prdtl          (prdtl),                // output[15:0]
+        .ch_c              (fsnd_ch_c),            // output
+        .ch_b              (fsnd_ch_b),            // output
+        .ch_r              (fsnd_ch_r),            // output
+        .ch_p              (fsnd_ch_p),            // output
+        .ch_w              (fsnd_ch_w),            // output
+        .ch_a              (fsnd_ch_a),            // output
+        .ch_cfl            (fsnd_ch_cfl),          // output[4:0] 
+
+        .dwords_sent       (data_out_dwords),      // output[11:0] reg
+        .reg_addr          (regs_raddr),           // output[9:0] reg 
+        .reg_re            (regs_re_ftransmit),    // output[1:0]
+        .reg_rdata         (regs_dout),            // input[31:0] 
+        .xfer_cntr         (xfer_cntr[31:2]),      // input[31:2] 
+        .dma_ctba_ld       (ctba_ld),              // output
+        .dma_start         (dma_cmd_start),        // output
+        .dma_dev_wr        (dev_wr),               // output
+        .dma_ct_busy       (dma_ct_busy),          // input
+        .dma_prd_start     (dma_prd_start),        // output reg 
+        .dma_cmd_abort     (dma_cmd_abort),        // output reg 
+        .ct_addr           (dma_ct_addr),          // output[4:0] reg 
+        .ct_re             (dma_ct_re),            // output[1:0]
+        .ct_data           (dma_ct_data),          // input[31:0] 
+        .dma_out           (dma_dout),             // input[31:0] 
+        .dma_dav           (dma_dav),              // input
+        .dma_re            (dma_re),               // output
+        .todev_data        (h2d_data),             // output[31:0] reg 
+        .todev_type        (h2d_type),             // output[1:0] reg 
+        .todev_valid       (h2d_valid),            // output
+        .todev_ready       (h2d_ready)             // input
     );
 
 

@@ -36,13 +36,15 @@ module  ahci_fis_transmit #(
     input                         dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     input                         atapi_xmit,   // tarsmit ATAPI command FIS
+    
+    
     output reg                    done,
     output reg                    busy,
 
     input                         clearCmdToIssue, // From CFIS:SUCCESS 
     output                        pCmdToIssue, // AHCI port variable
 //    output                        dmaCntrZero, // DMA counter is zero - would be a duplicate to the one in receive module and dwords_sent output
-    output reg                    fetch_cmd_busy, // does not include prefetching CT
+//    output reg                    fetch_cmd_busy, // does not include prefetching CT - now just use busy/done
     input                         syncesc_recv, // These two inputs interrupt transmit
     input                         xmit_err,     // 
     output                 [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
@@ -56,7 +58,7 @@ module  ahci_fis_transmit #(
     output                        ch_a,        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
     output                  [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
-    output reg             [11:2] dwords_sent, // number of DWORDs transmitted (up to 2048)                                 
+    output reg             [11:0] dwords_sent, // number of DWORDs transmitted (up to 2048)                                 
     
     // register memory interface
     output reg [ADDRESS_BITS-1:0] reg_addr,      
@@ -136,7 +138,7 @@ module  ahci_fis_transmit #(
     reg                      acfis_xmit_busy_r; //
 //    reg                      anc_fis_r; // This is ATAPI FIS, not Command FIS
 
-    wire                     acfis_xmit_start_w = (cfis_xmit || atapi_xmit || acfis_xmit_pend_r) && !dma_ct_busy && !fetch_cmd_busy; // dma_ct_busy no gaps with fetch_cmd_busy
+    wire                     acfis_xmit_start_w = (cfis_xmit || atapi_xmit || acfis_xmit_pend_r) && !dma_ct_busy && !fetch_cmd_busy_r; // dma_ct_busy no gaps with fetch_cmd_busy
     wire                     acfis_xmit_end = ct_stb && fis_dw_last;
     
     wire                     ct_re_w; // next cycle will be ct_re;
@@ -152,8 +154,10 @@ module  ahci_fis_transmit #(
     reg                      dx_busy_r;
     reg               [ 1:0] dx_err_r;
     wire                     any_cmd_start = fetch_cmd || cfis_xmit || dx_transmit || atapi_xmit;
-    wire                     done_w = dx_dma_last_w || ((|dx_err_r) && dx_busy_r) || chead_done_w || acfis_xmit_end; // done on last transmit or error
+    wire                     done_w = dx_dma_last_w || ((|dx_err_r) && dx_busy_r) || chead_done_w || acfis_xmit_end || dma_start; // done on last transmit or error
+                             // dma_start ends 'fetch_cmd'
     
+    reg                      fetch_cmd_busy_r;
     
     assign todev_valid = todev_full_r;
     assign dma_re =   dma_re_w;
@@ -237,9 +241,9 @@ module  ahci_fis_transmit #(
        else if (chead_done_w)    pCmdToIssue_r <= 1;
        else if (clearCmdToIssue) pCmdToIssue_r <= 0;
        
-       if      (hba_rst)         fetch_cmd_busy <= 0;
-       else if (fetch_cmd)       fetch_cmd_busy <= 1;
-       else if (dma_start)       fetch_cmd_busy <= 0;
+       if      (hba_rst)         fetch_cmd_busy_r <= 0;
+       else if (fetch_cmd)       fetch_cmd_busy_r <= 1;
+       else if (dma_start)       fetch_cmd_busy_r <= 0;
        
        //CFIS/ATAPI common
        
@@ -280,7 +284,7 @@ module  ahci_fis_transmit #(
        else if (dma_re_w) dx_dwords_left[11:2] <= dx_dwords_left[11:2] - 1;
        
        if   (dx_transmit) dwords_sent <= 0;
-       else if (dma_re_w) dwords_sent[11:2] <= dwords_sent[11:2] + 1;
+       else if (dma_re_w) dwords_sent <= dwords_sent + 1;
 
        // send FIS header
        if (hba_rst || write_or_w) dx_fis_pend_r <= 0;
