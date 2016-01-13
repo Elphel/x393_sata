@@ -45,6 +45,7 @@ module  ahci_ctrl_stat #(
     // update register inputs (will write to register memory current value of the corresponding register)
     input                         update_GHC__IS,
     input                         update_HBA_PORT__PxIS,
+    input                         update_HBA_PORT__PxSSTS,
     
 // Interrupt inputs
     input                         sirq_TFE, // RWC: Task File Error Status
@@ -57,6 +58,24 @@ module  ahci_ctrl_stat #(
     input                         sirq_DS,  // RWC: DMA Setup FIS Interrupt - DMA Setup FIS received with 'I' bit set
     input                         sirq_PS,  // RWC: PIO Setup FIS Interrupt - PIO Setup FIS received with 'I' bit set
     input                         sirq_DHR, // RWC: D2H Register FIS Interrupt - D2H Register FIS received with 'I' bit set
+    
+// SCR0: SStatus
+    input                         ssts_ipm_dnp,      // device not present or communication not established
+    input                         ssts_ipm_active,   // device in active state
+    input                         ssts_ipm_part,     // device in partial state
+    input                         ssts_ipm_slumb,    // device in slumber state
+    input                         ssts_ipm_devsleep, // device in DevSleep state
+    
+    input                         ssts_spd_dnp,      // device not present or communication not established
+    input                         ssts_spd_gen1,     // Gen 1 rate negotiated
+    input                         ssts_spd_gen2,     // Gen 2 rate negotiated
+    input                         ssts_spd_gen3,     // Gen 3 rate negotiated
+    
+    input                         ssts_det_ndnp,     // no device detected, phy communication not established
+    input                         ssts_det_dnp,      // device detected, but phy communication not established
+    input                         ssts_det_dp,       // device detected, phy communication established
+    input                         ssts_det_offline,  // device detected, phy communication established
+         
 /*
 */    
     output reg                    irq
@@ -84,6 +103,7 @@ module  ahci_ctrl_stat #(
     reg                           set_ghc_is_r; // active next cycle after one of individual non-masked bits in PxIS is set
     reg                    [31:0] PxIE_r; // some bits will be unused by PxIS_MASK
     reg                    [31:0] PxIS_r; // some bits will be unused by PxIS_MASK
+    reg                    [11:0] PxSSTS_r;
     wire                   [31:0] sirq = {32{sirq_TFE}} & HBA_PORT__PxIS__TFES__MASK | // 'h40000000;
                                          {32{sirq_IF }} & HBA_PORT__PxIS__IFS__MASK |  // 'h8000000;
                                          {32{sirq_INF}} & HBA_PORT__PxIS__INFS__MASK | // 'h4000000;
@@ -94,6 +114,16 @@ module  ahci_ctrl_stat #(
                                          {32{sirq_DS }} & HBA_PORT__PxIS__DSS__MASK |  // 'h4;
                                          {32{sirq_PS }} & HBA_PORT__PxIS__PSS__MASK |  // 'h2;
                                          {32{sirq_DHR}} & HBA_PORT__PxIS__DHRS__MASK;  // 'h1;
+    wire                   [11:8] sssts_ipm = ({4{ssts_ipm_active}} &   4'h1) |
+                                              ({4{ssts_ipm_part}} &     4'h2) |
+                                              ({4{ssts_ipm_slumb}} &    4'h6) |
+                                              ({4{ssts_ipm_devsleep}} & 4'h8);
+    wire                   [ 7:4] sssts_spd = ({4{ssts_spd_gen1}} &     4'h1) |
+                                              ({4{ssts_spd_gen2}} &     4'h2) |
+                                              ({4{ssts_spd_gen3}} &     4'h3);
+    wire                   [ 3:0] sssts_det = ({4{ssts_det_dnp}} &      4'h1) |
+                                              ({4{ssts_det_dp}} &       4'h3) |
+                                              ({4{ssts_det_offline}} &  4'h4);
     
     
 localparam PxIE_MASK =  HBA_PORT__PxIE__TFEE__MASK | // 'h40000000;
@@ -163,13 +193,28 @@ localparam PxIS_MASK =  HBA_PORT__PxIS__TFES__MASK | // 'h40000000;
         else         set_ghc_is_r <= |(sirq & PxIE_r);
     end
 
+    always @(posedge mclk) begin
+        if (mrst)                                                                                         PxSSTS_r[11:8] <= 0;
+        else if (ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep) PxSSTS_r[11:8] <= sssts_ipm[11:8];
+
+        if (mrst)                                                                                         PxSSTS_r[ 7:4] <= 0;
+        else if (ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep) PxSSTS_r[ 7:4] <= sssts_spd[ 7:4];
+
+        if (mrst)                                                                                         PxSSTS_r[ 3:0] <= 0;
+        else if (ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep) PxSSTS_r[ 3:0] <= sssts_det[ 3:0];
+    end
+
+
     // Update AXI registers with the current local data
     always @ (posedge mclk) begin
-        regs_addr <= ({ADDRESS_BITS{update_GHC__IS}}        & GHC__IS__IPS__ADDR) |
-                     ({ADDRESS_BITS{update_HBA_PORT__PxIS}} & HBA_PORT__PxIS__CPDS__ADDR); //  | // TODO: add more ...
-        regs_din <=  ({32{update_GHC__IS}}        & {31'b0, ghc_is_r}) |
-                     ({32{update_HBA_PORT__PxIS}} & PxIS_r); //  | // TODO: add more ...
-        regs_we <=   update_GHC__IS || update_HBA_PORT__PxIS;
+        regs_addr <= ({ADDRESS_BITS{update_GHC__IS}}          & GHC__IS__IPS__ADDR) |
+                     ({ADDRESS_BITS{update_HBA_PORT__PxIS}}   & HBA_PORT__PxIS__CPDS__ADDR) | // TODO: add more ...
+                     ({ADDRESS_BITS{update_HBA_PORT__PxSSTS}} & HBA_PORT__PxSSTS__SPD__ADDR) ;
+        regs_din <=  ({32{update_GHC__IS}}          & {31'b0, ghc_is_r}) |
+                     ({32{update_HBA_PORT__PxIS}}   & PxIS_r) | // TODO: add more ...
+                     ({32{update_HBA_PORT__PxSSTS}} &{20'b0, PxSSTS_r[11:0]}); // | // TODO: add more ...
+                     
+        regs_we <=   update_GHC__IS || update_HBA_PORT__PxIS || update_HBA_PORT__PxSSTS;
     end
     
 
