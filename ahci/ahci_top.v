@@ -426,6 +426,79 @@ module  ahci_top#(
         
     );
 
+    /* Instance template for module ahci_ctrl_stat */
+    ahci_ctrl_stat #(
+        .ADDRESS_BITS            (ADDRESS_BITS)
+    ) ahci_ctrl_stat_i (
+        .mrst                    (), // input
+        .mclk                    (), // input
+        .was_hba_rst             (), // input
+        .was_port_rst            (), // input
+        .soft_write_addr         (), // input[9:0] 
+        .soft_write_data         (), // input[31:0] 
+        .soft_write_en           (), // input
+        .regs_addr               (), // output[9:0] reg 
+        .regs_we                 (), // output reg 
+        .regs_din                (), // output[31:0] reg 
+        .update_GHC__IS          (), // input
+        .update_HBA_PORT__PxIS   (), // input
+        .update_HBA_PORT__PxSSTS (), // input
+        .update_HBA_PORT__PxSERR (), // input
+        .update_HBA_PORT__PxCMD  (), // input
+        .pcmd_clear_icc          (), // input
+        .pcmd_esp                (), // input
+        .pcmd_cr                 (), // output
+        .pcmd_cr_set             (), // input
+        .pcmd_cr_reset           (), // input
+        .pcmd_fr                 (), // input
+        .pcmd_clear_bsy_drq      (), // input
+        .pcmd_clo                (), // output
+        .pcmd_clear_st           (), // input
+        .pcmd_st                 (), // output
+        .sirq_TFE                (), // input
+        .sirq_IF                 (), // input
+        .sirq_INF                (), // input
+        .sirq_OF                 (), // input
+        .sirq_PRC                (), // input
+        .sirq_PC                 (), // input
+        .sirq_DP                 (), // input
+        .sirq_UF                 (), // input
+        .sirq_SDB                (), // input
+        .sirq_DS                 (), // input
+        .sirq_PS                 (), // input
+        .sirq_DHR                (), // input
+        .serr_DT                 (), // input
+        .serr_DS                 (), // input
+        .serr_DH                 (), // input
+        .serr_DC                 (), // input
+        .serr_DB                 (), // input
+        .serr_DW                 (), // input
+        .serr_DI                 (), // input
+        .serr_EP                 (), // input
+        .serr_EC                 (), // input
+        .serr_ET                 (), // input
+        .serr_EM                 (), // input
+        .serr_EI                 (), // input
+        .ssts_ipm_dnp            (), // input
+        .ssts_ipm_active         (), // input
+        .ssts_ipm_part           (), // input
+        .ssts_ipm_slumb          (), // input
+        .ssts_ipm_devsleep       (), // input
+        .ssts_spd_dnp            (), // input
+        .ssts_spd_gen1           (), // input
+        .ssts_spd_gen2           (), // input
+        .ssts_spd_gen3           (), // input
+        .ssts_det_ndnp           (), // input
+        .ssts_det_dnp            (), // input
+        .ssts_det_dp             (), // input
+        .ssts_det_offline        (), // input
+        .sctl_ipm                (), // output[3:0] reg 
+        .sctl_spd                (), // output[3:0] reg 
+        .sctl_det                (), // output[3:0] reg 
+        .pxci0_clear             (), // input
+        .pxci0                   (), // output
+        .irq                     () // output reg 
+    );
 
     ahci_dma ahci_dma_i (
         .mrst                  (mrst),          // input
