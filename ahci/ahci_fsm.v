@@ -53,11 +53,17 @@ module  ahci_fsm #(
     
     // Communication with ahci_ctrl_stat (some are not needed)
     // update register inputs (will write to register memory current value of the corresponding register)
-    output                        update_GHC__IS,
-    output                        update_HBA_PORT__PxIS,
-    output                        update_HBA_PORT__PxSSTS,
-    output                        update_HBA_PORT__PxSERR,
-    output                        update_HBA_PORT__PxCMD,
+    
+    // update register inputs (will write to register memory current value of the corresponding register)
+    input                         update_pending,
+    output                        update_all,
+    input                         update_busy, // valid same cycle as update_all
+    output                        update_gis,  // these following individual may be unneeded - just use universal update_all
+    output                        update_pis,
+    output                        update_ssts,
+    output                        update_serr,
+    output                        update_pcmd,
+    output                        update_pci,
 
 // PxCMD
     output                        pcmd_clear_icc, // clear PxCMD.ICC field

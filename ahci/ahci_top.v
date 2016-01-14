@@ -289,14 +289,18 @@ module  ahci_top#(
     wire                    was_hba_rst; 
     wire                    was_port_rst; 
 
-
     // signals between ahci_fsm and ahci_ctrl_stat
+    wire                          update_regs_pending;
+    wire                          update_all_regs;
+    wire                          update_regs_busy; // valid same cycle as update_all_regs
     
-        wire                          update_GHC__IS;
+    // these following individual signals may be unneded - use update_all_regs -> update_regs_busy
+    wire                          update_GHC__IS;
     wire                          update_HBA_PORT__PxIS;
     wire                          update_HBA_PORT__PxSSTS;
     wire                          update_HBA_PORT__PxSERR;
     wire                          update_HBA_PORT__PxCMD;
+    wire                          update_HBA_PORT__PxCI;
 
 // PxCMD
     wire                          pcmd_clear_icc; // clear PxCMD.ICC field
@@ -380,12 +384,17 @@ module  ahci_top#(
 
         .phy_ready                (phy_ready),               // input
         .syncesc_send             (syncesc_send),            // output
+
+        .update_pending           (update_regs_pending),     // input
+        .update_all               (update_all_regs),         // output
+        .update_busy              (update_regs_busy),        // input
+        .update_gis               (update_GHC__IS),          // output
+        .update_pis               (update_HBA_PORT__PxIS),   // output
+        .update_ssts              (update_HBA_PORT__PxSSTS), // output
+        .update_serr              (update_HBA_PORT__PxSERR), // output
+        .update_pcmd              (update_HBA_PORT__PxCMD),  // output
+        .update_pci               (update_HBA_PORT__PxCI),   // output
         
-        .update_GHC__IS           (update_GHC__IS),          // output
-        .update_HBA_PORT__PxIS    (update_HBA_PORT__PxIS),   // output
-        .update_HBA_PORT__PxSSTS  (update_HBA_PORT__PxSSTS), // output
-        .update_HBA_PORT__PxSERR  (update_HBA_PORT__PxSERR), // output
-        .update_HBA_PORT__PxCMD   (update_HBA_PORT__PxCMD),  // output
         .pcmd_clear_icc           (pcmd_clear_icc),    // output
         .pcmd_esp                 (pcmd_esp),          // output
         .pcmd_cr                  (pcmd_cr),           // input
@@ -574,11 +583,17 @@ module  ahci_top#(
         .regs_addr               (regs_saddr),              // output[9:0] reg 
         .regs_we                 (regs_we_acs),             // output reg 
         .regs_din                (regs_din_from_acs),       // output[31:0] reg 
-        .update_GHC__IS          (update_GHC__IS),          // input
-        .update_HBA_PORT__PxIS   (update_HBA_PORT__PxIS),   // input
-        .update_HBA_PORT__PxSSTS (update_HBA_PORT__PxSSTS), // input
-        .update_HBA_PORT__PxSERR (update_HBA_PORT__PxSERR), // input
-        .update_HBA_PORT__PxCMD  (update_HBA_PORT__PxCMD),  // input
+        .update_pending          (update_regs_pending),     // output
+        .update_all              (update_all_regs),         // input
+        .update_busy             (update_regs_busy),        // output
+//    input                         update_pending,
+        
+        .update_gis              (update_GHC__IS),          // input
+        .update_pis              (update_HBA_PORT__PxIS),   // input
+        .update_ssts             (update_HBA_PORT__PxSSTS), // input
+        .update_serr             (update_HBA_PORT__PxSERR), // input
+        .update_pcmd             (update_HBA_PORT__PxCMD),  // input
+        .update_pci              (update_HBA_PORT__PxCI),   // input
         .pcmd_clear_icc          (pcmd_clear_icc),          // input
         .pcmd_esp                (pcmd_esp),                // input
         .pcmd_cr                 (pcmd_cr),                 // output

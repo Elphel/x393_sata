@@ -43,11 +43,16 @@ module  ahci_ctrl_stat #(
     output reg             [31:0] regs_din,
 //    input                  [31:0] regs_dout,
     // update register inputs (will write to register memory current value of the corresponding register)
-    input                         update_GHC__IS,
-    input                         update_HBA_PORT__PxIS,
-    input                         update_HBA_PORT__PxSSTS,
-    input                         update_HBA_PORT__PxSERR,
-    input                         update_HBA_PORT__PxCMD,
+    output                        update_pending,
+    input                         update_all,
+    output                        update_busy, // valid same cycle as update_all
+    
+    input                         update_gis,  // these following individual may be unneeded - just use universal update_all
+    input                         update_pis,
+    input                         update_ssts,
+    input                         update_serr,
+    input                         update_pcmd,
+    input                         update_pci,
 
 // PxCMD
     input                         pcmd_clear_icc, // clear PxCMD.ICC field
@@ -55,7 +60,7 @@ module  ahci_ctrl_stat #(
     output                        pcmd_cr,        // command list run - current
     input                         pcmd_cr_set,    // command list run set
     input                         pcmd_cr_reset,  // command list run reset
-    input                         pcmd_fr,        // ahci_fis_receive:get_fis_busy
+    input                         pcmd_fr,        // ahci_fis_receive:get_fis_busy - change to HAB set/reset (set, do, reset)
     input                         pcmd_clear_bsy_drq, // == ahci_fis_receive:clear_bsy_drq
     output                        pcmd_clo,       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     input                         pcmd_clear_st,  // RW clear ST (start) bit
@@ -193,7 +198,45 @@ module  ahci_ctrl_stat #(
     wire                   [ 3:0] sssts_det = ({4{ssts_det_dnp}} &      4'h1) |
                                               ({4{ssts_det_dp}} &       4'h3) |
                                               ({4{ssts_det_offline}} &  4'h4);
+                                              
+    // to update only HAB/async changed bits (not by the software)
+
+    wire  set_ssts_ipm = ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep;
+    wire  set_ssts_spd = ssts_spd_dnp || ssts_spd_gen1 || ssts_spd_gen2|| ssts_spd_gen3;
+    wire  set_ssts_det = ssts_det_ndnp || ssts_det_dnp || ssts_det_dp || ssts_det_offline;
+    wire  set_pxcmd =    pcmd_clear_icc || pcmd_esp || pcmd_cr_reset || pcmd_fr || pcmd_clear_bsy_drq || pcmd_clear_st ;
     
+    reg                           pxci_changed;
+    reg                           ssts_changed;
+    reg                           serr_changed;
+    reg                           sirq_changed;
+    reg                           pxcmd_changed;
+    reg                           ghc_is_changed;
+    wire                    [5:0] regs_changed={pxcmd_changed, serr_changed, ssts_changed, pxci_changed, sirq_changed,ghc_is_changed };
+//    wire                    [5:0] update;
+    reg                     [5:1] updating;
+    wire                    [5:0] update_first =  {6{update_all}} & 
+                                                  {regs_changed[5] && ~(|regs_changed[4:0]),
+                                                  regs_changed[4] && ~(|regs_changed[3:0]), 
+                                                  regs_changed[3] && ~(|regs_changed[2:0]), 
+                                                  regs_changed[2] && ~(|regs_changed[1:0]), 
+                                                  regs_changed[1] && ~  regs_changed[0], 
+                                                  regs_changed[0]}; 
+    wire                    [5:1] update_next =  {updating[5] && ~(|updating[4:1]),
+                                                  updating[4] && ~(|updating[3:1]), 
+                                                  updating[3] && ~(|updating[2:1]), 
+                                                  updating[2] && ~  updating[1], 
+                                                  updating[1]};
+                                                   
+
+    wire                          update_GHC__IS =          update_gis  || update_first[0];
+    wire                          update_HBA_PORT__PxIS =   update_pis  || update_first[1] || update_next[1];
+    wire                          update_HBA_PORT__PxSSTS = update_ssts || update_first[2] || update_next[2];
+    wire                          update_HBA_PORT__PxSERR = update_serr || update_first[3] || update_next[3];
+    wire                          update_HBA_PORT__PxCMD =  update_pcmd || update_first[4] || update_next[4];
+    wire                          update_HBA_PORT__PxCI =   update_pci  || update_first[5] || update_next[5];
+    assign update_busy = (update_all && (|regs_changed)) || (|updating[5:1]);
+    assign update_pending =  | regs_changed;    
     
 localparam PxIE_MASK =   HBA_PORT__PxIE__TFEE__MASK | // 'h40000000;
                          HBA_PORT__PxIE__IFE__MASK |  // 'h8000000;
@@ -336,14 +379,14 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
 
     // HBA_PORT__PxSSTS register - updated from the HOST only
     always @(posedge mclk) begin
-        if (mrst)                                                                                         PxSSTS_r[11:8] <= 0;
-        else if (ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep) PxSSTS_r[11:8] <= sssts_ipm[11:8];
+        if      (mrst)         PxSSTS_r[11:8] <= 0;
+        else if (set_ssts_ipm) PxSSTS_r[11:8] <= sssts_ipm[11:8];
 
-        if (mrst)                                                                                         PxSSTS_r[ 7:4] <= 0;
-        else if (ssts_spd_dnp || ssts_spd_gen1 || ssts_spd_gen2|| ssts_spd_gen3)                          PxSSTS_r[ 7:4] <= sssts_spd[ 7:4];
+        if      (mrst)         PxSSTS_r[ 7:4] <= 0;
+        else if (set_ssts_spd) PxSSTS_r[ 7:4] <= sssts_spd[ 7:4];
 
-        if (mrst)                                                                                         PxSSTS_r[ 3:0] <= 0;
-        else if (ssts_det_ndnp || ssts_det_dnp || ssts_det_dp || ssts_det_offline)                        PxSSTS_r[ 3:0] <= sssts_det[ 3:0];
+        if      (mrst)         PxSSTS_r[ 3:0] <= 0;
+        else if (set_ssts_det) PxSSTS_r[ 3:0] <= sssts_det[ 3:0];
     end
 
     // HBA_PORT__PxSCTL register - updated by the software only
@@ -385,15 +428,48 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
                      ({ADDRESS_BITS{update_HBA_PORT__PxIS}}   & HBA_PORT__PxIS__CPDS__ADDR) |
                      ({ADDRESS_BITS{update_HBA_PORT__PxSSTS}} & HBA_PORT__PxSSTS__SPD__ADDR) |
                      ({ADDRESS_BITS{update_HBA_PORT__PxSERR}} & HBA_PORT__PxSERR__DIAG__X__ADDR) |
-                     ({ADDRESS_BITS{update_HBA_PORT__PxCMD}}  & HBA_PORT__PxCMD__ICC__ADDR);
-                     
+                     ({ADDRESS_BITS{update_HBA_PORT__PxCMD}}  & HBA_PORT__PxCMD__ICC__ADDR) |
+                     ({ADDRESS_BITS{update_HBA_PORT__PxCI}}   & HBA_PORT__PxCI__CI__ADDR) ;
+//update_HBA_PORT__PxCI                     
         regs_din <=  ({32{update_GHC__IS}}          & {31'b0, ghc_is_r}) |
                      ({32{update_HBA_PORT__PxIS}}   & PxIS_r) |
                      ({32{update_HBA_PORT__PxSSTS}} & {20'b0, PxSSTS_r[11:0]}) |
                      ({32{update_HBA_PORT__PxSERR}} & PxSERR_r) |
-                     ({32{update_HBA_PORT__PxCMD}}  & PxCMD_r);
+                     ({32{update_HBA_PORT__PxCMD}}  & PxCMD_r) |
+                     ({32{update_HBA_PORT__PxCI}}   & {31'b0, pxci0});
                      
         regs_we <=   update_GHC__IS || update_HBA_PORT__PxIS || update_HBA_PORT__PxSSTS || update_HBA_PORT__PxSERR | update_HBA_PORT__PxCMD;
+        
+        // pending updates
+        if      (mrst)                                         pxci_changed <= 1; //0;
+        else if (pxci0_clear)                                  pxci_changed <= 1; 
+        else if (update_HBA_PORT__PxCI)                        pxci_changed <= 0;
+        
+        if      (mrst)                                         ssts_changed <= 1; //0;
+        else if (set_ssts_ipm || set_ssts_spd || set_ssts_det) ssts_changed <= 1; 
+        else if (update_HBA_PORT__PxSSTS)                      ssts_changed <= 0;
+        
+        if      (mrst)                                         serr_changed <= 1; //0;
+        else if (serr)                                         serr_changed <= 1; 
+        else if (update_HBA_PORT__PxSERR)                      serr_changed <= 0;
+        
+        if      (mrst)                                         sirq_changed <= 1; //0;
+        else if (sirq)                                         sirq_changed <= 1; 
+        else if (update_HBA_PORT__PxIS)                        sirq_changed <= 0;
+
+        if      (mrst)                                         pxcmd_changed <= 1; //0;
+        else if (set_pxcmd)                                    pxcmd_changed <= 1; 
+        else if (update_HBA_PORT__PxCMD)                       pxcmd_changed <= 0;
+        
+        if      (mrst)                                         ghc_is_changed <= 1; //0;
+        else if (set_ghc_is_r)                                 ghc_is_changed <= 1; 
+        else if (update_GHC__IS)                               ghc_is_changed <= 0;
+        
+        // updating registers if needed, 0 to 6 cycles, in priority sequence
+        if      (mrst)       updating[5:1] <= 0;
+        else if (update_all) updating[5:1] <= regs_changed[5:1] & ~update_first[5:1];
+        else                 updating[5:1] <= updating[5:1] & ~ update_next[5:1];  
+        
     end
     
 endmodule
