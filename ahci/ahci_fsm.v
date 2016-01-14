@@ -31,6 +31,7 @@ module  ahci_fsm #(
     input                         was_hba_rst,    // last reset was hba reset (not counting system reset)
     input                         was_port_rst,   // last reset was port reset
     
+/*    
     // notification from axi_ahci_regs that software has written data to register
     input      [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
     input                  [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
@@ -43,12 +44,90 @@ module  ahci_fsm #(
     output                  [1:0] regs_re, // [0] - re, [1] - regen
     output                 [31:0] regs_din,
     input                  [31:0] regs_dout,
-    
+*/    
     // direct communication with transposrt, link and phy layers
     input                         phy_ready,     // goes up after comreset,cominit, align, ...
     output                        syncesc_send,  // Send sync escape
     
     // Other signals....
+    
+    // Communication with ahci_ctrl_stat (some are not needed)
+    // update register inputs (will write to register memory current value of the corresponding register)
+    output                        update_GHC__IS,
+    output                        update_HBA_PORT__PxIS,
+    output                        update_HBA_PORT__PxSSTS,
+    output                        update_HBA_PORT__PxSERR,
+    output                        update_HBA_PORT__PxCMD,
+
+// PxCMD
+    output                        pcmd_clear_icc, // clear PxCMD.ICC field
+    output                        pcmd_esp,       // external SATA port (just forward value)
+    input                         pcmd_cr,        // command list run - current
+    output                        pcmd_cr_set,    // command list run set
+    output                        pcmd_cr_reset,  // command list run reset
+    output                        pcmd_fr,        // ahci_fis_receive:get_fis_busy
+    output                        pcmd_clear_bsy_drq, // == ahci_fis_receive:clear_bsy_drq
+    input                         pcmd_clo,       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
+    output                        pcmd_clear_st,  // RW clear ST (start) bit
+    input                         pcmd_st,        // current value
+//clear_bsy_drq    
+// Interrupt inputs
+    output                        sirq_TFE, // RWC: Task File Error Status
+    output                        sirq_IF,  // RWC: Interface Fatal Error Status (sect. 6.1.2)
+    output                        sirq_INF, // RWC: Interface Non-Fatal Error Status (sect. 6.1.2)
+    output                        sirq_OF,  // RWC: Overflow Status
+    output                        sirq_PRC, // RO:  PhyRdy changed Status
+    output                        sirq_PC,  // RO:  Port Connect Change Status
+    output                        sirq_DP,  // RWC: Descriptor Processed with "I" bit on
+    output                        sirq_UF,  // RO:  Unknown FIS
+    output                        sirq_SDB, // RWC: Set Device Bits Interrupt - Set Device bits FIS with 'I' bit set
+    output                        sirq_DS,  // RWC: DMA Setup FIS Interrupt - DMA Setup FIS received with 'I' bit set
+    output                        sirq_PS,  // RWC: PIO Setup FIS Interrupt - PIO Setup FIS received with 'I' bit set
+    output                        sirq_DHR, // RWC: D2H Register FIS Interrupt - D2H Register FIS received with 'I' bit set
+// SCR1:SError (only inputs that are not available in sirq_* ones
+                                  //sirq_PC,
+                                  //sirq_UF
+    output                        serr_DT,   // RWC: Transport state transition error
+    output                        serr_DS,   // RWC: Link sequence error
+    output                        serr_DH,   // RWC: Handshake Error (i.e. Device got CRC error)
+    output                        serr_DC,   // RWC: CRC error in Link layer
+    output                        serr_DB,   // RWC: 10B to 8B decode error
+    output                        serr_DW,   // RWC: COMMWAKE signal was detected
+    output                        serr_DI,   // RWC: PHY Internal Error
+                                  // sirq_PRC,
+                                  // sirq_IF || // sirq_INF  
+    output                        serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
+    output                        serr_EC,   // RWC: Persistent Communication or Data Integrity Error
+    output                        serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+    output                        serr_EM,   // RWC: Communication between the device and host was lost but re-established
+    output                        serr_EI,   // RWC: Recovered Data integrity Error
+
+     
+    
+// SCR0: SStatus
+    output                        ssts_ipm_dnp,      // device not present or communication not established
+    output                        ssts_ipm_active,   // device in active state
+    output                        ssts_ipm_part,     // device in partial state
+    output                        ssts_ipm_slumb,    // device in slumber state
+    output                        ssts_ipm_devsleep, // device in DevSleep state
+    
+    output                        ssts_spd_dnp,      // device not present or communication not established
+    output                        ssts_spd_gen1,     // Gen 1 rate negotiated
+    output                        ssts_spd_gen2,     // Gen 2 rate negotiated
+    output                        ssts_spd_gen3,     // Gen 3 rate negotiated
+    
+    output                        ssts_det_ndnp,     // no device detected, phy communication not established
+    output                        ssts_det_dnp,      // device detected, but phy communication not established
+    output                        ssts_det_dp,       // device detected, phy communication established
+    output                        ssts_det_offline,  // device detected, phy communication established
+
+ // SCR2:SControl (written by software only)
+    input                   [3:0] sctl_ipm,          // Interface power management transitions allowed
+    input                   [3:0] sctl_spd,          // Interface maximal speed
+    input                   [3:0] sctl_det,          // Device detection initialization requested
+    
+    output                        pxci0_clear,       // PxCI clear
+    input                         pxci0,             // pxCI current value
     
     // inputs from the DMA engine
     input                         dma_prd_done, // output (finished next prd)

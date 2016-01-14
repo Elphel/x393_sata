@@ -145,7 +145,9 @@ module  ahci_top#(
     input              phy_ready,
     input              syncesc_recv, // These two inputs interrupt transmit
     input              xmit_err,     // Error during sending of a FIS
-    output             syncesc_send  // Send sync escape
+    output             syncesc_send,  // Send sync escape
+    
+    output             irq // CPU interrupt request
     
 );
 // axi_ahci_regs signals:
@@ -157,24 +159,26 @@ module  ahci_top#(
 //    wire                    port_arst;      // port0 async reset by software
 // 2. HBA R/W registers, use hba clock
 //    wire                    hba_rst;
-    wire                    regs_we_fsm;
-    wire              [1:0] regs_re_fsm;
-    wire             [31:0] regs_din_from_fsm; // from fsm
+    wire                    regs_we_acs;
+//    wire              [1:0] regs_re_fsm;
+    wire             [31:0] regs_din_from_acs; // from fsm
     wire                    regs_we_freceive;
     wire              [1:0] regs_re_ftransmit; // [0] - re, [1] - regen
-    wire [ADDRESS_BITS-1:0] regs_faddr; // read/write adderss from ahci_fsm
+    wire [ADDRESS_BITS-1:0] regs_saddr; // read/write adderss from ahci_fsm
     wire [ADDRESS_BITS-1:0] regs_waddr;
     wire [ADDRESS_BITS-1:0] regs_raddr;
     wire             [31:0] regs_din_from_freceive;
     wire             [31:0] regs_dout;
     wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we}} & regs_waddr) |
                                         ({ADDRESS_BITS{regs_re[0]}} & regs_raddr) |
-                                        ({ADDRESS_BITS{regs_re_fsm[0] | regs_we_fsm}} & regs_faddr);
+//                                        ({ADDRESS_BITS{regs_re_fsm[0] | regs_we_acs}} & regs_saddr);
+                                        ({ADDRESS_BITS{regs_we_acs}} & regs_saddr);
                                         
     wire             [31:0] regs_din =  ({32{regs_we_freceive}} & regs_din_from_freceive) |
-                                        ({32{regs_we_fsm}} &      regs_din_from_fsm);
-    wire              [1:0] regs_re = regs_re_ftransmit | regs_re_fsm; // [0] - re, [1] - regen
-    wire                    regs_we = regs_we_freceive | regs_we_fsm;
+                                        ({32{regs_we_acs}} &      regs_din_from_acs);
+//    wire              [1:0] regs_re = regs_re_ftransmit | regs_re_fsm; // [0] - re, [1] - regen
+    wire              [1:0] regs_re = regs_re_ftransmit; // [0] - re, [1] - regen
+    wire                    regs_we = regs_we_freceive | regs_we_acs;
     
     
 //---------------------    
@@ -285,25 +289,156 @@ module  ahci_top#(
     wire                    was_hba_rst; 
     wire                    was_port_rst; 
 
+
+    // signals between ahci_fsm and ahci_ctrl_stat
+    
+        wire                          update_GHC__IS;
+    wire                          update_HBA_PORT__PxIS;
+    wire                          update_HBA_PORT__PxSSTS;
+    wire                          update_HBA_PORT__PxSERR;
+    wire                          update_HBA_PORT__PxCMD;
+
+// PxCMD
+    wire                          pcmd_clear_icc; // clear PxCMD.ICC field
+    wire                          pcmd_esp;       // external SATA port (just forward value)
+    wire                          pcmd_cr;        // command list run - current
+    wire                          pcmd_cr_set;    // command list run set
+    wire                          pcmd_cr_reset;  // command list run reset
+    wire                          pcmd_fr;        // ahci_fis_receive:get_fis_busy
+    wire                          pcmd_clear_bsy_drq; // == ahci_fis_receive:clear_bsy_drq
+    wire                          pcmd_clo;       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
+    wire                          pcmd_clear_st;  // RW clear ST (start) bit
+    wire                          pcmd_st;        // current value
+//clear_bsy_drq    
+// Interrupt inputs
+    wire                          sirq_TFE; // RWC: Task File Error Status
+    wire                          sirq_IF;  // RWC: Interface Fatal Error Status (sect. 6.1.2)
+    wire                          sirq_INF; // RWC: Interface Non-Fatal Error Status (sect. 6.1.2)
+    wire                          sirq_OF;  // RWC: Overflow Status
+    wire                          sirq_PRC; // RO:  PhyRdy changed Status
+    wire                          sirq_PC;  // RO:  Port Connect Change Status
+    wire                          sirq_DP;  // RWC: Descriptor Processed with "I" bit on
+    wire                          sirq_UF;  // RO:  Unknown FIS
+    wire                          sirq_SDB; // RWC: Set Device Bits Interrupt - Set Device bits FIS with 'I' bit set
+    wire                          sirq_DS;  // RWC: DMA Setup FIS Interrupt - DMA Setup FIS received with 'I' bit set
+    wire                          sirq_PS;  // RWC: PIO Setup FIS Interrupt - PIO Setup FIS received with 'I' bit set
+    wire                          sirq_DHR; // RWC: D2H Register FIS Interrupt - D2H Register FIS received with 'I' bit set
+// SCR1:SError (only inputs that are not available in sirq_* ones
+                                  //sirq_PC;
+                                  //sirq_UF
+    wire                          serr_DT;   // RWC: Transport state transition error
+    wire                          serr_DS;   // RWC: Link sequence error
+    wire                          serr_DH;   // RWC: Handshake Error (i.e. Device got CRC error)
+    wire                          serr_DC;   // RWC: CRC error in Link layer
+    wire                          serr_DB;   // RWC: 10B to 8B decode error
+    wire                          serr_DW;   // RWC: COMMWAKE signal was detected
+    wire                          serr_DI;   // RWC: PHY Internal Error
+                                  // sirq_PRC;
+                                  // sirq_IF || // sirq_INF  
+    wire                          serr_EP;   // RWC: Protocol Error - a violation of SATA protocol detected
+    wire                          serr_EC;   // RWC: Persistent Communication or Data Integrity Error
+    wire                          serr_ET;   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+    wire                          serr_EM;   // RWC: Communication between the device and host was lost but re-established
+    wire                          serr_EI;   // RWC: Recovered Data integrity Error
+
+     
+    
+// SCR0: SStatus
+    wire                          ssts_ipm_dnp;      // device not present or communication not established
+    wire                          ssts_ipm_active;   // device in active state
+    wire                          ssts_ipm_part;     // device in partial state
+    wire                          ssts_ipm_slumb;    // device in slumber state
+    wire                          ssts_ipm_devsleep; // device in DevSleep state
+    
+    wire                          ssts_spd_dnp;      // device not present or communication not established
+    wire                          ssts_spd_gen1;     // Gen 1 rate negotiated
+    wire                          ssts_spd_gen2;     // Gen 2 rate negotiated
+    wire                          ssts_spd_gen3;     // Gen 3 rate negotiated
+    
+    wire                          ssts_det_ndnp;     // no device detected, phy communication not established
+    wire                          ssts_det_dnp;      // device detected, but phy communication not established
+    wire                          ssts_det_dp;       // device detected, phy communication established
+    wire                          ssts_det_offline;  // device detected, phy communication established
+ // SCR2:SControl (written by software only)
+    wire                    [3:0] sctl_ipm;          // Interface power management transitions allowed
+    wire                    [3:0] sctl_spd;          // Interface maximal speed
+    wire                    [3:0] sctl_det;          // Device detection initialization requested
+    
+    wire                          pxci0_clear;       // PxCI clear
+    wire                          pxci0;             // pxCI current value
+
+
+
     ahci_fsm #(
         .READ_REG_LATENCY(2),
         .ADDRESS_BITS(10)
     ) ahci_fsm_i (
-        .hba_rst         (mrst),               // input
-        .mclk            (mclk),               // input
-        .was_hba_rst     (was_hba_rst),        // input 
-        .was_port_rst    (was_port_rst),       // input 
-        .soft_write_addr (soft_write_addr),    // input[9:0] 
-        .soft_write_data (soft_write_data),    // input[31:0] 
-        .soft_write_en   (soft_write_en),      // input
-        .regs_addr       (regs_faddr),         // output[9:0] 
-        .regs_we         (regs_we_fsm),        // output
-        .regs_re         (regs_re_fsm),        // output[1:0] 
-        .regs_din        (regs_din_from_fsm),  // output[31:0] 
-        .regs_dout       (regs_dout),          // input[31:0]
-         
-        .phy_ready       (phy_ready),          // input
-        .syncesc_send    (syncesc_send),       // output Send sync escape
+        .hba_rst         (mrst),                       // input
+        .mclk            (mclk),                       // input
+        .was_hba_rst     (was_hba_rst),                // input 
+        .was_port_rst    (was_port_rst),               // input
+
+        .phy_ready                (phy_ready),               // input
+        .syncesc_send             (syncesc_send),            // output
+        
+        .update_GHC__IS           (update_GHC__IS),          // output
+        .update_HBA_PORT__PxIS    (update_HBA_PORT__PxIS),   // output
+        .update_HBA_PORT__PxSSTS  (update_HBA_PORT__PxSSTS), // output
+        .update_HBA_PORT__PxSERR  (update_HBA_PORT__PxSERR), // output
+        .update_HBA_PORT__PxCMD   (update_HBA_PORT__PxCMD),  // output
+        .pcmd_clear_icc           (pcmd_clear_icc),    // output
+        .pcmd_esp                 (pcmd_esp),          // output
+        .pcmd_cr                  (pcmd_cr),           // input
+        .pcmd_cr_set              (pcmd_cr_set),       // output
+        .pcmd_cr_reset            (pcmd_cr_reset),     // output
+        .pcmd_fr                  (pcmd_fr),           // output
+        .pcmd_clear_bsy_drq       (pcmd_clear_bsy_drq),// output
+        .pcmd_clo                 (pcmd_clo),          // input
+        .pcmd_clear_st            (pcmd_clear_st),     // output
+        .pcmd_st                  (pcmd_st),           // input
+        .sirq_TFE                 (sirq_TFE),          // output
+        .sirq_IF                  (sirq_IF),           // output
+        .sirq_INF                 (sirq_INF),          // output
+        .sirq_OF                  (sirq_OF),           // output
+        .sirq_PRC                 (sirq_PRC),          // output
+        .sirq_PC                  (sirq_PC),           // output
+        .sirq_DP                  (sirq_DP),           // output
+        .sirq_UF                  (sirq_UF),           // output
+        .sirq_SDB                 (sirq_SDB),          // output
+        .sirq_DS                  (sirq_DS),           // output
+        .sirq_PS                  (sirq_PS),           // output
+        .sirq_DHR                 (sirq_DHR),          // output
+        .serr_DT                  (serr_DT),           // output
+        .serr_DS                  (serr_DS),           // output
+        .serr_DH                  (serr_DH),           // output
+        .serr_DC                  (serr_DC),           // output
+        .serr_DB                  (serr_DB),           // output
+        .serr_DW                  (serr_DW),           // output
+        .serr_DI                  (serr_DI),           // output
+        .serr_EP                  (serr_EP),           // output
+        .serr_EC                  (serr_EC),           // output
+        .serr_ET                  (serr_ET),           // output
+        .serr_EM                  (serr_EM),           // output
+        .serr_EI                  (serr_EI),           // output
+        .ssts_ipm_dnp             (ssts_ipm_dnp),      // output
+        .ssts_ipm_active          (ssts_ipm_active),   // output
+        .ssts_ipm_part            (ssts_ipm_part),     // output
+        .ssts_ipm_slumb           (ssts_ipm_slumb),    // output
+        .ssts_ipm_devsleep        (ssts_ipm_devsleep), // output
+        .ssts_spd_dnp             (ssts_spd_dnp),      // output
+        .ssts_spd_gen1            (ssts_spd_gen1),     // output
+        .ssts_spd_gen2            (ssts_spd_gen2),     // output
+        .ssts_spd_gen3            (ssts_spd_gen3),     // output
+        .ssts_det_ndnp            (ssts_det_ndnp),     // output
+        .ssts_det_dnp             (ssts_det_dnp),      // output
+        .ssts_det_dp              (ssts_det_dp),       // output
+        .ssts_det_offline         (ssts_det_offline),  // output
+        .sctl_ipm                 (sctl_ipm),          // input[3:0] 
+        .sctl_spd                 (sctl_spd),          // input[3:0] 
+        .sctl_det                 (sctl_det),          // input[3:0] 
+        .pxci0_clear              (pxci0_clear),       // output
+        .pxci0                    (pxci0),             // input
+        
 
         .dma_prd_done    (dma_prd_done),       // input
         .dma_prd_irq     (dma_prd_irq),        // input
@@ -426,78 +561,77 @@ module  ahci_top#(
         
     );
 
-    /* Instance template for module ahci_ctrl_stat */
     ahci_ctrl_stat #(
         .ADDRESS_BITS            (ADDRESS_BITS)
     ) ahci_ctrl_stat_i (
-        .mrst                    (), // input
-        .mclk                    (), // input
-        .was_hba_rst             (), // input
-        .was_port_rst            (), // input
-        .soft_write_addr         (), // input[9:0] 
-        .soft_write_data         (), // input[31:0] 
-        .soft_write_en           (), // input
-        .regs_addr               (), // output[9:0] reg 
-        .regs_we                 (), // output reg 
-        .regs_din                (), // output[31:0] reg 
-        .update_GHC__IS          (), // input
-        .update_HBA_PORT__PxIS   (), // input
-        .update_HBA_PORT__PxSSTS (), // input
-        .update_HBA_PORT__PxSERR (), // input
-        .update_HBA_PORT__PxCMD  (), // input
-        .pcmd_clear_icc          (), // input
-        .pcmd_esp                (), // input
-        .pcmd_cr                 (), // output
-        .pcmd_cr_set             (), // input
-        .pcmd_cr_reset           (), // input
-        .pcmd_fr                 (), // input
-        .pcmd_clear_bsy_drq      (), // input
-        .pcmd_clo                (), // output
-        .pcmd_clear_st           (), // input
-        .pcmd_st                 (), // output
-        .sirq_TFE                (), // input
-        .sirq_IF                 (), // input
-        .sirq_INF                (), // input
-        .sirq_OF                 (), // input
-        .sirq_PRC                (), // input
-        .sirq_PC                 (), // input
-        .sirq_DP                 (), // input
-        .sirq_UF                 (), // input
-        .sirq_SDB                (), // input
-        .sirq_DS                 (), // input
-        .sirq_PS                 (), // input
-        .sirq_DHR                (), // input
-        .serr_DT                 (), // input
-        .serr_DS                 (), // input
-        .serr_DH                 (), // input
-        .serr_DC                 (), // input
-        .serr_DB                 (), // input
-        .serr_DW                 (), // input
-        .serr_DI                 (), // input
-        .serr_EP                 (), // input
-        .serr_EC                 (), // input
-        .serr_ET                 (), // input
-        .serr_EM                 (), // input
-        .serr_EI                 (), // input
-        .ssts_ipm_dnp            (), // input
-        .ssts_ipm_active         (), // input
-        .ssts_ipm_part           (), // input
-        .ssts_ipm_slumb          (), // input
-        .ssts_ipm_devsleep       (), // input
-        .ssts_spd_dnp            (), // input
-        .ssts_spd_gen1           (), // input
-        .ssts_spd_gen2           (), // input
-        .ssts_spd_gen3           (), // input
-        .ssts_det_ndnp           (), // input
-        .ssts_det_dnp            (), // input
-        .ssts_det_dp             (), // input
-        .ssts_det_offline        (), // input
-        .sctl_ipm                (), // output[3:0] reg 
-        .sctl_spd                (), // output[3:0] reg 
-        .sctl_det                (), // output[3:0] reg 
-        .pxci0_clear             (), // input
-        .pxci0                   (), // output
-        .irq                     () // output reg 
+        .mrst                    (mrst),                    // input
+        .mclk                    (mclk),                    // input
+        .was_hba_rst             (was_hba_rst),             // input
+        .was_port_rst            (was_port_rst),            // input
+        .soft_write_addr         (soft_write_addr),         // input[9:0] 
+        .soft_write_data         (soft_write_data),         // input[31:0] 
+        .soft_write_en           (soft_write_en),           // input
+        .regs_addr               (regs_saddr),              // output[9:0] reg 
+        .regs_we                 (regs_we_acs),             // output reg 
+        .regs_din                (regs_din_from_acs),       // output[31:0] reg 
+        .update_GHC__IS          (update_GHC__IS),          // input
+        .update_HBA_PORT__PxIS   (update_HBA_PORT__PxIS),   // input
+        .update_HBA_PORT__PxSSTS (update_HBA_PORT__PxSSTS), // input
+        .update_HBA_PORT__PxSERR (update_HBA_PORT__PxSERR), // input
+        .update_HBA_PORT__PxCMD  (update_HBA_PORT__PxCMD),  // input
+        .pcmd_clear_icc          (pcmd_clear_icc),          // input
+        .pcmd_esp                (pcmd_esp),                // input
+        .pcmd_cr                 (pcmd_cr),                 // output
+        .pcmd_cr_set             (pcmd_cr_set),             // input
+        .pcmd_cr_reset           (pcmd_cr_reset),           // input
+        .pcmd_fr                 (pcmd_fr),                 // input
+        .pcmd_clear_bsy_drq      (pcmd_clear_bsy_drq),      // input
+        .pcmd_clo                (pcmd_clo),                // output
+        .pcmd_clear_st           (pcmd_clear_st),           // input
+        .pcmd_st                 (pcmd_st),                 // output
+        .sirq_TFE                (sirq_TFE),                // input
+        .sirq_IF                 (sirq_IF),                 // input
+        .sirq_INF                (sirq_INF),                // input
+        .sirq_OF                 (sirq_OF),                 // input
+        .sirq_PRC                (sirq_PRC),                // input
+        .sirq_PC                 (sirq_PC),                 // input
+        .sirq_DP                 (sirq_DP),                 // input
+        .sirq_UF                 (sirq_UF),                 // input
+        .sirq_SDB                (sirq_SDB),                // input
+        .sirq_DS                 (sirq_DS),                 // input
+        .sirq_PS                 (sirq_PS),                 // input
+        .sirq_DHR                (sirq_DHR),                // input
+        .serr_DT                 (serr_DT),                 // input
+        .serr_DS                 (serr_DS),                 // input
+        .serr_DH                 (serr_DH),                 // input
+        .serr_DC                 (serr_DC),                 // input
+        .serr_DB                 (serr_DB),                 // input
+        .serr_DW                 (serr_DW),                 // input
+        .serr_DI                 (serr_DI),                 // input
+        .serr_EP                 (serr_EP),                 // input
+        .serr_EC                 (serr_EC),                 // input
+        .serr_ET                 (serr_ET),                 // input
+        .serr_EM                 (serr_EM),                 // input
+        .serr_EI                 (serr_EI),                 // input
+        .ssts_ipm_dnp            (ssts_ipm_dnp),            // input
+        .ssts_ipm_active         (ssts_ipm_active),         // input
+        .ssts_ipm_part           (ssts_ipm_part),           // input
+        .ssts_ipm_slumb          (ssts_ipm_slumb),          // input
+        .ssts_ipm_devsleep       (ssts_ipm_devsleep),       // input
+        .ssts_spd_dnp            (ssts_spd_dnp),            // input
+        .ssts_spd_gen1           (ssts_spd_gen1),           // input
+        .ssts_spd_gen2           (ssts_spd_gen2),           // input
+        .ssts_spd_gen3           (ssts_spd_gen3),           // input
+        .ssts_det_ndnp           (ssts_det_ndnp),           // input
+        .ssts_det_dnp            (ssts_det_dnp),            // input
+        .ssts_det_dp             (ssts_det_dp),             // input
+        .ssts_det_offline        (ssts_det_offline),        // input
+        .sctl_ipm                (sctl_ipm),                // output[3:0] reg 
+        .sctl_spd                (sctl_spd),                // output[3:0] reg 
+        .sctl_det                (sctl_det),                // output[3:0] reg 
+        .pxci0_clear             (pxci0_clear),             // input
+        .pxci0                   (pxci0),                   // output
+        .irq                     (irq)                      // output reg 
     );
 
     ahci_dma ahci_dma_i (
