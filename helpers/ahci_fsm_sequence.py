@@ -97,12 +97,44 @@ sequence = [{LBL:'POR',      ADR: 0x0,  ACT: NOP},
             {                           ACT: 'XFER_CNTR_CLEAR'}, # clear_xfer_cntr
             
             {LBL:'P:Idle',              ACT: 'PCMD_CR_SET'},     # pcmd_cr_set
-
-            
+            {IF: 'PXSSTS_DET_NE_3',     GOTO:'P:NotRunning' },   # 1. ssts_det!=3, // device detected, phy communication not established
+            {IF: 'PXCI0_NOT_CMDTOISSUE',GOTO:'P:FetchCmd' },     # 2. pxci0 && !pCmdToIssue was pIssueSlot==32, -> p:SelectCmd
+            {IF: 'PCTI_CTBAR_XCZ',      GOTO:'CFIS:SyncEscape'}, # 3. pCmdToIssue && ch_r && xfer_cntr_zero
+            {IF: 'FIS_DATA',            GOTO:'DR:Entry'},        # 4. fis_first_vld && (fis_type == 'h46)
+            {IF: 'FIS',                 GOTO:'NDR:Entry'},       # 5. fis_first_vld # already assumed && ((fis_type != 'h46)
+            {IF: 'PCTI_XCZ',            GOTO:'CFIS:Xmit'},       # 6. pCmdToIssue && xfer_cntr_zero
+            {                           GOTO:'P:Idle'},          #10. (#7-#9 PM, not implemented)
+#P:SelectCmd not implemented, using single slot            
+            {LBL:'P:FetchCmd',          ACT:'FETCH_CMD'},        # fetch_cmd (other actions included in ahci_fis_transmit)
+            {IF: 'CTBAA_CTBAP',         ACT:'CFIS:PrefetchACMD'},#1. ch_a && ch_p # Note ch_p may be ignored or transition may be ignored
+            {IF: 'CTBAP',               ACT:'CFIS:PrefetchPRD'}, #2. ch_p         # Note ch_p may be ignored or transition may be ignored
+                                                                 # PxTFD.STS.BSY must be set before issuing a command (or now if predicted)
+            {LBL:'P:StartComm',         ACT: 'SET_STS_7F'},         # frcv_set_sts_7f
+            {                           ACT: 'SET_UPDATE_SIG'},     #  #frcv_set_update_sig
+            {                           ACT: 'XMIT_COMRESET'},      # Now does it on reset. See if it is possible to transmit COMRESET w/o reset
+            {IF: 'PXSSTS_DET_EQ_1',     GOTO:'P:StartComm'},
+            {                           GOTO:'P:NotRunning'},
+#P:PowerOn, P;PwerOff,P:PhyListening - not implemented
+#FB:* - Not implemented
+#PM:* - Not implemented
+            {LBL:'NDR:Entry',           ACT: 'NOP'},
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-fatal'},   # 1. fis_ok
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},       # 2. fis_ferr
+            {                           GOTO:'NDR:Accept'},      # 3.
             
             ]
 
 """
+    input                         fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
+    input                         fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
+    input                         fis_ferr,      // FIS done, fatal error - FIS too long
+
+    input                         fetch_cmd,   // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
+                                               // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
+
+    input                         fis_first_vld, // fis_first contains valid FIS header, reset by 'get_*'
+    input                   [7:0] fis_type,      // FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
+
 pcmd_cr_set,    // command list run set
 clear_xfer_cntr
 pcmd_cr_reset

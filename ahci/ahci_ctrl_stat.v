@@ -124,7 +124,9 @@ module  ahci_ctrl_stat #(
     input                         ssts_det_ndnp,     // no device detected, phy communication not established
     input                         ssts_det_dnp,      // device detected, but phy communication not established
     input                         ssts_det_dp,       // device detected, phy communication established
-    input                         ssts_det_offline,  // device detected, phy communication established
+    input                         ssts_det_offline,  // device offline
+    output                  [3:0] ssts_det,          // current value of PxSSTS.DET
+    
  // SCR2:SControl (written by software only)
     output reg              [3:0] sctl_ipm,          // Interface power management transitions allowed
     output reg              [3:0] sctl_spd,          // Interface maximal speed
@@ -254,7 +256,7 @@ module  ahci_ctrl_stat #(
     assign update_pending =  | regs_changed;
     assign pcmd_fre = |(HBA_PORT__PxCMD__FRE__MASK & PxCMD_r); 
     assign serr_diag_X = |(HBA_PORT__PxSERR__DIAG__X__MASK & PxSERR_r);
-       
+    assign ssts_det = PxSSTS_r[3:0];   
     
 localparam PxIE_MASK =   HBA_PORT__PxIE__TFEE__MASK | // 'h40000000;
                          HBA_PORT__PxIE__IFE__MASK |  // 'h8000000;

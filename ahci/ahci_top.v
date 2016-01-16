@@ -387,6 +387,8 @@ module  ahci_top#(
     wire                          ssts_det_dnp;      // device detected, but phy communication not established
     wire                          ssts_det_dp;       // device detected, phy communication established
     wire                          ssts_det_offline;  // device detected, phy communication established
+    wire                    [3:0] ssts_det;          // current value of PxSSTS.DET
+    
  // SCR2:SControl (written by software only)
     wire                    [3:0] sctl_ipm;          // Interface power management transitions allowed
     wire                    [3:0] sctl_spd;          // Interface maximal speed
@@ -484,6 +486,7 @@ module  ahci_top#(
         .ssts_det_dnp             (ssts_det_dnp),      // output
         .ssts_det_dp              (ssts_det_dp),       // output
         .ssts_det_offline         (ssts_det_offline),  // output
+        .ssts_det                 (ssts_det),          // input[3:0]
         .sctl_ipm                 (sctl_ipm),          // input[3:0] 
         .sctl_spd                 (sctl_spd),          // input[3:0] 
         .sctl_det                 (sctl_det),          // input[3:0] 
@@ -699,6 +702,7 @@ module  ahci_top#(
         .ssts_det_dnp            (ssts_det_dnp),            // input
         .ssts_det_dp             (ssts_det_dp),             // input
         .ssts_det_offline        (ssts_det_offline),        // input
+        .ssts_det                (ssts_det),                // output[3:0]
         .sctl_ipm                (sctl_ipm),                // output[3:0] reg 
         .sctl_spd                (sctl_spd),                // output[3:0] reg 
         .sctl_det                (sctl_det),                // output[3:0] reg

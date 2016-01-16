@@ -132,6 +132,7 @@ module  ahci_fsm
     output                        ssts_det_dnp,      // device detected, but phy communication not established
     output                        ssts_det_dp,       // device detected, phy communication established
     output                        ssts_det_offline,  // device detected, phy communication established
+    input                   [3:0] ssts_det,          // current value of PxSSTS.DET
 
  // SCR2:SControl (written by software only)
     input                   [3:0] sctl_ipm,          // Interface power management transitions allowed
