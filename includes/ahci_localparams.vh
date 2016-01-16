@@ -776,7 +776,7 @@
     localparam HBA_PORT__PxDEVSLP__DSP__DFLT = 'h0;
 // RO: Aggressive Device Sleep Enable
     localparam HBA_PORT__PxDEVSLP__ADSE__ADDR = 'h51;
-    localparam HBA_PORT__PxDEVSLP__ADSE__MASK = 'h2;
+    localparam HBA_PORT__PxDEVSLP__ADSE__MASK = 'h1;
     localparam HBA_PORT__PxDEVSLP__ADSE__DFLT = 'h0;
 // RW: SAXIHP write channel cache mode 
     localparam HBA_PORT__AFI_CACHE__WR_CM__ADDR = 'h5c;
@@ -786,4 +786,12 @@
     localparam HBA_PORT__AFI_CACHE__RD_CM__ADDR = 'h5c;
     localparam HBA_PORT__AFI_CACHE__RD_CM__MASK = 'hf;
     localparam HBA_PORT__AFI_CACHE__RD_CM__DFLT = 'h3;
+// RW: Address/not data for programming AHCI state machine
+    localparam HBA_PORT__PGM_AHCI_SM__AnD__ADDR = 'h5d;
+    localparam HBA_PORT__PGM_AHCI_SM__AnD__MASK = 'h1000000;
+    localparam HBA_PORT__PGM_AHCI_SM__AnD__DFLT = 'h0;
+// RW: Program address/data for programming AHCI state machine
+    localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__ADDR = 'h5d;
+    localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__MASK = 'h3ffff;
+    localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__DFLT = 'h3;
 

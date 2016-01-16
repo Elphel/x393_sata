@@ -100,6 +100,13 @@ module  axi_ahci_regs#(
     input              [31:0] hba_din,
     output             [31:0] hba_dout,
     
+// Program FSM memory
+    output reg         [17:0] pgm_ad, // @aclk, address/data to program the AHCI FSM
+    output reg                pgm_wa, // @aclk, address strobe to program the AHCI FSM
+    output reg                pgm_wd, // @aclk, data strobe to program the AHCI FSM
+    
+    
+    
 //  other control signals
     output reg         [ 3:0] afi_wcache,
     output reg         [ 3:0] afi_rcache,
@@ -160,6 +167,8 @@ module  axi_ahci_regs#(
     
     wire                   high_sel = bram_waddr_r[ADDRESS_BITS-1]; // high addresses - use single-cycle writes without read-modify-write
     wire                   afi_cache_set_w = bram_wen_r && !high_sel && (bram_addr == HBA_PORT__AFI_CACHE__WR_CM__ADDR);
+    wire                   pgm_fsm_set_w =   bram_wen_r && !high_sel && (bram_addr == HBA_PORT__PGM_AHCI_SM__PGM_AD__ADDR);
+    wire                   pgm_fsm_and_w = |(ahci_regs_di & HBA_PORT__PGM_AHCI_SM__AnD__MASK);
     
     wire                   set_hba_rst =  bram_wen_r && !high_sel && (bram_addr == GHC__GHC__HR__ADDR) && (ahci_regs_di & GHC__GHC__HR__MASK);
     wire                   set_port_rst = bram_wen_r && !high_sel && (bram_addr == HBA_PORT__PxSCTL__DET__ADDR) &&
@@ -227,8 +236,7 @@ module  axi_ahci_regs#(
         
         if (arst || set_hba_rst) was_port_rst_aclk <= 0;
         else if (port_rst_on)    was_port_rst_aclk <= 1;
-        
-                     
+
     end
 
     always @ (hba_clk) begin
@@ -242,6 +250,14 @@ module  axi_ahci_regs#(
         if      (arst)             {afi_wcache,afi_rcache}  <= 8'h33;
         else if (afi_cache_set_w)  {afi_wcache,afi_rcache}  <= ahci_regs_di[7:0];
     end    
+
+    always @(posedge aclk) begin
+        if (arst) {pgm_wa,pgm_wd}  <= 0;
+        else      {pgm_wa,pgm_wd}  <= {2{pgm_fsm_set_w}} & {pgm_fsm_and_w, ~pgm_fsm_and_w};
+        
+        if (pgm_fsm_set_w) pgm_ad <= ahci_regs_di[17:0];
+    end    
+
 
 /*
 Will generate async reset on both HBA reset(for some time) and port reset (until released) 

@@ -54,6 +54,11 @@ module  ahci_ctrl_stat #(
     input                         update_pcmd,
     input                         update_pci,
 
+    // Next - obsolete?    
+    output reg                    st01_pending,    // software turned PxCMD.ST from 0 to 1
+    output reg                    st10_pending,    // software turned PxCMD.ST from 1 to 0
+    input                         st_pending_reset,// reset both st01_pending and st10_pending
+
 // PxCMD
     input                         pcmd_clear_icc, // clear PxCMD.ICC field
     input                         pcmd_esp,       // external SATA port (just forward value)
@@ -61,10 +66,15 @@ module  ahci_ctrl_stat #(
     input                         pcmd_cr_set,    // command list run set
     input                         pcmd_cr_reset,  // command list run reset
     input                         pcmd_fr,        // ahci_fis_receive:get_fis_busy - change to HAB set/reset (set, do, reset)
+    output                        pcmd_fre,       // FIS enable copy to memory
     input                         pcmd_clear_bsy_drq, // == ahci_fis_receive:clear_bsy_drq
     output                        pcmd_clo,       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     input                         pcmd_clear_st,  // RW clear ST (start) bit
     output                        pcmd_st,        // current value
+
+    input                         pfsm_started,   // H: FSM done, P: FSM started (enable sensing pcmd_st_cleared)
+    output reg                    pcmd_st_cleared,// ST bit cleared by software; TODO: check not in H:Init (5.3.2.10)
+    
 //clear_bsy_drq    
 // Interrupt inputs
     input                         sirq_TFE, // RWC: Task File Error Status
@@ -96,7 +106,7 @@ module  ahci_ctrl_stat #(
     input                         serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
     input                         serr_EM,   // RWC: Communication between the device and host was lost but re-established
     input                         serr_EI,   // RWC: Recovered Data integrity Error
-
+    output                        serr_diag_X, // value of PxSERR.DIAG.X
      
     
 // SCR0: SStatus
@@ -119,6 +129,8 @@ module  ahci_ctrl_stat #(
     output reg              [3:0] sctl_ipm,          // Interface power management transitions allowed
     output reg              [3:0] sctl_spd,          // Interface maximal speed
     output reg              [3:0] sctl_det,          // Device detection initialization requested
+    output reg                    sctl_det_changed,  // Software had written new value to sctl_det
+    input                         sctl_det_reset,    // clear sctl_det_changed
     
     input                         pxci0_clear,       // PxCI clear
     output                        pxci0,             // pxCI current value
@@ -235,14 +247,22 @@ module  ahci_ctrl_stat #(
     wire                          update_HBA_PORT__PxSERR = update_serr || update_first[3] || update_next[3];
     wire                          update_HBA_PORT__PxCMD =  update_pcmd || update_first[4] || update_next[4];
     wire                          update_HBA_PORT__PxCI =   update_pci  || update_first[5] || update_next[5];
+    
+    reg                           pfsm_started_r;    
+    
     assign update_busy = (update_all && (|regs_changed)) || (|updating[5:1]);
-    assign update_pending =  | regs_changed;    
+    assign update_pending =  | regs_changed;
+    assign pcmd_fre = |(HBA_PORT__PxCMD__FRE__MASK & PxCMD_r); 
+    assign serr_diag_X = |(HBA_PORT__PxSERR__DIAG__X__MASK & PxSERR_r);
+       
     
 localparam PxIE_MASK =   HBA_PORT__PxIE__TFEE__MASK | // 'h40000000;
                          HBA_PORT__PxIE__IFE__MASK |  // 'h8000000;
                          HBA_PORT__PxIE__INFE__MASK | // 'h4000000;
                          HBA_PORT__PxIE__OFE__MASK |  // 'h1000000;
                          HBA_PORT__PxIE__PRCE__MASK | // 'h400000;
+                         HBA_PORT__PxIE__PCE__MASK |  // 'h40;
+                         HBA_PORT__PxIE__DPE__MASK |  // 'h20
                          HBA_PORT__PxIE__UFE__MASK |  // 'h10;
                          HBA_PORT__PxIE__SDBE__MASK | // 'h8;
                          HBA_PORT__PxIE__DSE__MASK |  // 'h4;
@@ -254,6 +274,8 @@ localparam PxIS_MASK =   HBA_PORT__PxIS__TFES__MASK | // 'h40000000;
                          HBA_PORT__PxIS__INFS__MASK | // 'h4000000;
                          HBA_PORT__PxIS__OFS__MASK |  // 'h1000000;
                          HBA_PORT__PxIS__PRCS__MASK | // 'h400000;
+                         HBA_PORT__PxIS__PCS__MASK |  // 'h40;
+                         HBA_PORT__PxIS__DPS__MASK |  // 'h20
                          HBA_PORT__PxIS__UFS__MASK |  // 'h10;
                          HBA_PORT__PxIS__SDBS__MASK | // 'h8;
                          HBA_PORT__PxIS__DSS__MASK |  // 'h4;
@@ -393,6 +415,9 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
     always @ (posedge mclk) begin
         if      (rst_por)              {sctl_ipm, sctl_spd, sctl_det} <= 0;
         else if (swr_HBA_PORT__PxSCTL) {sctl_ipm, sctl_spd, sctl_det} <= soft_write_data [11:0];
+        
+        if      (rst_por || sctl_det_reset)                                  sctl_det_changed <= 0;
+        else if (swr_HBA_PORT__PxSCTL && (soft_write_data[3:0] != sctl_det)) sctl_det_changed <= 1;
     end
     
     // HBA_PORT__PxSERR register
@@ -420,6 +445,13 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
                           (HBA_PORT__PxCMD__FRE__MASK & PxCMD_r) | // no HBA control
                           (pcmd_clear_bsy_drq ? 0 : (PxCMD_r & HBA_PORT__PxCMD__CLO__MASK)) |
                           (pcmd_clear_st ?      0 : (PxCMD_r & HBA_PORT__PxCMD__ST__MASK)) )));
+                          
+        if      (mrst)                pfsm_started_r <= 0;
+        else if (pfsm_started)        pfsm_started_r <= 1;                  
+        
+        if (!pfsm_started_r)          pcmd_st_cleared <= 0;
+        else if (swr_HBA_PORT__PxCMD) pcmd_st_cleared <= |(HBA_PORT__PxCMD__ST__MASK & PxCMD_r & ~soft_write_data);
+                          
     end
     
     // Update AXI registers with the current local data
@@ -469,6 +501,16 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         if      (mrst)       updating[5:1] <= 0;
         else if (update_all) updating[5:1] <= regs_changed[5:1] & ~update_first[5:1];
         else                 updating[5:1] <= updating[5:1] & ~ update_next[5:1];  
+        
+        // detect software setting for PxCMD.ST 0->1 and 1->0
+        
+        if      (mrst)                                                                             st01_pending <= 0;
+        else if (swr_HBA_PORT__PxCMD && (HBA_PORT__PxCMD__ST__MASK &  soft_write_data & ~PxCMD_r)) st01_pending <= 1;
+        if      (st_pending_reset)                                                                 st01_pending <= 0;
+        
+        if      (mrst)                                                                             st10_pending <= 0;
+        else if (swr_HBA_PORT__PxCMD && (HBA_PORT__PxCMD__ST__MASK & ~soft_write_data &  PxCMD_r)) st10_pending <= 1;
+        if      (st_pending_reset)                                                                 st10_pending <= 0;
         
     end
     

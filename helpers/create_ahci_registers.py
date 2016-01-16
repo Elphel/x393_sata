@@ -423,15 +423,21 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              {fN:"MDAT",  fS:10, fE:14, fT:RW, fC:0, fD:"Minimum Device Sleep Assertion Time"},
              {fN:"DETO",  fS: 2, fE: 9, fT:RW, fC:0, fD:"Device Sleep Exit Timeout"},
              {fN:"DSP",   fS: 1,        fT:RO, fC:0, fD:"Device Sleep Present"},
-             {fN:"ADSE",  fS: 1,        fT:RO, fC:0, fD:"Aggressive Device Sleep Enable"}
+             {fN:"ADSE",  fS: 0,        fT:RO, fC:0, fD:"Aggressive Device Sleep Enable"}
              ]},
-        {rN:"AFI_CACHE",  rS:0x70, rE:0x73,               rD:"Port x Vendor Specific", rC:
+        # 0x48..0x6f - reserved
+        {rN:"AFI_CACHE",  rS:0x70, rE:0x73,               rD:"Port x Vendor Specific, program AXI cache modes", rC:
             [{            fS: 8, fE:31, fT:RO, fC:0, fD:"Reserved"},
              {fN:"WR_CM", fS: 4, fE: 7, fT:RW, fC:3, fD:"SAXIHP write channel cache mode "},
              {fN:"RD_CM", fS: 0, fE: 3, fT:RW, fC:3, fD:"SAXIHP read channel cache mode "},
              ]},
-        # 0x48..0x6f - reserved
-        {rN:"PxVS",    rS:0x74, rE:0x7f,               rD:"Other Port x Vendor Specific", rC:
+        {rN:"PGM_AHCI_SM",rS:0x74, rE:0x77,          rD:"Port x Vendor Specific, AHCI state machine", rC:
+            [{            fS:25, fE:31, fT:RO, fC:0, fD:"Reserved"},
+             {fN:"AnD",   fS:24,        fT:RW, fC:0, fD:"Address/not data for programming AHCI state machine"},
+             {            fS:18, fE:23, fT:RO, fC:0, fD:"Reserved"},             
+             {fN:"PGM_AD",fS: 0, fE:17, fT:RW, fC:3, fD:"Program address/data for programming AHCI state machine"},
+             ]},
+        {rN:"PxVS",    rS:0x78, rE:0x7f,             rD:"Other Port x Vendor Specific", rC:
             [{                          fT:RW, fC:0, fD:"Vendor-specific data - 96 bits"}
              ]},
        

@@ -20,40 +20,40 @@
  *******************************************************************************/
 `timescale 1ns/1ps
 
-module  ahci_fsm #(
+module  ahci_fsm 
+/*#(
 //    parameter PREFETCH_ALWAYS =   0,
     parameter READ_REG_LATENCY =  2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
 //    parameter READ_CT_LATENCY =   1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =     10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
-)(
+) */
+(
     input                         hba_rst, // @posedge mclk
     input                         mclk, // for command/status
     input                         was_hba_rst,    // last reset was hba reset (not counting system reset)
     input                         was_port_rst,   // last reset was port reset
     
-/*    
-    // notification from axi_ahci_regs that software has written data to register
-    input      [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
-    input                  [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
-    input                         soft_write_en,     // write enable for data write
-//    input                         soft_arst,        // reset SATA PHY not relying on SATA clock
-   // R/W access to AXI/AHCI registers, shared with ahci_fis_receive and ahci_fis_transmit modules
-    output     [ADDRESS_BITS-1:0] regs_addr,
-    output                        regs_we,
-//   output                 [3:0] regs_wstb, Needed?
-    output                  [1:0] regs_re, // [0] - re, [1] - regen
-    output                 [31:0] regs_din,
-    input                  [31:0] regs_dout,
-*/    
+    // Writing FSM program memory
+    input                         aclk,
+    input                         arst,
+    input                  [17:0] pgm_ad, // @aclk, address/data to program the AHCI FSM
+    input                         pgm_wa,  // @aclk, address strobe to program the AHCI FSM
+    input                         pgm_wd,  // @aclk, data strobe to program the AHCI FSM
+
+    
     // direct communication with transposrt, link and phy layers
     input                         phy_ready,     // goes up after comreset,cominit, align, ...
     output                        syncesc_send,  // Send sync escape
+    input                         cominit_got,   // asynchronously jumps to P:Cominit state
+    output                        set_offline, // electrically idle
+    output                        send_R_OK,    // Should it be originated in this layer SM?
+    output                        send_R_ERR,
     
     // Other signals....
     
     // Communication with ahci_ctrl_stat (some are not needed)
     // update register inputs (will write to register memory current value of the corresponding register)
-    
+    output                        pfsm_started, // H: FSM doene, P: FSM started (enable sensing pcmd_st_cleared)
     // update register inputs (will write to register memory current value of the corresponding register)
     input                         update_pending,
     output                        update_all,
@@ -64,6 +64,9 @@ module  ahci_fsm #(
     output                        update_serr,
     output                        update_pcmd,
     output                        update_pci,
+    input                         st01_pending,    // software turned PxCMD.ST from 0 to 1
+    input                         st10_pending,    // software turned PxCMD.ST from 1 to 0
+    output                        st_pending_reset,// reset both st01_pending and st10_pending
 
 // PxCMD
     output                        pcmd_clear_icc, // clear PxCMD.ICC field
@@ -76,6 +79,8 @@ module  ahci_fsm #(
     input                         pcmd_clo,       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     output                        pcmd_clear_st,  // RW clear ST (start) bit
     input                         pcmd_st,        // current value
+    input                         pcmd_st_cleared,// ST bit cleared by software;
+    
 //clear_bsy_drq    
 // Interrupt inputs
     output                        sirq_TFE, // RWC: Task File Error Status
@@ -107,6 +112,7 @@ module  ahci_fsm #(
     output                        serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
     output                        serr_EM,   // RWC: Communication between the device and host was lost but re-established
     output                        serr_EI,   // RWC: Recovered Data integrity Error
+    input                         serr_diag_X, // value of PxSERR.DIAG.X
 
      
     
@@ -131,6 +137,8 @@ module  ahci_fsm #(
     input                   [3:0] sctl_ipm,          // Interface power management transitions allowed
     input                   [3:0] sctl_spd,          // Interface maximal speed
     input                   [3:0] sctl_det,          // Device detection initialization requested
+    input                         sctl_det_changed,  // Software had written new value to sctl_det
+    output                        sctl_det_reset,    // clear sctl_det_changed
     
     output                        pxci0_clear,       // PxCI clear
     input                         pxci0,             // pxCI current value
@@ -145,6 +153,9 @@ module  ahci_fsm #(
     input                         fis_first_vld, // fis_first contains valid FIS header, reset by 'get_*'
     input                   [7:0] fis_type,      // FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
     // Receiving FIS
+    output                        set_update_sig, // when set, enables get_sig (and resets itself)
+    input                         pUpdateSig,     // state variable
+    
     output                        get_sig,        // update signature
     output                        get_dsfis,
     output                        get_psfis,
@@ -164,11 +175,16 @@ module  ahci_fsm #(
     
     output                        update_prdbc,  // update PRDBC in registers
     output                        clear_bsy_drq, // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
+    output                        clear_bsy_set_drq, // clear PxTFD.STS.BSY and sets PxTFD.STS.DRQ, update
+    
     output                        set_bsy,       // set PxTFD.STS.BSY, update
     output                        set_sts_7f,    // set PxTFD.STS = 0x7f, update
     output                        set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
+    output                        clear_xfer_cntr, // clear pXferCntr (is it needed as a separate input)?
+    
     output                        decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
-    output                 [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
+//    output                 [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
+    input                         pxcmd_fre,     // control bit enables saving FIS to memory
     input                         pPioXfer,      // state variable
     input                   [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
@@ -192,8 +208,8 @@ module  ahci_fsm #(
     output                        dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     output                        atapi_xmit,   // tarsmit ATAPI command FIS
-    input                         done,
-    input                         busy,
+    input                         xmit_done,
+    input                         xmit_busy,
 
     output                        clearCmdToIssue, // From CFIS:SUCCESS 
     input                         pCmdToIssue, // AHCI port variable
@@ -215,8 +231,131 @@ module  ahci_fsm #(
 
 );
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
+    reg                     [10:0] pgm_waddr;
+//    wire                           pgm_ren;
+//    wire                           pgm_regen;
+    wire                           cond_met_w; // calculated from signals and program conditions decoder
+    reg                     [10:0] pgm_jump_addr;
+    reg                     [10:0] pgm_addr;
+    wire                    [17:0] pgm_data;
+    reg                            was_rst;
+//    reg                            jump_r; 
+    reg                      [2:0] fsm_jump;
+    wire                           fsm_next;
+    reg                            fsm_actions;     // processing actions
+    reg                            fsm_act_busy;
+    reg                      [1:0] fsm_transitions; // processing transitions
+    reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
+    wire                     [6:0] precond_w = pgm_data[17:11];   // select what to use - cond_met_w valis after precond_w, same time as conditions
+    reg                      [6:0] conditions;
+    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
+    wire                           fsm_act_done = get_fis_done || xmit_done;
+    wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
+    wire                           fsm_last_act_w = pgm_data[17];
+
+    wire                           fsm_pre_act_w = fsm_actions && fsm_next; // use it as CS for generated actions (registered)
+    
+    reg                      [1:0] async_pend_r; // waiting to process cominit_got
+    reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
+    wire                           asynq_rq = cominit_got || pcmd_st_cleared;
+    wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
+    
+    
+
+    assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
+
+    // Writing to the FSM program memory
+    always @ (posedge aclk) begin
+        if      (arst)   pgm_waddr <= 0;
+        else if (pgm_wa) pgm_waddr <= pgm_ad[10:0];
+        else if (pgm_wd) pgm_waddr <=  pgm_waddr + 1;
+    end
+    // Reset addresses - later use generated
+    localparam LABEL_POR =        11'h000;
+    localparam LABEL_HBA_RST =    11'h002;
+    localparam LABEL_PORT_RST =   11'h004;
+    localparam LABEL_COMINIT =    11'h006;
+    localparam LABEL_ST_CLEARED = 11'h008;
+
+    always @ (posedge mclk) begin
+        if      (hba_rst)                                                    pgm_jump_addr <= (was_hba_rst || was_port_rst) ? (was_hba_rst? LABEL_HBA_RST:LABEL_PORT_RST) : LABEL_POR;
+        else if (async_pend_r[1])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
+        else if (fsm_transitions[0] && (!cond_met_w || !fsm_transitions[1])) pgm_jump_addr <= pgm_data[10:0];
+        
+        was_rst <= hba_rst;
+               
+        fsm_jump <= {fsm_jump[1:0], pre_jump_w | (was_rst & ~hba_rst)};
+        
+        if   (fsm_jump[0]) pgm_addr <= pgm_jump_addr;
+        else if (fsm_next) pgm_addr <= pgm_addr + 1;
+        
+        if            (hba_rst) conditions <= 0; 
+        if (fsm_transitions[0]) conditions <= precond_w;
+        
+        if      (hba_rst)                                   fsm_actions <= 0;
+        else if (fsm_jump[2])                               fsm_actions <= 1;
+        else if (fsm_last_act_w && fsm_next)                fsm_actions <= 0;
+        
+        
+        
+        if      (hba_rst || pre_jump_w)                     fsm_transitions <= 0;
+        else if (fsm_last_act_w && fsm_actions && fsm_next) fsm_transitions <= 1;
+        else                                                fsm_transitions <= {fsm_transitions[0],fsm_transitions[0]};
+        
+        if (hba_rst) fsm_preload <= 0;
+        else         fsm_preload <= |fsm_jump[1:0];
+        
+        if      (hba_rst)       fsm_act_busy <= 0;
+        else if (fsm_pre_act_w) fsm_act_busy <= fsm_wait_act_w;
+        else if (fsm_act_done)  fsm_act_busy <= 0;
+        
+        if (pcmd_st_cleared) async_from_st <= 1;
+        else if   (asynq_rq) async_from_st <= 0;
+        
+        if (hba_rst) async_pend_r <= 0;
+        else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  
+        
+    end
 
 /*
+sequence = [{LBL:'POR',      ADR: 0x0,  ACT: NOP},
+            {                           GOTO:'H:Init'},
+            {LBL:'HBA_RST',  ADR: 0x2,  ACT: NOP},
+            {                           GOTO:'H:Init'},
+            
+            {LBL:'PORT_RST', ADR: 0x4,  ACT: NOP},
+            {                           GOTO:'H:Init'},
+            
+            {LBL:'COMINIT',  ADR: 0x6, ACT: NOP},
+            {                           GOTO:'P:Cominit'},
+            
+
+*/
+
+    ramp_var_w_var_r #(
+        .REGISTERS(1),
+        .LOG2WIDTH_WR(4),
+        .LOG2WIDTH_RD(4)
+    ) fsm_pgm_mem_i (
+        .rclk     (mclk),      // input
+        .raddr    (pgm_addr),  // input[10:0] 
+        .ren      (fsm_next),  // input
+        .regen    (fsm_next),  // input
+        .data_out (pgm_data),  // output[17:0] 
+        .wclk     (aclk),      // input
+        .waddr    (pgm_waddr), // input[10:0] 
+        .we       (pgm_wd),    // input
+        .web      (8'hff),     // input[7:0] 
+        .data_in  (pgm_ad)     // input[17:0] 
+    );
+
+
+
+/*
+    output                        update_all,
+    input                         update_busy, // valid same cycle as update_all
+
+
 Notes:
  Implement sync esc request/ackn in TL (available in LL)
 */
