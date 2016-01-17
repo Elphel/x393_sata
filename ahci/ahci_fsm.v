@@ -44,8 +44,10 @@ module  ahci_fsm
     // direct communication with transposrt, link and phy layers
     input                         phy_ready,     // goes up after comreset,cominit, align, ...
     output                        syncesc_send,  // Send sync escape
+    input                         syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     input                         cominit_got,   // asynchronously jumps to P:Cominit state
     output                        set_offline, // electrically idle
+    input                         x_rdy_collision, // X_RDY/X_RDY collision on interface 
     output                        send_R_OK,    // Should it be originated in this layer SM?
     output                        send_R_ERR,
     
@@ -153,11 +155,9 @@ module  ahci_fsm
     // Communication with ahci_fis_receive (some are unused
     input                         fis_first_vld, // fis_first contains valid FIS header, reset by 'get_*'
     input                   [7:0] fis_type,      // FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
-    // Receiving FIS
-    output                        set_update_sig, // when set, enables get_sig (and resets itself)
-    input                         pUpdateSig,     // state variable
+    input                   [7:0] bist_bits,    // bits that define built-in self test
     
-    output                        get_sig,        // update signature
+    // Receiving FIS
     output                        get_dsfis,
     output                        get_psfis,
     output                        get_rfis,
@@ -170,6 +170,13 @@ module  ahci_fsm
     input                         fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     input                         fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     input                         fis_ferr,      // FIS done, fatal error - FIS too long
+
+    output                        set_update_sig, // when set, enables get_sig (and resets itself)
+    input                         pUpdateSig,     // state variable
+    input                         sig_available,  // device signature available
+    output                        update_sig,        // update signature
+
+
     // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
     output                        update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
     output                        update_pio,    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
@@ -260,7 +267,7 @@ module  ahci_fsm
     reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
     wire                           asynq_rq = cominit_got || pcmd_st_cleared;
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
-    
+    reg                            x_rdy_collision_pend;
     
 
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
@@ -315,6 +322,11 @@ module  ahci_fsm
         
         if (hba_rst) async_pend_r <= 0;
         else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  
+        
+        
+        if (hba_rst || pcmd_cr_set) x_rdy_collision_pend <= 0;
+        else if (x_rdy_collision)   x_rdy_collision_pend <= 1;
+        
         
     end
 

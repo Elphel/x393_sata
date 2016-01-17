@@ -35,7 +35,7 @@ module  ahci_fis_transmit #(
     input                         cfis_xmit,    // transmit command (wait for dma_ct_busy == 0)
     input                         dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
-    input                         atapi_xmit,   // tarsmit ATAPI command FIS
+    input                         atapi_xmit,   // trasmit ATAPI command FIS
     
     
     output reg                    done,
@@ -233,9 +233,12 @@ module  ahci_fis_transmit #(
             ch_r_r <=       reg_rdata[    8];
             ch_p_r <=       reg_rdata[    7];
             ch_w_r <=       reg_rdata[    6];
-            ch_a_r <=       reg_rdata[    5];
+//            ch_a_r <=       reg_rdata[    5];
             ch_cmd_len_r<=  reg_rdata[ 4: 0];
         end
+//ch_a
+       if (hba_rst || atapi_xmit)     ch_a_r <= 0;
+       else if (fetch_chead_stb_r[0]) ch_a_r <= reg_rdata[    5];
 
        if      (hba_rst)         pCmdToIssue_r <= 0;
        else if (chead_done_w)    pCmdToIssue_r <= 1;

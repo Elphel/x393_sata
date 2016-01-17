@@ -146,8 +146,10 @@ module  ahci_top#(
     input              syncesc_recv, // These two inputs interrupt transmit
     input              xmit_err,     // Error during sending of a FIS
     output             syncesc_send,  // Send sync escape
+    input              syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     input              cominit_got,
     output             set_offline, // electrically idle
+    input              x_rdy_collision, // X_RDY/X_RDY collision on interface 
     
     output             send_R_OK,    // Should it be originated in this layer SM?
     output             send_R_ERR,
@@ -222,10 +224,6 @@ module  ahci_top#(
     // fsm <-> ahc_fis_receive
     // fsm ->
     wire                    frcv_first_vld;
-    wire                    frcv_set_update_sig; // when set, enables get_sig (and resets itself)
-    wire                    frcv_pUpdateSig;     // state variable
-    
-    wire                    frcv_get_sig;        // update signature
     wire                    frcv_get_dsfis;
     wire                    frcv_get_psfis;
     wire                    frcv_get_rfis;
@@ -254,6 +252,12 @@ module  ahci_top#(
     wire                    frcv_ok;            // FIS done,  checksum OK reset by starting a new get FIS
     wire                    frcv_err;           // FIS done, checksum ERROR reset by starting a new get FIS
     wire                    frcv_ferr;          // FIS done, fatal error - FIS too long
+
+    wire                    frcv_set_update_sig; // when set, enables get_sig (and resets itself)
+    wire                    frcv_pUpdateSig;     // state variable
+    wire                    frcv_sig_available;  // signature data available
+    wire                    frcv_update_sig;        // update signature
+
     
     // fsm <- state variables that are maintained inside 'ahc_fis_receive'
     wire              [7:0] tfd_sts;       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
@@ -419,11 +423,14 @@ module  ahci_top#(
 
         .phy_ready                (phy_ready),         // input
         .syncesc_send             (syncesc_send),      // output
+        .syncesc_send_done        (syncesc_send_done), // input
         .cominit_got              (cominit_got),       // input
         .set_offline              (set_offline),       // output
+        .x_rdy_collision          (x_rdy_collision),   // input 
         
         .send_R_OK                (send_R_OK),         // output
         .send_R_ERR               (send_R_ERR),        // output
+        
         .update_pending           (update_regs_pending),// input
         .update_all               (update_all_regs),   // output
         .update_busy              (update_regs_busy),  // input
@@ -502,9 +509,8 @@ module  ahci_top#(
         
         .fis_first_vld   (frcv_first_vld),     // input
         .fis_type        (d2h_data[7:0]),      // input[7:0] FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
-        .set_update_sig  (frcv_set_update_sig),// output
-        .pUpdateSig      (frcv_pUpdateSig),    // input
-        .get_sig         (frcv_get_sig),       // output
+        .bist_bits       (d2h_data[23:16]),    // bits that define built-in self test
+
         .get_dsfis       (frcv_get_dsfis),     // output
         .get_psfis       (frcv_get_psfis),     // output
         .get_rfis        (frcv_get_rfis),      // output
@@ -517,6 +523,12 @@ module  ahci_top#(
         .fis_ok          (frcv_ok),            // input
         .fis_err         (frcv_err),           // input
         .fis_ferr        (frcv_ferr),          // input
+        
+        .set_update_sig  (frcv_set_update_sig),// output
+        .pUpdateSig      (frcv_pUpdateSig),    // input
+        .sig_available   (frcv_sig_available), // input
+        .update_sig      (frcv_update_sig),    // output
+        
         .update_err_sts  (frcv_update_err_sts),// output
         .update_pio      (frcv_update_pio),    // output 
         .update_prdbc    (frcv_update_prdbc),  // output
@@ -797,10 +809,7 @@ module  ahci_top#(
         .mclk              (mclk),                   // input
         
         .fis_first_vld     (frcv_first_vld),         // output reg 
-        .set_update_sig    (frcv_set_update_sig),    // input
-        .pUpdateSig        (frcv_pUpdateSig),        // output
 
-        .get_sig           (frcv_get_sig),           // input
         .get_dsfis         (frcv_get_dsfis),         // input
         .get_psfis         (frcv_get_psfis),         // input
         .get_rfis          (frcv_get_rfis),          // input
@@ -814,6 +823,11 @@ module  ahci_top#(
         .fis_ok            (frcv_ok),                // output reg 
         .fis_err           (frcv_err),               // output reg 
         .fis_ferr          (frcv_ferr),              // output
+
+        .set_update_sig    (frcv_set_update_sig),    // input
+        .pUpdateSig        (frcv_pUpdateSig),        // output
+        .sig_available     (frcv_sig_available),     // output reg 
+        .update_sig        (frcv_update_sig),        // input
         
         .update_err_sts    (frcv_update_err_sts),    // input
         .update_pio        (frcv_update_pio),        // input  update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)

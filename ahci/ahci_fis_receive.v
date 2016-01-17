@@ -37,9 +37,6 @@ module  ahci_fis_receive#(
     // Control Interface
     output reg                    fis_first_vld, // fis_first contains valid FIS header, reset by get_*
     // Receiving FIS
-    input                         set_update_sig, // when set, enables get_sig (and resets itself)
-    output                        pUpdateSig,     // state variable
-    input                         get_sig,        // update signature
     input                         get_dsfis,
     input                         get_psfis,
     input                         get_rfis,
@@ -52,7 +49,11 @@ module  ahci_fis_receive#(
     output reg                    fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     output reg                    fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     output                        fis_ferr,      // FIS done, fatal error - FIS too long
+    input                         set_update_sig,// when set, enables update_sig (and resets itself)
+    output                        pUpdateSig,    // state variable
+    output reg                    sig_available, // device signature a ailable
     // next commands use register address/data/we for 1 clock cycle - after next to command (commnd - t0, we - t2)
+    input                         update_sig,    // update signature - now after get_rfis, after FIS is already received
     input                         update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
     input                         update_pio,    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
     input                         update_prdbc,  // update PRDBC in registers
@@ -168,7 +169,7 @@ localparam DATA_TYPE_ERR =      3;
     
     wire                reg_we_w;
 
-    reg           [3:0] update_sig;
+    reg           [3:0] store_sig;
     reg           [5:0] reg_ds;
     reg           [4:0] reg_ps;
     reg                 reg_d2h;    
@@ -179,6 +180,7 @@ localparam DATA_TYPE_ERR =      3;
 
     reg          [15:0] tf_err_sts;
     reg                 update_err_sts_r;
+    reg                 update_sig_r;
 //    reg                 update_pio_r;
     reg                 update_prdbc_r;
     reg                 get_fis_busy_r;
@@ -187,7 +189,8 @@ localparam DATA_TYPE_ERR =      3;
     reg           [7:0] pio_es_r;        // value of PIO E_Status
     reg           [7:0] pio_err_r;
     
-    reg                 pUpdateSig_r = 1;     // state variable
+    reg                 pUpdateSig_r = 1; // state variable
+    reg          [31:0] sig_r;            // signature register, save at
     
     // Forward data to DMA (dev->mem) engine
     assign              dma_in_valid = dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
@@ -226,27 +229,24 @@ localparam DATA_TYPE_ERR =      3;
                   (wreg_we_r && dwords_over))             too_long_err <= 1;
         
         if (get_fis) begin
-           reg_addr_r <= ({ADDRESS_BITS{get_sig}}    & (PXSIG_OFFS32))  |
-                         ({ADDRESS_BITS{get_dsfis}}  & (FB_OFFS32 + DSFIS32))  |
+           reg_addr_r <= ({ADDRESS_BITS{get_dsfis}}  & (FB_OFFS32 + DSFIS32))  |
                          ({ADDRESS_BITS{get_psfis}}  & (FB_OFFS32 + PSFIS32))  |
                          ({ADDRESS_BITS{get_rfis}}   & (FB_OFFS32 + RFIS32))   |
                          ({ADDRESS_BITS{get_sdbfis}} & (FB_OFFS32 + SDBFIS32)) |
                          ({ADDRESS_BITS{get_ufis}}   & (FB_OFFS32 + UFIS32));
-           fis_dcount <= ({4{get_sig}}    & RFIS32_LENM1)  |
-                         ({4{get_dsfis}}    & DSFIS32_LENM1)  |
+           fis_dcount <= ({4{get_dsfis}}    & DSFIS32_LENM1)  |
                          ({4{get_psfis}}    & PSFIS32_LENM1)  |
                          ({4{get_rfis}}     & RFIS32_LENM1)   |
                          ({4{get_sdbfis}}   & SDBFIS32_LENM1) |
                          ({4{get_ufis}}     & UFIS32_LENM1 )  |
                          ({4{get_data_fis}} & DMAH_LENM1)     |
                          ({4{get_ignore}}   & IGNORE_LENM1 );
-//           fis_save <=    pcmd_fre && !get_data_fis && !get_ignore && !get_sig;
            // save signature FIS to memory if waiting (if not - ignore FIS)
            // for non-signature /non-data - obey pcmd_fre 
-           fis_save <=    get_sig? pUpdateSig_r : (pcmd_fre && !get_data_fis && !get_ignore);
+           fis_save <=    (pUpdateSig_r || get_rfis) || (pcmd_fre && !get_data_fis && !get_ignore);
            
            is_data_fis <= get_data_fis;
-           update_sig <=  ((get_sig && pUpdateSig_r)?    1 : 0);
+           store_sig <=   (get_rfis)?    1 : 0;
            reg_ds <=      get_dsfis ? 1 : 0;
            reg_ps <=      get_psfis ? 1 : 0;
            reg_d2h <=     get_rfis ?  1 : 0;    
@@ -254,7 +254,7 @@ localparam DATA_TYPE_ERR =      3;
         end else if (wreg_we_r && !dwords_over) begin
            fis_dcount <= fis_dcount - 1;               // update even if not writing to registers
            if (fis_save) reg_addr_r <= reg_addr_r + 1; // update only when writing to registers
-           update_sig <=  update_sig << 1;
+           store_sig <=   store_sig << 1;
            reg_ds <=      reg_ds << 1;
            reg_ps <=      reg_ps << 1;
            reg_d2h <=     0;    
@@ -289,19 +289,16 @@ localparam DATA_TYPE_ERR =      3;
         if      (hba_rst || get_fis)          fis_err <= 0;
         else if (fis_end_w)                   fis_err <= hba_data_in_type != DATA_TYPE_OK;
         
-        if (reg_we_w)                         reg_data[31:8] <= hba_data_in[31:8];
-        else if (update_sig[1])               reg_data[31:8] <= hba_data_in[23:0];
-        else if (update_err_sts_r)            reg_data[31:8] <= {16'b0,tf_err_sts[15:8]};
-//        else if (update_pio_r)                reg_data[31:8] <= {16'b0,pio_err_r[7:0]};
-        else if (update_prdbc_r)              reg_data[31:8] <= {xfer_cntr_r[31:8]};
 
-        if (reg_we_w)                         reg_data[ 7:0] <=  hba_data_in[ 7:0];
-        else if (update_sig[3])               reg_data[ 7:0] <=  hba_data_in[ 7:0];
-        else if (update_err_sts_r)            reg_data[ 7:0] <=  tf_err_sts [ 7:0];
-//        else if (update_pio_r)                reg_data[ 7:0] <=  pio_es_r   [ 7:0];
-        else if (update_prdbc_r)              reg_data[ 7:0] <=  {xfer_cntr_r[ 7:2],2'b0};
+        if (reg_we_w)                         reg_data <=    hba_data_in;
+        else if (update_err_sts_r)            reg_data <=    {16'b0,tf_err_sts};
+        else if (update_sig_r)                reg_data <=    sig_r;
+        else if (update_prdbc_r)              reg_data <=    {xfer_cntr_r[31:2],2'b0};
+
+        if (store_sig[1])                     sig_r[31:8] <= hba_data_in[23:0];
+        if (store_sig[3])                     sig_r[ 7:0] <= hba_data_in[ 7:0];
         
-        if (reg_d2h || update_sig[0])         tf_err_sts  <= hba_data_in[15:0];
+        if (reg_d2h)                          tf_err_sts  <= hba_data_in[15:0];
         //  Sets pPioErr[pPmpCur] to Error field of the FIS
         //  Updates PxTFD.STS.ERR with pPioErr[pPmpCur] ??
         else if (reg_ps[0])                   tf_err_sts  <= {hba_data_in[31:24],hba_data_in[23:16]};
@@ -311,12 +308,13 @@ localparam DATA_TYPE_ERR =      3;
                                               tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,3'h0,clear_bsy_set_drq,3'h0};
         else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
         
-        reg_we <= reg_we_w || update_sig[3] || update_err_sts_r || update_prdbc_r;
+        reg_we <= reg_we_w || update_sig_r || update_err_sts_r || update_prdbc_r;
         
-        if (reg_we_w || update_sig[3])        reg_addr <=  reg_addr_r;
+        if      (reg_we_w)                    reg_addr <=  reg_addr_r;
         else if (update_err_sts_r)            reg_addr <=  PXTFD_OFFS32;
+        else if (update_sig_r)                reg_addr <=  PXSIG_OFFS32;
         else if (update_prdbc_r)              reg_addr <=  CLB_OFFS32 + 1; // location of PRDBC
-
+        
         if (reg_d2h || reg_sdb || reg_ds[0])  fis_i <=           hba_data_in[14];
         if (reg_sdb)                          sdb_n <=           hba_data_in[15];
         if (reg_ds[0])                        {dma_a,dma_d}  <=  {hba_data_in[15],hba_data_in[13]};
@@ -341,13 +339,16 @@ localparam DATA_TYPE_ERR =      3;
         update_err_sts_r <= update_pio || update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
 //        update_pio_r <=  update_pio;
         update_prdbc_r <= update_prdbc; // same latency as update_err_sts
+        update_sig_r <=   update_sig && pUpdateSig_r; // do not update if not requested
         
-        if (hba_rst || update_pio) pPioXfer <= 0;
-        else if (reg_ps[4])        pPioXfer <= 1;
+        if (hba_rst || update_pio)     pPioXfer <= 0;
+        else if (reg_ps[4])            pPioXfer <= 1;
         
         if (hba_rst || set_update_sig) pUpdateSig_r <= 1;
-        else if (update_sig[3])        pUpdateSig_r <= 0;
+        else if (update_sig)           pUpdateSig_r <= 0;
         
+        if (hba_rst || update_sig)     sig_available <= 0;
+        else if (store_sig[3])         sig_available <= 1;
         
         // Maybe it is not needed if the fsm will send this pulse?
 //        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);
