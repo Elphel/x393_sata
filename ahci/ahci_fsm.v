@@ -246,12 +246,12 @@ module  ahci_fsm
 
 );
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
-    reg                     [10:0] pgm_waddr;
+    reg                     [ 9:0] pgm_waddr;
 //    wire                           pgm_ren;
 //    wire                           pgm_regen;
     wire                           cond_met_w; // calculated from signals and program conditions decoder
-    reg                     [10:0] pgm_jump_addr;
-    reg                     [10:0] pgm_addr;
+    reg                     [ 9:0] pgm_jump_addr;
+    reg                     [ 9:0] pgm_addr;
     wire                    [17:0] pgm_data;
     reg                            was_rst;
 //    reg                            jump_r; 
@@ -261,8 +261,8 @@ module  ahci_fsm
     reg                            fsm_act_busy;
     reg                      [1:0] fsm_transitions; // processing transitions
     reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
-    wire                     [6:0] precond_w = pgm_data[17:11];   // select what to use - cond_met_w valis after precond_w, same time as conditions
-    reg                      [6:0] conditions;
+    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
+    reg                      [7:0] conditions;
     wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
     wire                           fsm_act_done = get_fis_done || xmit_done;
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
@@ -282,7 +282,7 @@ module  ahci_fsm
     // Writing to the FSM program memory
     always @ (posedge aclk) begin
         if      (arst)   pgm_waddr <= 0;
-        else if (pgm_wa) pgm_waddr <= pgm_ad[10:0];
+        else if (pgm_wa) pgm_waddr <= pgm_ad[ 9:0];
         else if (pgm_wd) pgm_waddr <=  pgm_waddr + 1;
     end
     // Reset addresses - later use generated
@@ -295,7 +295,7 @@ module  ahci_fsm
     always @ (posedge mclk) begin
         if      (hba_rst)                                                    pgm_jump_addr <= (was_hba_rst || was_port_rst) ? (was_hba_rst? LABEL_HBA_RST:LABEL_PORT_RST) : LABEL_POR;
         else if (async_pend_r[1])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
-        else if (fsm_transitions[0] && (!cond_met_w || !fsm_transitions[1])) pgm_jump_addr <= pgm_data[10:0];
+        else if (fsm_transitions[0] && (!cond_met_w || !fsm_transitions[1])) pgm_jump_addr <= pgm_data[9:0];
         
         was_rst <= hba_rst;
                
@@ -337,25 +337,11 @@ module  ahci_fsm
         
     end
 
-/*
-sequence = [{LBL:'POR',      ADR: 0x0,  ACT: NOP},
-            {                           GOTO:'H:Init'},
-            {LBL:'HBA_RST',  ADR: 0x2,  ACT: NOP},
-            {                           GOTO:'H:Init'},
-            
-            {LBL:'PORT_RST', ADR: 0x4,  ACT: NOP},
-            {                           GOTO:'H:Init'},
-            
-            {LBL:'COMINIT',  ADR: 0x6, ACT: NOP},
-            {                           GOTO:'P:Cominit'},
-            
-
-*/
-
-    ramp_var_w_var_r #(
+    ram18p_var_w_var_r #(
         .REGISTERS(1),
         .LOG2WIDTH_WR(4),
         .LOG2WIDTH_RD(4)
+        `include "includes/ahxi_fsm_code.vh" 
     ) fsm_pgm_mem_i (
         .rclk     (mclk),      // input
         .raddr    (pgm_addr),  // input[10:0] 
@@ -365,10 +351,112 @@ sequence = [{LBL:'POR',      ADR: 0x0,  ACT: NOP},
         .wclk     (aclk),      // input
         .waddr    (pgm_waddr), // input[10:0] 
         .we       (pgm_wd),    // input
-        .web      (8'hff),     // input[7:0] 
+        .web      (4'hff),     // input[7:0] 
         .data_in  (pgm_ad)     // input[17:0] 
     );
 
+    action_decoder action_decoder_i (
+        .clk                (mclk), // input
+        .enable             (), // input
+        .data               (), // input[10:0] 
+        .PXSERR_DIAG_X      (), // output reg 
+        .SIRQ_DHR           (), // output reg 
+        .SIRQ_DP            (), // output reg 
+        .SIRQ_DS            (), // output reg 
+        .SIRQ_IF            (), // output reg 
+        .SIRQ_PS            (), // output reg 
+        .SIRQ_SDB           (), // output reg 
+        .SIRQ_TFE           (), // output reg 
+        .SIRQ_UF            (), // output reg 
+        .PFSM_STARTED       (), // output reg 
+        .PCMD_CR_CLEAR      (), // output reg 
+        .PCMD_CR_SET        (), // output reg 
+        .PXCI0_CLEAR        (), // output reg 
+        .PXSSTS_DET_1       (), // output reg 
+        .SSTS_DET_OFFLINE   (), // output reg 
+        .SET_UPDATE_SIG     (), // output reg 
+        .UPDATE_SIG         (), // output reg 
+        .UPDATE_ERR_STS     (), // output reg 
+        .UPDATE_PIO         (), // output reg 
+        .UPDATE_PRDBC       (), // output reg 
+        .CLEAR_BSY_DRQ      (), // output reg 
+        .CLEAR_BSY_SET_DRQ  (), // output reg 
+        .SET_BSY            (), // output reg 
+        .SET_STS_7F         (), // output reg 
+        .SET_STS_80         (), // output reg 
+        .XFER_CNTR_CLEAR    (), // output reg 
+        .DECR_DWC           (), // output reg 
+        .FIS_FIRST_FLUSH    (), // output reg 
+        .CLEAR_CMD_TO_ISSUE (), // output reg 
+        .DMA_ABORT          (), // output reg 
+        .DMA_PRD_IRQ_CLEAR  (), // output reg 
+        .XMIT_COMRESET      (), // output reg 
+        .SEND_SYNC_ESC      (), // output reg 
+        .SET_OFFLINE        (), // output reg 
+        .R_OK               (), // output reg 
+        .R_ERR              (), // output reg 
+        .FETCH_CMD          (), // output reg 
+        .ATAPI_XMIT         (), // output reg 
+        .CFIS_XMIT          (), // output reg 
+        .DX_XMIT            (), // output reg 
+        .GET_DATA_FIS       (), // output reg 
+        .GET_DSFIS          (), // output reg 
+        .GET_IGNORE         (), // output reg 
+        .GET_PSFIS          (), // output reg 
+        .GET_RFIS           (), // output reg 
+        .GET_SDBFIS         (), // output reg 
+        .GET_UFIS           () // output reg 
+    );
+
+    condition_mux condition_mux_i (
+        .clk                   (mclk), // input
+        .sel                   (), // input[7:0] 
+        .condition             (), // output
+        .ST_NB_ND              (), // input
+        .PXCI0_NOT_CMDTOISSUE  (), // input
+        .PCTI_CTBAR_XCZ        (), // input
+        .PCTI_XCZ              (), // input
+        .NST_D2HR              (), // input
+        .NPD_NCA               (), // input
+        .CHW_DMAA              (), // input
+        .SCTL_DET_CHANGED_TO_4 (), // input
+        .SCTL_DET_CHANGED_TO_1 (), // input
+        .PXSSTS_DET_NE_3       (), // input
+        .PXSSTS_DET_EQ_1       (), // input
+        .NPCMD_FRE             (), // input
+        .FIS_OK                (), // input
+        .FIS_ERR               (), // input
+        .FIS_FERR              (), // input
+        .FIS_EXTRA             (), // input
+        .FIS_FIRST_INVALID     (), // input
+        .FR_D2HR               (), // input
+        .FIS_DATA              (), // input
+        .FIS_ANY               (), // input
+        .NB_ND_D2HR_PIO        (), // input
+        .D2HR                  (), // input
+        .SDB                   (), // input
+        .DMA_ACT               (), // input
+        .DMA_SETUP             (), // input
+        .BIST_ACT_FE           (), // input
+        .BIST_ACT              (), // input
+        .PIO_SETUP             (), // input
+        .NB_ND                 (), // input
+        .TFD_STS_ERR           (), // input
+        .FIS_I                 (), // input
+        .PIO_I                 (), // input
+        .NPD                   (), // input
+        .PIOX                  (), // input
+        .XFER0                 (), // input
+        .PIOX_XFER0            (), // input
+        .CTBAA_CTBAP           (), // input
+        .CTBAP                 (), // input
+        .CTBA_B                (), // input
+        .CTBA_C                (), // input
+        .TX_ERR                (), // input
+        .SYNCESC_ERR           (), // input
+        .DMA_PRD_IRQ_PEND      (), // input
+        .X_RDY_COLLISION       () // input
+    );
 
 
 /*

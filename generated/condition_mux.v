@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Module: condition_mux
- * Date:2016-01-18  
+ * Date:2016-01-19  
  * Author: auto-generated file, see ahci_fsm_sequence.py
  * Description: Select condition
  *******************************************************************************/
@@ -56,7 +56,7 @@ module condition_mux (
     input        DMA_PRD_IRQ_PEND,
     input        X_RDY_COLLISION);
 
-    wire [43:0] masked;
+    wire [44:0] masked;
     reg  [ 5:0] cond_r;
 
     assign condition = |cond_r;
@@ -105,6 +105,7 @@ module condition_mux (
     assign masked[41] = SYNCESC_ERR            && sel[ 6] && sel[ 4] && sel[ 2];
     assign masked[42] = DMA_PRD_IRQ_PEND       && sel[ 7] && sel[ 4] && sel[ 2];
     assign masked[43] = X_RDY_COLLISION        && sel[ 6] && sel[ 5] && sel[ 2];
+    assign masked[44] = !(|sel); // always TRUE condition (sel ==0)
 
     always @(posedge clk) begin
         cond_r[ 0] <= |masked[ 7: 0];
@@ -112,6 +113,6 @@ module condition_mux (
         cond_r[ 2] <= |masked[23:16];
         cond_r[ 3] <= |masked[31:24];
         cond_r[ 4] <= |masked[39:32];
-        cond_r[ 5] <= |masked[43:40];
+        cond_r[ 5] <= |masked[44:40];
     end
 endmodule

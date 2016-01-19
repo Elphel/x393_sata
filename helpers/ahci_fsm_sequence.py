@@ -41,6 +41,7 @@ action_decoder_module_name=  'action_decoder'
 condition_mux_verilog_path=  '../generated/condition_mux.v'
 condition_mux_module_name=   'condition_mux'
 condition_mux_fanout =       8 
+code_rom_path=  '../includes/ahxi_fsm_code.vh'
 #Set actions, conditions to empty string to rebuild list. Then edit order and put here
 actions = ['NOP',
     # CTRL_STAT
@@ -477,13 +478,15 @@ module %s (
         num_inputs += 1
         v >>= 1
     maximal_length = max([len(n) for n in conditions])
-    numregs = (len(conditions) + fanout - 1) // fanout
+#    numregs = (len(conditions) + fanout - 1) // fanout
+    numregs = (len(conditions) + fanout) // fanout # one more bit for 'always' (sel == 0)
     header = header_template%(module_name, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
     print(header,file=file)
     for input_name in conditions[:len(conditions)-1]:
         print("    input        %s,"%(input_name),file=file)
     print("    input        %s);\n"%(conditions[-1]),file=file)
-    print("    wire [%2d:0] masked;"%(len(conditions)-1),file=file)
+#    print("    wire [%2d:0] masked;"%(len(conditions)-1),file=file)
+    print("    wire [%2d:0] masked;"%(len(conditions)),file=file)
     if numregs > 1:
         print("    reg  [%2d:0] cond_r;\n"%(numregs-1),file=file)
     else:
@@ -502,10 +505,13 @@ module %s (
             if d & (1 << nb):
                 print (" && sel[%2d]"%(nb), end="", file=file)
         print (";", file=file)
+    print("    assign masked[%2d] = !(|sel); // always TRUE condition (sel ==0)"%(len(conditions)), file=file)
+        
     print ("\n    always @(posedge clk) begin", file=file)
     for nb in range (numregs):
         ll = nb * fanout
-        hl = min(ll + fanout, len(conditions)) -1
+#        hl = min(ll + fanout, len(conditions)) -1
+        hl = min(ll + fanout -1, len(conditions))
         if numregs > 1:
             print ("        cond_r[%2d] <= "%(nb), end="", file=file)
         else:
@@ -562,6 +568,111 @@ module %s (
         print (";", file=file)
     print ("    end", file=file)
     print("endmodule",file=file)
+    
+#def code_generator (sequence, actions, action_vals,conditions, condition_vals, labels):
+def code_generator (sequence, action_vals, condition_vals, labels):
+    wait_act =  0x10000
+    last_act =  0x20000
+    act_mask =  0x0ffff # actually 0x007ff (11 bits) is enough
+    goto_mask = 0x003ff # 10-bit address
+    cond_mask = 0xff # before <<
+    cond_shift = 10 # 
+    jump_mode = False;
+    code=[]
+    for a, l in enumerate (sequence):
+        # checks
+        if not jump_mode:
+            if (IF in l) or (GOTO in l):
+                raise Exception ("Unexpected line %d: %s - was expecting action, not GOTO"%(a,str(l)))
+        else:
+            if (LBL in l) or (ACT in l) or (ADDR in l):
+                jump_mode = False # set ACT mode before processing, set GOTO mode - after processing
+                if IF in sequence[a-1]: # first ACT after JUMP
+                    raise Exception ("Last jump (%d: %s) should be unconditional GOTO"%(a-1,str(sequence[a-1])))
+        d=0
+        if not jump_mode:
+            if ACT in l:
+                act = action_vals[l[ACT]]
+                if act != (act & act_mask):
+                    raise Exception ("ACT = 0x%x does not fit into designated field (0x%x) in line %d:%s"%(act, act_mask, a,str(l)))
+                d=act | (0,wait_act)[l[ACT].endswith('*')]
+                if (GOTO in sequence[a+1]):
+                    jump_mode = True
+                    d |= last_act
+        else: # jump mode
+            goto = labels[l[GOTO]]
+            if goto != (goto & goto_mask):
+                raise Exception ("GOTO = 0x%x does not fit into designated field (0x%x) in line %d:%s"%(goto, goto_mask, a,str(l)))
+            cond = 0
+            if IF in l:
+               cond = condition_vals[l[IF]]
+            if cond != (cond & cond_mask):
+                raise Exception ("IF = 0x%x does not fit into designated field (0x%x) in line %d:%s"%(cond, cond_mask, a,str(l)))
+            d = goto | (cond << cond_shift)
+        code.append(d)
+    return code        
+
+def create_with_parity (init_data,   # numeric data (may be less than full array
+                        num_bits,    # number of bits in item, valid:  1,2,4,8,9,16,18,32,36,64,72
+#                        start_bit,   # bit number to start filling from 
+                        full_bram):  # true if ramb36, false - ramb18
+    d = num_bits
+    num_bits8 = 1;
+    while d > 1:
+        d >>= 1
+        num_bits8 <<= 1
+    bsize = (0x4000,0x8000)[full_bram]
+    bdata = [0  for i in range(bsize)]
+    sb = 0
+    for item in init_data:
+        for bt in range (num_bits8):
+            bdata[sb+bt] = (item >> bt) & 1;
+        sb += num_bits8
+    data = []
+    for i in range (len(bdata)//256):
+        d = 0;
+        for b in range(255, -1,-1):
+            d = (d<<1) +  bdata[256*i+b]
+        data.append(d)
+    data_p = []
+    num_bits_p = num_bits8 >> 3
+    sb = 0
+    print ("num_bits=",num_bits)
+    print ("num_bits8=",num_bits8)
+    print ("num_bits_p=",num_bits_p)
+    if num_bits_p:    
+        pbsize = bsize >> 3    
+        pbdata = [0  for i in range(pbsize)]
+        for item in init_data:
+#            print ("item = 0x%x, p = 0x%x"%(item,item >> num_bits8))
+            for bt in range (num_bits_p):
+                pbdata[sb+bt] = (item >> (bt+num_bits8)) & 1;
+#                print ("pbdata[%d] = 0x%x"%(sb+bt, pbdata[sb+bt]))
+            sb += num_bits_p
+        for i in range (len(pbdata)//256):
+            d = 0;
+            for b in range(255, -1,-1):
+                d = (d<<1) +  pbdata[256*i+b]
+            data_p.append(d)
+#    print(bdata)  
+#    print(data)  
+#    print(pbdata)  
+#    print(data_p)  
+    return {'data':data,'data_p':data_p}
+
+
+def print_params(data,out_file_name):
+    with open(out_file_name,"w") as out_file:
+        for i, v in enumerate(data['data']):
+            if v:
+                print (", .INIT_%02X (256'h%064X)"%(i,v), file=out_file)
+    #    if (include_parity):
+        for i, v in enumerate(data['data_p']):
+            if v:
+                print (", .INITP_%02X (256'h%064X)"%(i,v), file=out_file)
+                        
+                 
+    
 #print (sequence)
 ln = 0
 while ln < len(sequence):
@@ -644,8 +755,13 @@ if sort_conditions:
 #Assign values to actions
 action_vals={}
 vals = bin_cnk (*actions_cnk)
+indx = 0
 for i, v in enumerate (actions):
-    action_vals[v]= vals[i]
+    if v == 'NOP':
+        action_vals[v]= 0
+    else:    
+        action_vals[v]= vals[indx]
+        indx += 1
 #Assign values to conditions
 condition_vals={}
 vals = bin_cnk (*conditions_cnk)
@@ -674,8 +790,8 @@ for i,c in enumerate(conditions):
 #    print ("%02d: %s"%(i,c))
     print ("%s"%(c))
 
-print ("action_vals=",   action_vals)    
-print ("condition_vals=",condition_vals)    
+#print ("action_vals=",   action_vals)    
+#print ("condition_vals=",condition_vals)    
 
 #for i, line in enumerate(sequence):
 #    print ("%03x: %s"%(i,line))
@@ -693,6 +809,50 @@ else:
     with open(os.path.abspath(os.path.join(os.path.dirname(__file__), condition_mux_verilog_path)),"w") as out_file:
         condition_mux_verilog(conditions, condition_vals,condition_mux_module_name, condition_mux_fanout, out_file)
     print ("AHCI FSM conditions multiplexer is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), condition_mux_verilog_path))))
+
+code = code_generator (sequence, action_vals, condition_vals, labels)
+
+#print_params(create_with_parity(code, 18, 0, False),os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path)))
+print_params(create_with_parity(code, 18, False),os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path)))
+print ("AHCI FSM code data is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path))))
+
+
+#longest_label = max([len(labels[l]) for l in labels.keys()])
+longest_label = max([len(l) for l in labels])
+longest_act =   max([len(act) for act in actions])
+longest_cond =  max([len(cond) for cond in conditions])
+format_act = "%%%ds do %%s%%s"%(longest_label+1) 
+format_cond = "%%%ds %%%ds goto %%s"%(longest_label+1, longest_cond+3)
+#print ("format_act=", format_act) 
+#print ("format_cond=",format_cond) 
+print ("\n code:")
+for a,c in enumerate(code):
+    l = sequence[a]
+    if LBL in l:
+        print()
+    print ("%03x: %05x #"%(a,c),end = "")
+    if (ACT in l) or (LBL in l):
+        try:
+            lbl = l[LBL]+":"
+        except:
+            lbl = ""
+        try:
+            act = l[ACT]
+        except:
+            act = "NOP"
+        wait = ""
+        if act.endswith('*'):
+            wait = ", WAIT DONE"
+            act = act[0:-1]
+        print(format_act%(lbl,act,wait))    
+    else:
+        try:
+            cond = "if "+l[IF]
+        except:
+            cond = "always"
+        cond += ' '*(longest_cond+3-len(cond))    
+        print(format_cond%("",cond,l[GOTO]))    
+#    print ("%03x: %05x # %s"%(a,c,str(sequence[a])))
 
 #condition_mux_verilog(conditions, condition_vals, 'condition_mux',100, file=None)
             
