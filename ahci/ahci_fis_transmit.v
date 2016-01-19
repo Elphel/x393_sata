@@ -75,7 +75,7 @@ module  ahci_fis_transmit #(
     input                         dma_ct_busy,   // dma module is busy reading command table from the system memory
     // issue dma_prd_start same time as dma_start if prefetch enabled, otherwise with cfis_xmit
     output reg                    dma_prd_start, // at or after cmd_start - enable reading PRD/data (if any) ch_prdtl should be valid, twice - OK
-    output reg                    dma_cmd_abort,   // try to abort a command TODO: Implement
+    output reg                    dma_cmd_abort,   // try to abort a command
     
     // reading out command table data from DMA module
     output reg             [ 4:0] ct_addr,     // DWORD address

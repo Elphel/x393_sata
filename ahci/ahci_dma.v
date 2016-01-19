@@ -65,11 +65,11 @@ module  ahci_dma (
     
     // After the first 0x80 bytes of the Command Table are read out, this module will read/process PRDs,
     // not forwarding them to the output 
-    output                        prd_done,     // prd done (regardless of the interrupt) - data transfer of one PRD is finished (any direction)
-    
-    output                        prd_irq,      // prd interrupt, if enabled
+    output                        prd_done,     // @mclk prd done (regardless of the interrupt) - data transfer of one PRD is finished (any direction)
+    input                         prd_irq_clear, // reset pending prd_irq
+    output reg                    prd_irq_pend,  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
     output reg                    cmd_busy,     // all commands
-    output                        cmd_done,
+    output                        cmd_done,     // @ mclk
     
     // Data System memory -> HBA interface @ mclk
     output                 [31:0] sys_out,      // 32-bit data from the system memory to HBA (dma data)
@@ -80,6 +80,8 @@ module  ahci_dma (
     input                  [31:0] sys_in,       // HBA -> system memory
     output                        sys_nfull,    // internal FIFO has room for more data (will decide - how big reserved space to keep)
     input                         sys_we,    
+    
+    output                        extra_din,    // all DRDs are transferred to memory, but FIFO has some data. Valid when transfer is stopped
     
     // axi_hp signals write channel
     // write address
@@ -228,8 +230,10 @@ module  ahci_dma (
     reg      [3:0] dev_rd_id;
     reg      [5:0] afi_id; // common for 3 channels
     
-    assign prd_done = done_dev_wr || done_dev_rd;
-    assign prd_irq = data_irq && prd_done;
+    wire           fifo_nempty_mclk;
+    reg            en_extra_din_r;
+      
+//    assign prd_done = done_dev_wr || done_dev_rd;
     assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || done_flush || done_dev_rd;
     assign ct_done = (ct_busy_r == 2'b10);
     assign first_prd_fetch = ct_over_prd_enabled == 2'b01;
@@ -269,7 +273,7 @@ module  ahci_dma (
     assign afi_arburst =       2'h1;
     assign afi_arqos =         4'h0;
     assign afi_rdissuecap1en = 1'b0;
-    
+    assign extra_din = en_extra_din_r && fifo_nempty_mclk;
     always @ (posedge mclk) begin
         if (ct_re) ct_data <=         ct_data_ram[ct_addr];
         if (ctba_ld) ctba_r <=        ctba[31:7];
@@ -291,6 +295,13 @@ module  ahci_dma (
         else if (set_axi_wr_cache_mode) afi_awcache <= axi_wr_cache_mode;
         
         prd_start_r <= prd_start;
+        
+        if (mrst || prd_irq_clear ||cmd_start || cmd_abort) prd_irq_pend <= 0; 
+        else if (data_irq && prd_done)                      prd_irq_pend <= 1;
+        
+        if (mrst || cmd_start || cmd_abort) en_extra_din_r <= 0; 
+        else if (cmd_done)                  en_extra_din_r <= 1;
+        
 
     end
        
@@ -472,6 +483,7 @@ module  ahci_dma (
         .dout_wstb    (afi_wstb4),      // output[3:0] reg 
         .done         (done_dev_rd),    // output reg 
         .busy         (), // output
+        .fifo_nempty_mclk  (fifo_nempty_mclk), // output reg 
         .din          (sys_in),         // input[31:0] 
         .din_rdy      (sys_nfull),      // output
         .din_avail    (sys_we)          // input
@@ -534,6 +546,20 @@ module  ahci_dma (
         .out_pulse (ct_done_mclk),    // output
         .busy()                       // output
     );
+
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) prd_done_mclk_i (
+        .rst       (hrst),            // input
+        .src_clk   (hclk),            // input
+        .dst_clk   (mclk),            // input
+        .in_pulse  (done_dev_wr || done_dev_rd),         // input
+        .out_pulse (prd_done),        // output
+        .busy()                       // output
+    );
+
+
+
 
 endmodule
 

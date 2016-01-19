@@ -124,7 +124,7 @@ module  ahci_ctrl_stat #(
     input                         ssts_det_ndnp,     // no device detected, phy communication not established
     input                         ssts_det_dnp,      // device detected, but phy communication not established
     input                         ssts_det_dp,       // device detected, phy communication established
-    input                         ssts_det_offline,  // device offline
+    input                         ssts_det_offline,  // device offline or BIST
     output                  [3:0] ssts_det,          // current value of PxSSTS.DET
     
  // SCR2:SControl (written by software only)

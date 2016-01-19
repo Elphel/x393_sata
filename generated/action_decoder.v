@@ -1,0 +1,111 @@
+/*******************************************************************************
+ * Module: action_decoder
+ * Date:2016-01-18  
+ * Author: auto-generated file, see ahci_fsm_sequence.py
+ * Description: Decode sequencer code to 1-hot actions
+ *******************************************************************************/
+
+`timescale 1ns/1ps
+
+module action_decoder (
+    input        clk,
+    input        enable,
+    input [10:0] data,
+    output reg   PXSERR_DIAG_X,
+    output reg   SIRQ_DHR,
+    output reg   SIRQ_DP,
+    output reg   SIRQ_DS,
+    output reg   SIRQ_IF,
+    output reg   SIRQ_PS,
+    output reg   SIRQ_SDB,
+    output reg   SIRQ_TFE,
+    output reg   SIRQ_UF,
+    output reg   PFSM_STARTED,
+    output reg   PCMD_CR_CLEAR,
+    output reg   PCMD_CR_SET,
+    output reg   PXCI0_CLEAR,
+    output reg   PXSSTS_DET_1,
+    output reg   SSTS_DET_OFFLINE,
+    output reg   SET_UPDATE_SIG,
+    output reg   UPDATE_SIG,
+    output reg   UPDATE_ERR_STS,
+    output reg   UPDATE_PIO,
+    output reg   UPDATE_PRDBC,
+    output reg   CLEAR_BSY_DRQ,
+    output reg   CLEAR_BSY_SET_DRQ,
+    output reg   SET_BSY,
+    output reg   SET_STS_7F,
+    output reg   SET_STS_80,
+    output reg   XFER_CNTR_CLEAR,
+    output reg   DECR_DWC,
+    output reg   FIS_FIRST_FLUSH,
+    output reg   CLEAR_CMD_TO_ISSUE,
+    output reg   DMA_ABORT,
+    output reg   DMA_PRD_IRQ_CLEAR,
+    output reg   XMIT_COMRESET,
+    output reg   SEND_SYNC_ESC,
+    output reg   SET_OFFLINE,
+    output reg   R_OK,
+    output reg   R_ERR,
+    output reg   FETCH_CMD,
+    output reg   ATAPI_XMIT,
+    output reg   CFIS_XMIT,
+    output reg   DX_XMIT,
+    output reg   GET_DATA_FIS,
+    output reg   GET_DSFIS,
+    output reg   GET_IGNORE,
+    output reg   GET_PSFIS,
+    output reg   GET_RFIS,
+    output reg   GET_SDBFIS,
+    output reg   GET_UFIS);
+
+    always @(posedge clk) begin
+        PXSERR_DIAG_X <=      enable && data[ 2] && data[ 0];
+        SIRQ_DHR <=           enable && data[ 3] && data[ 0];
+        SIRQ_DP <=            enable && data[ 4] && data[ 0];
+        SIRQ_DS <=            enable && data[ 5] && data[ 0];
+        SIRQ_IF <=            enable && data[ 6] && data[ 0];
+        SIRQ_PS <=            enable && data[ 7] && data[ 0];
+        SIRQ_SDB <=           enable && data[ 8] && data[ 0];
+        SIRQ_TFE <=           enable && data[ 9] && data[ 0];
+        SIRQ_UF <=            enable && data[10] && data[ 0];
+        PFSM_STARTED <=       enable && data[ 2] && data[ 1];
+        PCMD_CR_CLEAR <=      enable && data[ 3] && data[ 1];
+        PCMD_CR_SET <=        enable && data[ 4] && data[ 1];
+        PXCI0_CLEAR <=        enable && data[ 5] && data[ 1];
+        PXSSTS_DET_1 <=       enable && data[ 6] && data[ 1];
+        SSTS_DET_OFFLINE <=   enable && data[ 7] && data[ 1];
+        SET_UPDATE_SIG <=     enable && data[ 8] && data[ 1];
+        UPDATE_SIG <=         enable && data[ 9] && data[ 1];
+        UPDATE_ERR_STS <=     enable && data[10] && data[ 1];
+        UPDATE_PIO <=         enable && data[ 3] && data[ 2];
+        UPDATE_PRDBC <=       enable && data[ 4] && data[ 2];
+        CLEAR_BSY_DRQ <=      enable && data[ 5] && data[ 2];
+        CLEAR_BSY_SET_DRQ <=  enable && data[ 6] && data[ 2];
+        SET_BSY <=            enable && data[ 7] && data[ 2];
+        SET_STS_7F <=         enable && data[ 8] && data[ 2];
+        SET_STS_80 <=         enable && data[ 9] && data[ 2];
+        XFER_CNTR_CLEAR <=    enable && data[10] && data[ 2];
+        DECR_DWC <=           enable && data[ 4] && data[ 3];
+        FIS_FIRST_FLUSH <=    enable && data[ 5] && data[ 3];
+        CLEAR_CMD_TO_ISSUE <= enable && data[ 6] && data[ 3];
+        DMA_ABORT <=          enable && data[ 7] && data[ 3];
+        DMA_PRD_IRQ_CLEAR <=  enable && data[ 8] && data[ 3];
+        XMIT_COMRESET <=      enable && data[ 9] && data[ 3];
+        SEND_SYNC_ESC <=      enable && data[10] && data[ 3];
+        SET_OFFLINE <=        enable && data[ 5] && data[ 4];
+        R_OK <=               enable && data[ 6] && data[ 4];
+        R_ERR <=              enable && data[ 7] && data[ 4];
+        FETCH_CMD <=          enable && data[ 8] && data[ 4];
+        ATAPI_XMIT <=         enable && data[ 9] && data[ 4];
+        CFIS_XMIT <=          enable && data[10] && data[ 4];
+        DX_XMIT <=            enable && data[ 6] && data[ 5];
+        GET_DATA_FIS <=       enable && data[ 7] && data[ 5];
+        GET_DSFIS <=          enable && data[ 8] && data[ 5];
+        GET_IGNORE <=         enable && data[ 9] && data[ 5];
+        GET_PSFIS <=          enable && data[10] && data[ 5];
+        GET_RFIS <=           enable && data[ 7] && data[ 6];
+        GET_SDBFIS <=         enable && data[ 8] && data[ 6];
+        GET_UFIS <=           enable && data[ 9] && data[ 6];
+    end
+endmodule

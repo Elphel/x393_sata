@@ -212,7 +212,8 @@ module  ahci_top#(
     wire             [ 1:0] dma_ct_re; // input
     wire             [31:0] dma_ct_data; // output[31:0] reg 
     wire                    dma_prd_done; // output (finished next prd)
-    wire                    dma_prd_irq; // output (finished next prd and prd irq is enabled)
+    wire                    dma_prd_irq_clear; // reset pending prd_irq
+    wire                    dma_prd_irq_pend;  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
     wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
     wire                    dma_cmd_done; // output (last PRD is over)
     wire             [31:0] dma_dout;    // output[31:0] 
@@ -220,10 +221,17 @@ module  ahci_top#(
     wire                    dma_re;      // input
     wire                    dma_in_ready; // output
     wire                    dma_we;      // input
+    wire                    dma_extra_din;    // all DRDs are transferred to memory, but FIFO has some data. Valid when transfer is stopped
+    
+    
 // ---------------------------------------
     // fsm <-> ahc_fis_receive
     // fsm ->
     wire                    frcv_first_vld;
+    // To debug/recover - 
+    wire                    frcv_first_invalid; // Some data available from FIFO, but not FIS head
+    wire                    frcv_first_flush;   // Skip FIFO data until empty or FIS head
+    
     wire                    frcv_get_dsfis;
     wire                    frcv_get_psfis;
     wire                    frcv_get_rfis;
@@ -252,7 +260,8 @@ module  ahci_top#(
     wire                    frcv_ok;            // FIS done,  checksum OK reset by starting a new get FIS
     wire                    frcv_err;           // FIS done, checksum ERROR reset by starting a new get FIS
     wire                    frcv_ferr;          // FIS done, fatal error - FIS too long
-
+    wire                    frcv_extra;         // DMA all transferred, but some data is still in left. . Does not deny frcv_ok
+    
     wire                    frcv_set_update_sig; // when set, enables get_sig (and resets itself)
     wire                    frcv_pUpdateSig;     // state variable
     wire                    frcv_sig_available;  // signature data available
@@ -270,8 +279,8 @@ module  ahci_top#(
     wire                    pio_i;         // value of "I" field in received PIO Setup FIS
     wire                    pio_d;         // value of "D" field in received PIO Setup FIS
     wire              [7:0] pio_es;        // value of PIO E_Status
-    
     wire                    pPioXfer;
+    wire                    sactive0;      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     
     wire             [31:0] xfer_cntr; 
@@ -502,10 +511,15 @@ module  ahci_top#(
         .pxci0_clear              (pxci0_clear),       // output
         .pxci0                    (pxci0),             // input
 
-        .dma_prd_done    (dma_prd_done),       // input
-        .dma_prd_irq     (dma_prd_irq),        // input
+        .dma_prd_done             (dma_prd_done),       // input
+        .dma_prd_irq_clear        (dma_prd_irq_clear),  // output
+        .dma_prd_irq_pend         (dma_prd_irq_pend),   // input
+        
         .dma_cmd_busy    (dma_cmd_busy),       // input
         .dma_cmd_done    (dma_cmd_done),       // input
+        
+        .fis_first_invalid (frcv_first_invalid),// input
+        .fis_first_flush   (frcv_first_flush),  // output
         
         .fis_first_vld   (frcv_first_vld),     // input
         .fis_type        (d2h_data[7:0]),      // input[7:0] FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
@@ -523,6 +537,7 @@ module  ahci_top#(
         .fis_ok          (frcv_ok),            // input
         .fis_err         (frcv_err),           // input
         .fis_ferr        (frcv_ferr),          // input
+        .fis_extra       (frcv_extra || dma_extra_din), // input // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
         
         .set_update_sig  (frcv_set_update_sig),// output
         .pUpdateSig      (frcv_pUpdateSig),    // input
@@ -552,6 +567,7 @@ module  ahci_top#(
         .dma_d           (dma_d),              // input
         .pio_i           (pio_i),              // input
         .pio_d           (pio_d),              // input
+        .sactive0        (sactive0),            // input
         .pio_es          (pio_es),             // input[7:0] 
         .xfer_cntr       (xfer_cntr[31:2]),    // input[31:2] 
         .xfer_cntr_zero  (xfer_cntr_zero),     // input
@@ -746,7 +762,10 @@ module  ahci_top#(
         .ct_re                 (dma_ct_re[0]),  // input
         .ct_data               (dma_ct_data),   // output[31:0] reg 
         .prd_done              (dma_prd_done),  // output
-        .prd_irq               (dma_prd_irq),   // output
+        
+        .prd_irq_clear         (dma_prd_irq_clear),// input
+        .prd_irq_pend          (dma_prd_irq_pend), // output reg
+        
         .cmd_busy              (dma_cmd_busy),  // output reg 
         .cmd_done              (dma_cmd_done),  // output
         .sys_out               (dma_dout),      // output[31:0] 
@@ -755,7 +774,7 @@ module  ahci_top#(
         .sys_in                (d2h_data),      // input[31:0] 
         .sys_nfull             (dma_in_ready),  // output
         .sys_we                (dma_we),        // input
-
+        .extra_din             (dma_extra_din), // output reg
         .afi_awaddr        (afi_awaddr),        // output[31:0] 
         .afi_awvalid       (afi_awvalid),       // output
         .afi_awready       (afi_awready),       // input
@@ -809,6 +828,8 @@ module  ahci_top#(
         .mclk              (mclk),                   // input
         
         .fis_first_vld     (frcv_first_vld),         // output reg 
+        .fis_first_invalid (frcv_first_invalid),     // output
+        .fis_first_flush   (frcv_first_flush),       // input
 
         .get_dsfis         (frcv_get_dsfis),         // input
         .get_psfis         (frcv_get_psfis),         // input
@@ -823,6 +844,9 @@ module  ahci_top#(
         .fis_ok            (frcv_ok),                // output reg 
         .fis_err           (frcv_err),               // output reg 
         .fis_ferr          (frcv_ferr),              // output
+
+        .dma_prds_done     (dma_cmd_done),           // input
+        .fis_extra         (frcv_extra),             // output
 
         .set_update_sig    (frcv_set_update_sig),    // input
         .pUpdateSig        (frcv_pUpdateSig),        // output
@@ -855,6 +879,7 @@ module  ahci_top#(
         .pio_i             (pio_i),                  // output reg 
         .pio_d             (pio_d),                  // output reg 
         .pio_es            (pio_es),                 // output[7:0] reg 
+        .sactive0          (sactive0),               // output reg 
         .xfer_cntr         (xfer_cntr[31:2]),        // output[31:2] 
         .xfer_cntr_zero    (xfer_cntr_zero),         // output reg
         .data_in_dwords    (data_in_dwords),         // output[11:0] 

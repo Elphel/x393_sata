@@ -35,7 +35,10 @@ module  ahci_fis_receive#(
     input                         hba_rst, // @posedge mclk - sync reset
     input                         mclk, // for command/status
     // Control Interface
-    output reg                    fis_first_vld, // fis_first contains valid FIS header, reset by get_*
+    output reg                    fis_first_vld,     // fis_first contains valid FIS header, reset by get_*
+    // Debug features
+    output                        fis_first_invalid, // Some data available from FIFO, but not FIS head
+    input                         fis_first_flush,   // Skip FIFO data until empty or FIS head
     // Receiving FIS
     input                         get_dsfis,
     input                         get_psfis,
@@ -49,6 +52,8 @@ module  ahci_fis_receive#(
     output reg                    fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     output reg                    fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     output                        fis_ferr,      // FIS done, fatal error - FIS too long
+    input                         dma_prds_done, // dma is done - check if FIS is done (some data may get stuck in dma FIFO - reported separately)
+    output                        fis_extra,     // all wanted data got, FIS may have extra data (non-fatal). Does not deny fis_ok
     input                         set_update_sig,// when set, enables update_sig (and resets itself)
     output                        pUpdateSig,    // state variable
     output reg                    sig_available, // device signature a ailable
@@ -74,13 +79,14 @@ module  ahci_fis_receive#(
     output                  [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
     output                  [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
-    output reg                    fis_i,         // value of "I" field in received regsD2H or SDB FIS
+    output reg                    fis_i,         // value of "I" field in received regsD2H or SDB FIS or DMA Setup FIS
     output reg                    sdb_n,         // value of "N" field in received SDB FIS 
     output reg                    dma_a,         // value of "A" field in received DMA Setup FIS 
     output reg                    dma_d,         // value of "D" field in received DMA Setup FIS
     output reg                    pio_i,         // value of "I" field in received PIO Setup FIS
     output reg                    pio_d,         // value of "D" field in received PIO Setup FIS
     output                  [7:0] pio_es,        // value of PIO E_Status
+    output reg                    sactive0,      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     output                 [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
     output reg                    xfer_cntr_zero,// valid next cycle
@@ -144,6 +150,7 @@ localparam DATA_TYPE_ERR =      3;
 
     wire                dma_in_start;
     wire                dma_in_stop;
+    wire                dma_skipping_extra; // skipping extra FIS data not needed for DMA
     reg                 dma_in;
     reg           [1:0] was_data_in;
     reg          [11:0] data_in_dwords_r;
@@ -160,7 +167,8 @@ localparam DATA_TYPE_ERR =      3;
     reg                 fis_rec_run; // running received FIS
     reg                 is_data_fis;
     
-    wire                is_FIS_HEAD = data_in_ready && (hba_data_in_type == DATA_TYPE_FIS_HEAD);
+    wire                is_FIS_HEAD =     data_in_ready && (hba_data_in_type == DATA_TYPE_FIS_HEAD);
+    wire                is_FIS_NOT_HEAD = data_in_ready && (hba_data_in_type != DATA_TYPE_FIS_HEAD);
     
     wire                data_in_ready =  hba_data_in_valid && (hba_data_in_many || !(|was_data_in || hba_data_in_ready) );
     
@@ -173,7 +181,7 @@ localparam DATA_TYPE_ERR =      3;
     reg           [5:0] reg_ds;
     reg           [4:0] reg_ps;
     reg                 reg_d2h;    
-    reg                 reg_sdb;    
+    reg           [1:0] reg_sdb;    
     reg          [31:2] xfer_cntr_r;
     reg          [31:2] prdbc_r;
     
@@ -192,15 +200,23 @@ localparam DATA_TYPE_ERR =      3;
     reg                 pUpdateSig_r = 1; // state variable
     reg          [31:0] sig_r;            // signature register, save at
     
+    reg                 fis_extra_r;
+    
+    reg                 fis_first_invalid_r;
+    reg                 fis_first_flushing_r;
+    
     // Forward data to DMA (dev->mem) engine
-    assign              dma_in_valid = dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
-    assign              dma_in_stop = dma_in && data_in_ready && (hba_data_in_type != DATA_TYPE_DMA); // ||
+    assign              dma_in_valid =       dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
+    // Will also try to skip to the end of too long FIS
+    assign              dma_skipping_extra = (fis_extra_r || too_long_err) && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready ;
+
+    assign              dma_in_stop =        dma_in && data_in_ready && (hba_data_in_type != DATA_TYPE_DMA); // ||
     
     
     assign reg_we_w = wreg_we_r && !dwords_over && fis_save;
     assign dma_in_start = is_data_fis && wreg_we_r;
     
-    assign hba_data_in_ready = dma_in_valid || wreg_we_r || fis_end_r[0];
+    assign hba_data_in_ready = dma_in_valid || dma_skipping_extra ||  wreg_we_r || fis_end_r[0] || (is_FIS_NOT_HEAD && fis_first_flushing_r);
     assign fis_ferr = too_long_err;
     
     
@@ -214,6 +230,11 @@ localparam DATA_TYPE_ERR =      3;
     
     assign pio_es = pio_es_r;
     assign pUpdateSig = pUpdateSig_r; 
+    
+    assign fis_extra = fis_extra_r;
+    
+    assign fis_first_invalid = fis_first_invalid_r;
+    
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop) dma_in <= 0;
         else if (dma_in_start)      dma_in <= 1;
@@ -227,6 +248,11 @@ localparam DATA_TYPE_ERR =      3;
         if      (hba_rst)                                 too_long_err <= 0; // it is a fatal error, only reset
         else if ((dma_in_valid && data_in_dwords_r[11]) ||
                   (wreg_we_r && dwords_over))             too_long_err <= 1;
+                  
+        if      (hba_rst || dma_in_start)                                               fis_extra_r <= 0;
+        else if (data_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && dma_prds_done) fis_extra_r <= 1;
+        
+                  
         
         if (get_fis) begin
            reg_addr_r <= ({ADDRESS_BITS{get_dsfis}}  & (FB_OFFS32 + DSFIS32))  |
@@ -243,7 +269,7 @@ localparam DATA_TYPE_ERR =      3;
                          ({4{get_ignore}}   & IGNORE_LENM1 );
            // save signature FIS to memory if waiting (if not - ignore FIS)
            // for non-signature /non-data - obey pcmd_fre 
-           fis_save <=    (pUpdateSig_r || get_rfis) || (pcmd_fre && !get_data_fis && !get_ignore);
+           fis_save <=    (pUpdateSig_r && get_rfis) || (pcmd_fre && !get_data_fis && !get_ignore);
            
            is_data_fis <= get_data_fis;
            store_sig <=   (get_rfis)?    1 : 0;
@@ -258,7 +284,7 @@ localparam DATA_TYPE_ERR =      3;
            reg_ds <=      reg_ds << 1;
            reg_ps <=      reg_ps << 1;
            reg_d2h <=     0;    
-           reg_sdb <=     0;    
+           reg_sdb <=     reg_sdb << 1;    
            
         end
         
@@ -303,7 +329,7 @@ localparam DATA_TYPE_ERR =      3;
         //  Updates PxTFD.STS.ERR with pPioErr[pPmpCur] ??
         else if (reg_ps[0])                   tf_err_sts  <= {hba_data_in[31:24],hba_data_in[23:16]};
         else if (update_pio)                  tf_err_sts  <= {pio_err_r, pio_es_r};
-        else if (reg_sdb)                     tf_err_sts  <= {hba_data_in[15:8], tf_err_sts[7], hba_data_in[6:4], tf_err_sts[3],hba_data_in[2:0]};
+        else if (reg_sdb[0])                  tf_err_sts  <= {hba_data_in[15:8], tf_err_sts[7], hba_data_in[6:4], tf_err_sts[3],hba_data_in[2:0]};
         else if (clear_bsy_drq || set_bsy || clear_bsy_set_drq)
                                               tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,3'h0,clear_bsy_set_drq,3'h0};
         else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
@@ -315,24 +341,26 @@ localparam DATA_TYPE_ERR =      3;
         else if (update_sig_r)                reg_addr <=  PXSIG_OFFS32;
         else if (update_prdbc_r)              reg_addr <=  CLB_OFFS32 + 1; // location of PRDBC
         
-        if (reg_d2h || reg_sdb || reg_ds[0])  fis_i <=           hba_data_in[14];
+        if (reg_d2h || reg_sdb[0] || reg_ds[0])  fis_i <=           hba_data_in[14];
         if (reg_sdb)                          sdb_n <=           hba_data_in[15];
         if (reg_ds[0])                        {dma_a,dma_d}  <=  {hba_data_in[15],hba_data_in[13]};
 
         if (reg_ps[0])                        {pio_i,pio_d}  <=  {hba_data_in[14],hba_data_in[13]};
         
-        if (hba_rst)                          pio_err_r  <=        0;
-        else if (reg_ps[0])                   pio_err_r  <=        hba_data_in[31:24];
+        if (hba_rst)                          pio_err_r  <=      0;
+        else if (reg_ps[0])                   pio_err_r  <=      hba_data_in[31:24];
 
-        if (hba_rst)                          pio_es_r  <=         0;
-        else if (reg_ps[3])                   pio_es_r  <=         hba_data_in[31:24];
+        if (hba_rst)                          pio_es_r  <=       0;
+        else if (reg_ps[3])                   pio_es_r  <=       hba_data_in[31:24];
         
-        if (hba_rst || reg_sdb || clear_xfer_cntr) xfer_cntr_r[31:2] <= 0;
+        if (reg_sdb[1])                       sactive0 <=        hba_data_in[0];
+        
+        if (hba_rst || reg_sdb[0] || clear_xfer_cntr) xfer_cntr_r[31:2] <= 0;
         else if (reg_ps[4] || reg_ds[5])           xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0, hba_data_in[15:2]} + hba_data_in[1]; // round up
         else if (decr_dwc)                         xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - {18'b0, decr_DXC_dw[11:0]};
         
-        if (hba_rst || reg_sdb || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
-        else if (decr_dwc)                                 prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_DXC_dw[11:0]};
+        if (hba_rst || reg_sdb[0] || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
+        else if (decr_dwc)                                    prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_DXC_dw[11:0]};
         
         xfer_cntr_zero <=                     xfer_cntr_r[31:2] == 0;
         
@@ -352,6 +380,12 @@ localparam DATA_TYPE_ERR =      3;
         
         // Maybe it is not needed if the fsm will send this pulse?
 //        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);
+
+        if (hba_rst || get_fis_busy_r) fis_first_invalid_r <= 0;
+        else                           fis_first_invalid_r <= is_FIS_NOT_HEAD;
+        
+        if (!fis_first_invalid_r)      fis_first_flushing_r <= 0;
+        else if (fis_first_flush)      fis_first_flushing_r <= 1;
     end
 
 endmodule

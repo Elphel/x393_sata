@@ -59,7 +59,7 @@ module  ahci_dma_wr_fifo#(
                                      // last_prd was not set
     output                busy,                                 
 //    output                done_flush,  // finished last PRD (indicated by last_prd @ start), data left module
-
+    output reg            fifo_nempty_mclk, // to detect extra data from FIS, has some latency - only valid after read is stopped
     // mclk domain
     input          [31:0] din,
     output                din_rdy, // can accept data from HBA (multiple dwords, so reasonable latency is OK)
@@ -267,6 +267,8 @@ module  ahci_dma_wr_fifo#(
         
         if (fifo_wr && !waddr[0]) fifo0_ram[waddr[ADDRESS_BITS:1]] <= din;
         if (fifo_wr &&  waddr[0]) fifo1_ram[waddr[ADDRESS_BITS:1]] <= din;
+        
+        fifo_nempty_mclk <= (fifo_full [raddr[ADDRESS_BITS:1]] ^ raddr[ADDRESS_BITS]); // only valid after read is stopped
         
     end
 

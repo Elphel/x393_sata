@@ -722,7 +722,7 @@ begin
         HOST_LINK_TITLE = "From device - received data";
         HOST_LINK_DATA =  data_out;
         $display("[Host] LINK:        %s = %h @%t", HOST_LINK_TITLE, HOST_LINK_DATA, $time);
-`endif
+//`endif
         
     end
 

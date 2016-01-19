@@ -148,11 +148,16 @@ module  ahci_fsm
     
     // inputs from the DMA engine
     input                         dma_prd_done, // output (finished next prd)
-    input                         dma_prd_irq, // output (finished next prd and prd irq is enabled)
+    output                        dma_prd_irq_clear, // reset pending prd_irq
+    input                         dma_prd_irq_pend,  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
     input                         dma_cmd_busy, // output reg (DMA engine is processing PRDs)
     input                         dma_cmd_done, // output (last PRD is over)
     
-    // Communication with ahci_fis_receive (some are unused
+    // Communication with ahci_fis_receive (some are unused)
+    // Debug features
+    input                         fis_first_invalid, // Some data available from FIFO, but not FIS head
+    output                        fis_first_flush,   // Skip FIFO data until empty or FIS head
+
     input                         fis_first_vld, // fis_first contains valid FIS header, reset by 'get_*'
     input                   [7:0] fis_type,      // FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
     input                   [7:0] bist_bits,    // bits that define built-in self test
@@ -170,6 +175,7 @@ module  ahci_fsm
     input                         fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     input                         fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
     input                         fis_ferr,      // FIS done, fatal error - FIS too long
+    input                         fis_extra,     // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
 
     output                        set_update_sig, // when set, enables get_sig (and resets itself)
     input                         pUpdateSig,     // state variable
@@ -204,6 +210,7 @@ module  ahci_fsm
     input                         pio_i,         // value of "I" field in received PIO Setup FIS
     input                         pio_d,         // value of "D" field in received PIO Setup FIS
     input                   [7:0] pio_es,        // value of PIO E_Status
+    input                         sactive0,      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     input                  [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
     input                         xfer_cntr_zero,// valid next cycle                   
