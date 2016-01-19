@@ -147,6 +147,7 @@ module  ahci_top#(
     input              xmit_err,     // Error during sending of a FIS
     output             syncesc_send,  // Send sync escape
     input              syncesc_send_done, // "SYNC escape until the interface is quiescent..."
+    output             comreset_send,     // Not possible yet?
     input              cominit_got,
     output             set_offline, // electrically idle
     input              x_rdy_collision, // X_RDY/X_RDY collision on interface 
@@ -197,7 +198,9 @@ module  ahci_top#(
     wire                    dev_wr; // input
     wire                    dma_cmd_start; // input
     wire                    dma_prd_start; // input
-    wire                    dma_cmd_abort; // input
+    wire                    dma_cmd_abort_xmit; // input
+    wire                    dma_cmd_abort_fsm; // abort from FSM (also from ahci_fis_transmit)
+        
 // Use some of the custom registers in the address space?    
     wire             [17:0] fsm_pgm_ad; // @aclk, address/data to program the AHCI FSM
     wire                    fsm_pgm_wa; // @aclk, address strobe to program the AHCI FSM
@@ -432,6 +435,7 @@ module  ahci_top#(
 
         .phy_ready                (phy_ready),         // input
         .syncesc_send             (syncesc_send),      // output
+        .comreset_send            (comreset_send),     // output
         .syncesc_send_done        (syncesc_send_done), // input
         .cominit_got              (cominit_got),       // input
         .set_offline              (set_offline),       // output
@@ -515,8 +519,9 @@ module  ahci_top#(
         .dma_prd_irq_clear        (dma_prd_irq_clear),  // output
         .dma_prd_irq_pend         (dma_prd_irq_pend),   // input
         
-        .dma_cmd_busy    (dma_cmd_busy),       // input
-        .dma_cmd_done    (dma_cmd_done),       // input
+        .dma_cmd_busy             (dma_cmd_busy),       // input
+        .dma_cmd_done             (dma_cmd_done),       // input
+        .dma_cmd_abort            (dma_cmd_abort_fsm),  // output
         
         .fis_first_invalid (frcv_first_invalid),// input
         .fis_first_flush   (frcv_first_flush),  // output
@@ -752,7 +757,7 @@ module  ahci_top#(
         .dev_wr                (dev_wr),        // input
         .cmd_start             (dma_cmd_start), // input
         .prd_start             (dma_prd_start), // input
-        .cmd_abort             (dma_cmd_abort), // input
+        .cmd_abort             (dma_cmd_abort_xmit || dma_cmd_abort_fsm), // input
         .axi_wr_cache_mode     (axi_wr_cache_mode), // input[3:0] 
         .axi_rd_cache_mode     (axi_rd_cache_mode), // input[3:0] 
         .set_axi_wr_cache_mode (set_axi_cache_mode), // input
@@ -936,7 +941,7 @@ module  ahci_top#(
         .dma_dev_wr        (dev_wr),               // output
         .dma_ct_busy       (dma_ct_busy),          // input
         .dma_prd_start     (dma_prd_start),        // output reg 
-        .dma_cmd_abort     (dma_cmd_abort),        // output reg 
+        .dma_cmd_abort     (dma_cmd_abort_xmit),   // output reg
         .ct_addr           (dma_ct_addr),          // output[4:0] reg 
         .ct_re             (dma_ct_re),            // output[1:0]
         .ct_data           (dma_ct_data),          // input[31:0] 

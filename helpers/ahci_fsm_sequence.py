@@ -46,7 +46,7 @@ code_rom_path=  '../includes/ahxi_fsm_code.vh'
 actions = ['NOP',
     # CTRL_STAT
     'PXSERR_DIAG_X', 'SIRQ_DHR', 'SIRQ_DP', 'SIRQ_DS', 'SIRQ_IF', 'SIRQ_PS', 'SIRQ_SDB', 'SIRQ_TFE', 'SIRQ_UF',
-    'PFSM_STARTED', 'PCMD_CR_CLEAR', 'PCMD_CR_SET', 'PXCI0_CLEAR', 'PXSSTS_DET_1', 'SSTS_DET_OFFLINE',
+    'PFSM_STARTED', 'PCMD_CR_CLEAR', 'PCMD_CR_SET', 'PXCI0_CLEAR', 'PXSSTS_DET_1', 'SSTS_DET_OFFLINE', 'SCTL_DET_CLEAR',
     # FIS RECEIVE
     'SET_UPDATE_SIG', 'UPDATE_SIG', 'UPDATE_ERR_STS', 'UPDATE_PIO', 'UPDATE_PRDBC', 'CLEAR_BSY_DRQ',
     'CLEAR_BSY_SET_DRQ', 'SET_BSY', 'SET_STS_7F', 'SET_STS_80', 'XFER_CNTR_CLEAR', 'DECR_DWC', 'FIS_FIRST_FLUSH',
@@ -109,7 +109,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           ACT: 'CLEAR_BSY_SET_DRQ'},   # clear_bsy_set_drq
             {                           ACT: 'SET_STS_7F'},          # set_sts_7f
             {                           ACT: 'SET_UPDATE_SIG'},      # set_update_sig
-            {                           ACT: 'XMIT_COMRESET'},       # Now does it on reset. See if it is possible to transmit COMRESET w/o reset
+            {                           ACT: 'XMIT_COMRESET'},       # comreset_send (not yet implemented) Now does it on reset. See if it is possible to transmit COMRESET w/o reset
             {                           GOTO:'P:NotRunning'},
 
             {LBL:'P:NotRunningGarbage', ACT: 'FIS_FIRST_FLUSH'},     # fis_first_flush (FIFO output has data, but not FIS head
@@ -123,12 +123,12 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
 # Transition 8.  PxCMD.FRE written to ‘1’ from a ‘0’ and previously processed Register FIS is in receive FIFO and PxSERR.DIAG.X = ‘0’
 # can not be implemented - it is too late, FIS is already gone. So as we do not move FIS receive area, there is no sense to disable FIS,
 # and for the signature we'll always assume FRE is on
-            {IF:'ST_NB_ND',             GOTO:'P:Idle'},              #12 : PxCMD.ST & !PxTBD.STS.BSY & !PxTBD.STS.DRQ
+            {IF:'ST_NB_ND',             GOTO:'P:Idle'},              #12 : PxCMD.ST & !PxTFD.STS.BSY & !PxTFD.STS.DRQ
             {IF:'FR_D2HR',              GOTO:'NDR:Entry'},           #13 fis_first_vld & fis_type == 0x34 (D2H Register)
             {                           GOTO:'P:NotRunning'},        #14
             
             {LBL:'P:Cominit',           ACT: 'NOP'}, # got here asynchronously from COMINIT label
-            {                           ACT: 'SET_STS_80'},          # frcv_set_sts_80 (Not clear 0xff or 0x80 should be here?)
+            {                           ACT: 'SET_STS_80'},          # set_sts_80 (Not clear 0xff or 0x80 should be here?)
             {                           ACT: 'PXSSTS_DET_1'},        # ssts_det_dnp,      // device detected, but phy communication not established
             {                           ACT: 'PXSERR_DIAG_X'},       # sirq_PC,  // RO:  Port Connect Change Status (pulse to set)
 #            {IF:'PXIE_PCE',             GOTO:'P:CominitSetIS'},     # Not needed, interrupt
@@ -144,12 +144,13 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           ACT: 'UPDATE_ERR_STS'},      # update_err_sts
             {                           GOTO:'P:NotRunning'},
             
-#            {IF: 'PCMD_FRE',            GOTO:'P:RegFisPostToMem'},  # pcmd_fre hardware always copies signature FIS to 'memory' if expected
+#            {IF: 'PCMD_FRE',            GOTO:'P:RegFisPostToMem'},  # pxcmd_fre hardware always copies signature FIS to 'memory' if expected
 
 #            {LBL:'P:RegFisPostToMem',   ACT: 'NOP'},                # Probably not needed, handled at lower level  
 #            {                           GOTO:'P:NotRunning'},
             
             {LBL:'P:Offline',           ACT: 'SET_OFFLINE'},         # set_offline
+            {                           ACT: 'SCTL_DET_CLEAR'},      # sctl_det_reset
             {                           GOTO:'P:NotRunning'},
             
             {LBL:'P:StartBitCleared',   ACT: 'PXCI0_CLEAR'},         # pxci0_clear
@@ -180,6 +181,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {LBL:'P:StartComm',         ACT: 'SET_STS_7F'},          # frcv_set_sts_7f
             {                           ACT: 'SET_UPDATE_SIG'},      #  #frcv_set_update_sig
             {                           ACT: 'XMIT_COMRESET'},       # Now does it on reset. See if it is possible to transmit COMRESET w/o reset
+            {                           ACT: 'SCTL_DET_CLEAR'},      # sctl_det_reset
             {IF: 'PXSSTS_DET_EQ_1',     GOTO:'P:StartComm'},
             {                           GOTO:'P:NotRunning'},
 #New states, because FIS needs to be read in befor R_OK
@@ -213,15 +215,15 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
             
             {LBL:'NDR:Accept',          ACT: 'NOP'}, # ********      # send R_OK after reading in FIS: ACT: 'R_OK'}, # send_R_OK to device
-            {IF:'NB_ND_D2HR_PIO',       GOTO:'NDR:IgnoreIdle'},      # 2 :((FIS == FIS_D2HR) || (FIS == FIS_PIO)) && !PxTBD.STS.BSY & !PxTBD.STS.DRQ
+            {IF:'NB_ND_D2HR_PIO',       GOTO:'NDR:IgnoreIdle'},      # 2 :((FIS == FIS_D2HR) || (FIS == FIS_PIO)) && !PxTFD.STS.BSY & !PxTFD.STS.DRQ
             {IF:'NST_D2HR',             GOTO:'P:RegFisUpdate'},      # 3 :!ST && (FIS == FIS_D2HR) TODO: does it mean either BSY or DRQ are 1?
-            {IF:'NPCMD_FRE',            GOTO:'NDR:IgnoreNR' },       # 4 !pcmd_fre (docs: goto P:NotRunning, but we need to clear FIFO)
+            {IF:'NPCMD_FRE',            GOTO:'NDR:IgnoreNR' },       # 4 !pxcmd_fre (docs: goto P:NotRunning, but we need to clear FIFO)
             {IF:'D2HR',                 GOTO:'RegFIS:Entry' },       # 5 FIS == FIS_D2HR
             {IF:'SDB',                  GOTO:'SDB:Entry' },          # 7 (# 6 skipped)
             {IF:'DMA_ACT',              GOTO:'DX:EntryIgnore' },     # 8 FIS == FIS_DMA_ACT
             {IF:'DMA_SETUP',            GOTO:'DmaSet:Entry' },       # 9 FIS == FIS_DMA_SETUP
-            {IF:'BIST_ACT_FE',          GOTO:'BIST:FarEndLoopback'}, #10 FIS == FIS_BIST_ACT && |bist_bits TODO:get_ignore to read in FIS
-            {IF:'BIST_ACT',             GOTO:'BIST:TestOngoing'},    # 11 FIS == FIS_BIST_ACT && |bist_bits TODO:get_ignore to read in FIS
+            {IF:'BIST_ACT_FE',          GOTO:'BIST:FarEndLoopback'}, # 10 FIS == FIS_BIST_ACT && |bist_bits
+            {IF:'BIST_ACT',             GOTO:'BIST:TestOngoing'},    # 11 FIS == FIS_BIST_ACT # && !(|bist_bits)
             {IF:'PIO_SETUP',            GOTO:'PIO:Entry' },          # 12 FIS == FIS_PIO_SETUP
             {                           GOTO:'UFIS:Entry' },         # 13 Unknown FIS (else)
 #5.3.6. Command Transfer State            

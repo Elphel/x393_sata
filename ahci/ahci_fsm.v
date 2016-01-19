@@ -45,6 +45,7 @@ module  ahci_fsm
     input                         phy_ready,     // goes up after comreset,cominit, align, ...
     output                        syncesc_send,  // Send sync escape
     input                         syncesc_send_done, // "SYNC escape until the interface is quiescent..."
+    output                        comreset_send,     // Not possible yet?
     input                         cominit_got,   // asynchronously jumps to P:Cominit state
     output                        set_offline, // electrically idle
     input                         x_rdy_collision, // X_RDY/X_RDY collision on interface 
@@ -57,6 +58,7 @@ module  ahci_fsm
     // update register inputs (will write to register memory current value of the corresponding register)
     output                        pfsm_started, // H: FSM doene, P: FSM started (enable sensing pcmd_st_cleared)
     // update register inputs (will write to register memory current value of the corresponding register)
+    // Removing - such updates are always done when startimng new state
     input                         update_pending,
     output                        update_all,
     input                         update_busy, // valid same cycle as update_all
@@ -137,8 +139,8 @@ module  ahci_fsm
     input                   [3:0] ssts_det,          // current value of PxSSTS.DET
 
  // SCR2:SControl (written by software only)
-    input                   [3:0] sctl_ipm,          // Interface power management transitions allowed
-    input                   [3:0] sctl_spd,          // Interface maximal speed
+ ///   input                   [3:0] sctl_ipm,          // Interface power management transitions allowed
+ ///   input                   [3:0] sctl_spd,          // Interface maximal speed
     input                   [3:0] sctl_det,          // Device detection initialization requested
     input                         sctl_det_changed,  // Software had written new value to sctl_det
     output                        sctl_det_reset,    // clear sctl_det_changed
@@ -147,11 +149,13 @@ module  ahci_fsm
     input                         pxci0,             // pxCI current value
     
     // inputs from the DMA engine
-    input                         dma_prd_done, // output (finished next prd)
+///   input                         dma_prd_done, // output (finished next prd)
     output                        dma_prd_irq_clear, // reset pending prd_irq
     input                         dma_prd_irq_pend,  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
-    input                         dma_cmd_busy, // output reg (DMA engine is processing PRDs)
-    input                         dma_cmd_done, // output (last PRD is over)
+///    input                         dma_cmd_busy, // output reg (DMA engine is processing PRDs)
+///    input                         dma_cmd_done, // output (last PRD is over)
+    output                        dma_cmd_abort,   // try to abort a command
+    
     
     // Communication with ahci_fis_receive (some are unused)
     // Debug features
@@ -170,7 +174,7 @@ module  ahci_fsm
     output                        get_ufis,
     output                        get_data_fis,
     output                        get_ignore,    // ignore whatever FIS (use for DMA activate too?)
-    input                         get_fis_busy,  // busy processing FIS 
+//    input                         get_fis_busy,  // busy processing FIS 
     input                         get_fis_done,  // done processing FIS (see fis_ok, fis_err, fis_ferr)
     input                         fis_ok,        // FIS done,  checksum OK reset by starting a new get FIS
     input                         fis_err,       // FIS done, checksum ERROR reset by starting a new get FIS
@@ -178,8 +182,8 @@ module  ahci_fsm
     input                         fis_extra,     // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
 
     output                        set_update_sig, // when set, enables get_sig (and resets itself)
-    input                         pUpdateSig,     // state variable
-    input                         sig_available,  // device signature available
+///    input                         pUpdateSig,     // state variable
+///    input                         sig_available,  // device signature available
     output                        update_sig,        // update signature
 
 
@@ -202,17 +206,17 @@ module  ahci_fsm
     input                         pPioXfer,      // state variable
     input                   [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
-    input                   [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
+///    input                   [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
     input                         fis_i,         // value of "I" field in received regsD2H or SDB FIS
-    input                         sdb_n,         // value of "N" field in received SDB FIS 
+///    input                         sdb_n,         // value of "N" field in received SDB FIS 
     input                         dma_a,         // value of "A" field in received DMA Setup FIS 
-    input                         dma_d,         // value of "D" field in received DMA Setup FIS
+///    input                         dma_d,         // value of "D" field in received DMA Setup FIS
     input                         pio_i,         // value of "I" field in received PIO Setup FIS
     input                         pio_d,         // value of "D" field in received PIO Setup FIS
-    input                   [7:0] pio_es,        // value of PIO E_Status
-    input                         sactive0,      // bit 0 of sActive DWORD received in SDB FIS
+///    input                   [7:0] pio_es,        // value of PIO E_Status
+///    input                         sactive0,      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
-    input                  [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
+///    input                  [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
     input                         xfer_cntr_zero,// valid next cycle                   
     
     // Communication with ahci_fis_transmit
@@ -224,7 +228,7 @@ module  ahci_fsm
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     output                        atapi_xmit,   // tarsmit ATAPI command FIS
     input                         xmit_done,
-    input                         xmit_busy,
+//    input                         xmit_busy,
 
     output                        clearCmdToIssue, // From CFIS:SUCCESS 
     input                         pCmdToIssue, // AHCI port variable
@@ -233,19 +237,24 @@ module  ahci_fsm
 //    input                         xmit_err,     // 
     input                  [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
     
-    input                  [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
+///    input                  [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     input                         ch_c,        // Clear busy upon R_OK for this FIS
     input                         ch_b,        // Built-in self test command
     input                         ch_r,        // reset - may need to send SYNC escape before this command
     input                         ch_p,        // prefetchable - only used with non-zero PRDTL or ATAPI bit set
     input                         ch_w,        // Write: system memory -> device
-    input                         ch_a,        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
-    input                   [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
+    input                         ch_a         // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
+///    input                   [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
-    input                  [11:0] dwords_sent // number of DWORDs transmitted (up to 2048)                                 
+///    input                  [11:0] dwords_sent // number of DWORDs transmitted (up to 2048)                                 
 
 );
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
+`include "includes/fis_types.vh"        // @SuppressThisWarning VEditor : Some  localparams unused
+    wire                           tfd_bsy =     tfd_sts[7];
+    wire                           tfd_drq =     tfd_sts[4];
+    wire                           tfd_sts_err = tfd_sts[0];
+    
     reg                     [ 9:0] pgm_waddr;
 //    wire                           pgm_ren;
 //    wire                           pgm_regen;
@@ -261,8 +270,8 @@ module  ahci_fsm
     reg                            fsm_act_busy;
     reg                      [1:0] fsm_transitions; // processing transitions
     reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
-    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
-    reg                      [7:0] conditions;
+//    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
+//    reg                      [7:0] conditions;
     wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
     wire                           fsm_act_done = get_fis_done || xmit_done;
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
@@ -304,8 +313,8 @@ module  ahci_fsm
         if   (fsm_jump[0]) pgm_addr <= pgm_jump_addr;
         else if (fsm_next) pgm_addr <= pgm_addr + 1;
         
-        if            (hba_rst) conditions <= 0; 
-        if (fsm_transitions[0]) conditions <= precond_w;
+//        if            (hba_rst) conditions <= 0; 
+//        if (fsm_transitions[0]) conditions <= precond_w;
         
         if      (hba_rst)                                   fsm_actions <= 0;
         else if (fsm_jump[2])                               fsm_actions <= 1;
@@ -356,107 +365,123 @@ module  ahci_fsm
     );
 
     action_decoder action_decoder_i (
-        .clk                (mclk), // input
-        .enable             (), // input
-        .data               (), // input[10:0] 
-        .PXSERR_DIAG_X      (), // output reg 
-        .SIRQ_DHR           (), // output reg 
-        .SIRQ_DP            (), // output reg 
-        .SIRQ_DS            (), // output reg 
-        .SIRQ_IF            (), // output reg 
-        .SIRQ_PS            (), // output reg 
-        .SIRQ_SDB           (), // output reg 
-        .SIRQ_TFE           (), // output reg 
-        .SIRQ_UF            (), // output reg 
-        .PFSM_STARTED       (), // output reg 
-        .PCMD_CR_CLEAR      (), // output reg 
-        .PCMD_CR_SET        (), // output reg 
-        .PXCI0_CLEAR        (), // output reg 
-        .PXSSTS_DET_1       (), // output reg 
-        .SSTS_DET_OFFLINE   (), // output reg 
-        .SET_UPDATE_SIG     (), // output reg 
-        .UPDATE_SIG         (), // output reg 
-        .UPDATE_ERR_STS     (), // output reg 
-        .UPDATE_PIO         (), // output reg 
-        .UPDATE_PRDBC       (), // output reg 
-        .CLEAR_BSY_DRQ      (), // output reg 
-        .CLEAR_BSY_SET_DRQ  (), // output reg 
-        .SET_BSY            (), // output reg 
-        .SET_STS_7F         (), // output reg 
-        .SET_STS_80         (), // output reg 
-        .XFER_CNTR_CLEAR    (), // output reg 
-        .DECR_DWC           (), // output reg 
-        .FIS_FIRST_FLUSH    (), // output reg 
-        .CLEAR_CMD_TO_ISSUE (), // output reg 
-        .DMA_ABORT          (), // output reg 
-        .DMA_PRD_IRQ_CLEAR  (), // output reg 
-        .XMIT_COMRESET      (), // output reg 
-        .SEND_SYNC_ESC      (), // output reg 
-        .SET_OFFLINE        (), // output reg 
-        .R_OK               (), // output reg 
-        .R_ERR              (), // output reg 
-        .FETCH_CMD          (), // output reg 
-        .ATAPI_XMIT         (), // output reg 
-        .CFIS_XMIT          (), // output reg 
-        .DX_XMIT            (), // output reg 
-        .GET_DATA_FIS       (), // output reg 
-        .GET_DSFIS          (), // output reg 
-        .GET_IGNORE         (), // output reg 
-        .GET_PSFIS          (), // output reg 
-        .GET_RFIS           (), // output reg 
-        .GET_SDBFIS         (), // output reg 
-        .GET_UFIS           () // output reg 
+        .clk                (mclk),              // input
+        .enable             (fsm_pre_act_w),     // input
+        .data               (pgm_data[10:0]),    // input[10:0]
+    // CTRL_STAT
+        .PXSERR_DIAG_X      (sirq_PC),           // output reg 
+        .SIRQ_DHR           (sirq_DHR),          // output reg 
+        .SIRQ_DP            (sirq_DP),           // output reg 
+        .SIRQ_DS            (sirq_DS),           // output reg 
+        .SIRQ_IF            (sirq_IF),           // output reg 
+        .SIRQ_PS            (sirq_PS),           // output reg 
+        .SIRQ_SDB           (sirq_SDB),          // output reg 
+        .SIRQ_TFE           (sirq_TFE),          // output reg 
+        .SIRQ_UF            (sirq_UF),           // output reg 
+        .PFSM_STARTED       (pfsm_started),      // output reg 
+        .PCMD_CR_CLEAR      (pcmd_cr_reset),     // output reg 
+        .PCMD_CR_SET        (pcmd_cr_set),       // output reg 
+        .PXCI0_CLEAR        (pxci0_clear),       // output reg 
+        .PXSSTS_DET_1       (ssts_det_dnp),      // output reg 
+        .SSTS_DET_OFFLINE   (ssts_det_offline),  // output reg 
+        .SCTL_DET_CLEAR     (sctl_det_reset),    // output reg 
+    // FIS RECEIVE
+        .SET_UPDATE_SIG     (set_update_sig),    // output reg 
+        .UPDATE_SIG         (update_sig),        // output reg 
+        .UPDATE_ERR_STS     (update_err_sts),    // output reg 
+        .UPDATE_PIO         (update_pio),        // output reg 
+        .UPDATE_PRDBC       (update_prdbc),      // output reg 
+        .CLEAR_BSY_DRQ      (clear_bsy_drq),     // output reg 
+        .CLEAR_BSY_SET_DRQ  (clear_bsy_set_drq), // output reg 
+        .SET_BSY            (set_bsy),           // output reg 
+        .SET_STS_7F         (set_sts_7f),        // output reg 
+        .SET_STS_80         (set_sts_80),        // output reg 
+        .XFER_CNTR_CLEAR    (clear_xfer_cntr),   // output reg 
+        .DECR_DWC           (decr_dwc),          // output reg 
+        .FIS_FIRST_FLUSH    (fis_first_flush),   // output reg
+    // FIS_TRANSMIT
+        .CLEAR_CMD_TO_ISSUE (clearCmdToIssue),   // output reg
+    // DMA
+        .DMA_ABORT          (dma_cmd_abort),     // output reg 
+        .DMA_PRD_IRQ_CLEAR  (dma_prd_irq_clear), // output reg
+    // SATA TRANSPORT/LINK/PHY
+        .XMIT_COMRESET      (comreset_send),     // output reg 
+        .SEND_SYNC_ESC      (syncesc_send),      // output reg 
+        .SET_OFFLINE        (set_offline),       // output reg 
+        .R_OK               (send_R_OK),         // output reg 
+        .R_ERR              (send_R_ERR),        // output reg
+    // FIS TRANSMIT/WAIT DONE
+        .FETCH_CMD          (fetch_cmd),         // output reg 
+        .ATAPI_XMIT         (atapi_xmit),        // output reg 
+        .CFIS_XMIT          (cfis_xmit),         // output reg 
+        .DX_XMIT            (dx_transmit),       // output reg
+    //FIS RECEIVE/WAIT DONE
+        .GET_DATA_FIS       (get_data_fis),      // output reg 
+        .GET_DSFIS          (get_dsfis),         // output reg 
+        .GET_IGNORE         (get_ignore),        // output reg 
+        .GET_PSFIS          (get_psfis),         // output reg 
+        .GET_RFIS           (get_rfis),          // output reg 
+        .GET_SDBFIS         (get_sdbfis),        // output reg 
+        .GET_UFIS           (get_ufis)           // output reg 
     );
 
+// Condition inputs may be registered if needed
     condition_mux condition_mux_i (
-        .clk                   (mclk), // input
-        .sel                   (), // input[7:0] 
-        .condition             (), // output
-        .ST_NB_ND              (), // input
-        .PXCI0_NOT_CMDTOISSUE  (), // input
-        .PCTI_CTBAR_XCZ        (), // input
-        .PCTI_XCZ              (), // input
-        .NST_D2HR              (), // input
-        .NPD_NCA               (), // input
-        .CHW_DMAA              (), // input
-        .SCTL_DET_CHANGED_TO_4 (), // input
-        .SCTL_DET_CHANGED_TO_1 (), // input
-        .PXSSTS_DET_NE_3       (), // input
-        .PXSSTS_DET_EQ_1       (), // input
-        .NPCMD_FRE             (), // input
-        .FIS_OK                (), // input
-        .FIS_ERR               (), // input
-        .FIS_FERR              (), // input
-        .FIS_EXTRA             (), // input
-        .FIS_FIRST_INVALID     (), // input
-        .FR_D2HR               (), // input
-        .FIS_DATA              (), // input
-        .FIS_ANY               (), // input
-        .NB_ND_D2HR_PIO        (), // input
-        .D2HR                  (), // input
-        .SDB                   (), // input
-        .DMA_ACT               (), // input
-        .DMA_SETUP             (), // input
-        .BIST_ACT_FE           (), // input
-        .BIST_ACT              (), // input
-        .PIO_SETUP             (), // input
-        .NB_ND                 (), // input
-        .TFD_STS_ERR           (), // input
-        .FIS_I                 (), // input
-        .PIO_I                 (), // input
-        .NPD                   (), // input
-        .PIOX                  (), // input
-        .XFER0                 (), // input
-        .PIOX_XFER0            (), // input
-        .CTBAA_CTBAP           (), // input
-        .CTBAP                 (), // input
-        .CTBA_B                (), // input
-        .CTBA_C                (), // input
-        .TX_ERR                (), // input
-        .SYNCESC_ERR           (), // input
-        .DMA_PRD_IRQ_PEND      (), // input
-        .X_RDY_COLLISION       () // input
+        .clk                   (mclk),                                    // input
+        .sel                   (pgm_data[17:10]),                         // input[7:0]
+        .condition             (cond_met_w),                              // output
+    //COMPOSITE
+        .ST_NB_ND              (pcmd_st && !tfd_bsy &&!tfd_drq),          // input PxCMD.ST & !PxTFD.STS.BSY & !PxTFD.STS.DRQ
+        .PXCI0_NOT_CMDTOISSUE  (pxci0 && !pCmdToIssue),                   // input pxci0 && !pCmdToIssue was pIssueSlot==32, -> p:SelectCmd
+        .PCTI_CTBAR_XCZ        (pCmdToIssue && xfer_cntr_zero && ch_r ),  // input  pCmdToIssue && ch_r && xfer_cntr_zero
+        .PCTI_XCZ              (pCmdToIssue && xfer_cntr_zero),           // input  pCmdToIssue && xfer_cntr_zero
+        .NST_D2HR              (!pcmd_st && (fis_type == FIS_D2HR)),      // input !ST && (FIS == FIS_D2HR) TODO: does it mean either BSY or DRQ are 1?
+        .NPD_NCA               (!pio_d && !ch_a),                         // input  pio_d = 0 && ch_a == 0
+        .CHW_DMAA              (ch_w && dma_a),                           // input ch_w && dma_a
+    // CTRL_STAT
+        .SCTL_DET_CHANGED_TO_4 (sctl_det_changed && (sctl_det == 4)),     // input (requires sctl_det_reset after)
+        .SCTL_DET_CHANGED_TO_1 (sctl_det_changed && (sctl_det == 1)),     // input (requires sctl_det_reset after)
+        .PXSSTS_DET_NE_3       (ssts_det != 3),                           // input  ssts_det!=3, // device detected, phy communication not established
+        .PXSSTS_DET_EQ_1       (ssts_det == 1),                           // input
+        .NPCMD_FRE             (!pxcmd_fre),                              // input !pcmd_fre (docs: goto P:NotRunning, but we need to clear FIFO)
+    // FIS RECEIVE
+        .FIS_OK                (fis_ok),                                  // input
+        .FIS_ERR               (fis_err),                                 // input
+        .FIS_FERR              (fis_ferr),                                // input
+        .FIS_EXTRA             (fis_extra),                               // input
+        .FIS_FIRST_INVALID     (fis_first_invalid),                       // input
+        .FR_D2HR               (fis_first_vld && (fis_type == FIS_D2HR)), // input fis_first_vld & fis_type == 0x34 (D2H Register)
+        .FIS_DATA              (fis_first_vld && (fis_type == FIS_DATA)), // input fis_first_vld && (fis_type == 'h46)
+        .FIS_ANY               (fis_first_vld),                           // input
+        .NB_ND_D2HR_PIO        (((fis_type == FIS_D2HR) || (fis_type == FIS_PIOS)) && !tfd_bsy && !tfd_drq), // input ((FIS == FIS_D2HR) || (FIS == FIS_PIOS)) && !PxTFD.STS.BSY & !PxTFD.STS.DRQ
+        .D2HR                  (  fis_type == FIS_D2HR),                  // input  FIS == FIS_D2HR
+        .SDB                   (  fis_type == FIS_SDB),                   // input
+        .DMA_ACT               (  fis_type == FIS_DMAA),                  // input
+        .DMA_SETUP             (  fis_type == FIS_DMAS),                  // input
+        .BIST_ACT_FE           (( fis_type == FIS_BIST) && (|bist_bits)), // input FIS == FIS_BIST && |bist_bits
+        .BIST_ACT              (( fis_type == FIS_BIST)),                 // input FIS == FIS_BIST#  && !(|bist_bits)
+        .PIO_SETUP             (  fis_type == FIS_PIOS),                  // input
+        .NB_ND                 (!tfd_bsy &&!tfd_drq),                     // input PxTFD.STS.BSY =’0’ and PxTFD.STS.DRQ =’0’
+        .TFD_STS_ERR           ( tfd_sts_err),                            // input  tfd_sts[0]
+        .FIS_I                 (fis_i),                                   // input
+        .PIO_I                 (pio_i),                                   // input
+        .NPD                   (!pio_d),                                  // input pio_d = 0 , "ch_a == 1" is not needed
+        .PIOX                  (pPioXfer),                                // input
+        .XFER0                 (xfer_cntr_zero),                          // input  xfer_cntr_zero
+        .PIOX_XFER0            (pPioXfer && xfer_cntr_zero),              // input pPioXfer && xfer_cntr_zero
+    // FIS_TRANSMIT
+        .CTBAA_CTBAP           (ch_a && ch_p),                            // input
+        .CTBAP                 (ch_p),                                    // input
+        .CTBA_B                (ch_b),                                    // input
+        .CTBA_C                (ch_c),                                    // input
+        .TX_ERR                (dx_err[1]),                               // input  dx_err[1] (reset by new command)
+        .SYNCESC_ERR           (dx_err[0]),                               // input
+    // DMA
+        .DMA_PRD_IRQ_PEND      (dma_prd_irq_pend),                        // input
+    // SATA TRANSPORT/LINK/PHY        
+        .X_RDY_COLLISION       (x_rdy_collision_pend)                     // input
     );
+
 
 
 /*
