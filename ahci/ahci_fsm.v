@@ -42,7 +42,7 @@ module  ahci_fsm
 
     
     // direct communication with transposrt, link and phy layers
-    input                         phy_ready,     // goes up after comreset,cominit, align, ...
+    input                   [1:0] phy_ready,     // goes up after comreset,cominit, align, ..., showing speed 
     output                        syncesc_send,  // Send sync escape
     input                         syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     output                        comreset_send,     // Not possible yet?
@@ -59,29 +59,31 @@ module  ahci_fsm
     output                        pfsm_started, // H: FSM doene, P: FSM started (enable sensing pcmd_st_cleared)
     // update register inputs (will write to register memory current value of the corresponding register)
     // Removing - such updates are always done when startimng new state
-    input                         update_pending,
-    output                        update_all,
+///    input                         update_pending,
+    output                        update_all,  // =fsm_jump[0]
     input                         update_busy, // valid same cycle as update_all
-    output                        update_gis,  // these following individual may be unneeded - just use universal update_all
-    output                        update_pis,
-    output                        update_ssts,
-    output                        update_serr,
-    output                        update_pcmd,
-    output                        update_pci,
-    input                         st01_pending,    // software turned PxCMD.ST from 0 to 1
-    input                         st10_pending,    // software turned PxCMD.ST from 1 to 0
-    output                        st_pending_reset,// reset both st01_pending and st10_pending
+//    output                        update_gis,  // these following individual may be unneeded - just use universal update_all
+//    output                        update_pis,
+//    output                        update_ssts,
+//    output                        update_serr,
+//    output                        update_pcmd,
+//    output                        update_pci,
+///    input                         st01_pending,    // software turned PxCMD.ST from 0 to 1 - detected in the loop
+///    input                         st10_pending,    // software turned PxCMD.ST from 1 to 0 - generates port reset
+///    output                        st_pending_reset,// reset both st01_pending and st10_pending
 
 // PxCMD
-    output                        pcmd_clear_icc, // clear PxCMD.ICC field
-    output                        pcmd_esp,       // external SATA port (just forward value)
-    input                         pcmd_cr,        // command list run - current
+///   output                        pcmd_clear_icc, // clear PxCMD.ICC field
+///   output                        pcmd_esp,       // external SATA port (just forward value)
+///   input                         pcmd_cr,        // command list run - current
     output                        pcmd_cr_set,    // command list run set
     output                        pcmd_cr_reset,  // command list run reset
-    output                        pcmd_fr,        // ahci_fis_receive:get_fis_busy
-    output                        pcmd_clear_bsy_drq, // == ahci_fis_receive:clear_bsy_drq
+//    output                        pcmd_fr,        // ahci_fis_receive:get_fis_busy
+///    output                        pcmd_clear_bsy_drq, // == ahci_fis_receive:clear_bsy_drq
+
+// Command List override, not yet implemented (optional), keeping @SuppressWarnings VEditor
     input                         pcmd_clo,       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
-    output                        pcmd_clear_st,  // RW clear ST (start) bit
+///    output                        pcmd_clear_st,  // RW clear ST (start) bit Seems it is software controlled only
     input                         pcmd_st,        // current value
     input                         pcmd_st_cleared,// ST bit cleared by software;
     
@@ -102,20 +104,7 @@ module  ahci_fsm
 // SCR1:SError (only inputs that are not available in sirq_* ones
                                   //sirq_PC,
                                   //sirq_UF
-    output                        serr_DT,   // RWC: Transport state transition error
-    output                        serr_DS,   // RWC: Link sequence error
-    output                        serr_DH,   // RWC: Handshake Error (i.e. Device got CRC error)
-    output                        serr_DC,   // RWC: CRC error in Link layer
-    output                        serr_DB,   // RWC: 10B to 8B decode error
-    output                        serr_DW,   // RWC: COMMWAKE signal was detected
-    output                        serr_DI,   // RWC: PHY Internal Error
-                                  // sirq_PRC,
-                                  // sirq_IF || // sirq_INF  
-    output                        serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
-    output                        serr_EC,   // RWC: Persistent Communication or Data Integrity Error
-    output                        serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
-    output                        serr_EM,   // RWC: Communication between the device and host was lost but re-established
-    output                        serr_EI,   // RWC: Recovered Data integrity Error
+// 5.3.2.3  P:NotRunning.8 - can not be implemented now, keeping @SuppressWarnings VEditor
     input                         serr_diag_X, // value of PxSERR.DIAG.X
 
      
@@ -273,7 +262,7 @@ module  ahci_fsm
 //    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
 //    reg                      [7:0] conditions;
     wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
-    wire                           fsm_act_done = get_fis_done || xmit_done;
+    wire                           fsm_act_done = get_fis_done || xmit_done || (syncesc_send_pend && syncesc_send_done);
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];
 
@@ -284,9 +273,33 @@ module  ahci_fsm
     wire                           asynq_rq = cominit_got || pcmd_st_cleared;
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
     reg                            x_rdy_collision_pend;
+    reg                            syncesc_send_pend; // waiting for 'syncesc_send' confiramtion 'syncesc_send_done'
+    reg                      [1:0] phy_ready_prev;    // previous state of phy_ready / speed
+    reg                            phy_ready_chng_r;  // pulse when phy_ready changes
+    wire                           phy_ready_chng_w = !hba_rst && !was_rst && (phy_ready != phy_ready_prev);
     
-
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
+    assign update_all = fsm_jump[0];
+
+    assign ssts_ipm_dnp =      phy_ready_chng_r && (phy_ready_prev == 0);  // device not present or communication not established
+    assign ssts_ipm_active =   phy_ready_chng_r && (phy_ready_prev != 0);  // device in active state
+    assign ssts_ipm_part =     0;                                          // device in partial state
+    assign ssts_ipm_slumb =    0;                                          // device in slumber state
+    assign ssts_ipm_devsleep = 0;                                          // device in DevSleep state
+    
+    assign ssts_spd_dnp =      phy_ready_chng_r && (phy_ready_prev == 0);  // device not present or communication not established
+    assign ssts_spd_gen1 =     phy_ready_chng_r && (phy_ready_prev == 1);  // Gen 1 rate negotiated
+    assign ssts_spd_gen2 =     phy_ready_chng_r && (phy_ready_prev == 2);  // Gen 2 rate negotiated
+    assign ssts_spd_gen3 =     phy_ready_chng_r && (phy_ready_prev == 3);  // Gen 3 rate negotiated
+    
+    assign ssts_det_ndnp =     phy_ready_chng_r && (phy_ready_prev == 0);  // no device detected, phy communication not established
+    assign ssts_det_dnp =      0;                                          // device detected, but phy communication not established
+    assign ssts_det_dp =       phy_ready_chng_r && (phy_ready_prev != 0);  // device detected, phy communication established
+
+    assign sirq_OF =           0;  // RWC: Overflow Status (buffer overrun - should not happen, add?)
+    assign sirq_PRC =          phy_ready_chng_r; // RO:  PhyRdy changed Status
+
+
 
     // Writing to the FSM program memory
     always @ (posedge aclk) begin
@@ -343,6 +356,13 @@ module  ahci_fsm
         if (hba_rst || pcmd_cr_set) x_rdy_collision_pend <= 0;
         else if (x_rdy_collision)   x_rdy_collision_pend <= 1;
         
+        if (hba_rst || syncesc_send_done) syncesc_send_pend <= 0;
+        else if (syncesc_send)            syncesc_send_pend <= 1;
+        
+        if (was_rst && !hba_rst && !was_hba_rst && !was_port_rst) phy_ready_prev <= 0;
+        else if (phy_ready_chng_w)                                phy_ready_prev <=  phy_ready;
+        
+        phy_ready_chng_r <= phy_ready_chng_w; 
         
     end
 
@@ -374,6 +394,7 @@ module  ahci_fsm
         .SIRQ_DP            (sirq_DP),           // output reg 
         .SIRQ_DS            (sirq_DS),           // output reg 
         .SIRQ_IF            (sirq_IF),           // output reg 
+        .SIRQ_INF           (sirq_INF),          // output reg 
         .SIRQ_PS            (sirq_PS),           // output reg 
         .SIRQ_SDB           (sirq_SDB),          // output reg 
         .SIRQ_TFE           (sirq_TFE),          // output reg 

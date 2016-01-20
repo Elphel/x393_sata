@@ -120,7 +120,7 @@ oob_ctrl oob_ctrl(
     // gtx is ready = all resets are done
     .gtx_ready          (gtx_ready),
     .debug ({dummy,debug_cnt[10:0]}),
-    // oob responces
+    // oob responses
     .rxcominitdet_in    (rxcominitdet),
     .rxcomwakedet_in    (rxcomwakedet),
     .rxelecidle_in      (rxelecidle),

@@ -66,7 +66,7 @@ module axi_regs(
     input   wire    [11:0]      WID,               // AXI PS Master GP1 WID[11:0], output
     input   wire                WLAST,             // AXI PS Master GP1 WLAST, output
     input   wire    [3:0]       WSTRB,             // AXI PS Master GP1 WSTRB[3:0], output
-// AXI PS Master GP1: Write Responce
+// AXI PS Master GP1: Write response
     output  wire                BVALID,            // AXI PS Master GP1 BVALID, input
     input   wire                BREADY,            // AXI PS Master GP1 BREADY, output
     output  wire    [11:0]      BID,               // AXI PS Master GP1 BID[11:0], input

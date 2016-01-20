@@ -48,7 +48,7 @@ module oob_dev #(
     input   wire    rst,
 
     input   wire    gtx_ready,
-    // oob responces
+    // oob responses
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
     input   wire    rxelecidle_in,

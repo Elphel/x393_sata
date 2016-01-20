@@ -202,7 +202,7 @@ sata_top sata_top(
     .WID                        (maxi1_wid),
     .WLAST                      (maxi1_wlast),
     .WSTRB                      (maxi1_wstb),
-// AXI PS Master GP1: Write Responce
+// AXI PS Master GP1: Write response
     .BVALID                     (maxi1_bvalid),
     .BREADY                     (maxi1_bready),
     .BID                        (maxi1_bid),
@@ -306,7 +306,7 @@ PS7 ps7_i (
     .EMIOENET0SOFRX(),           // GMII 0 Rx Start of Frame, output
     .EMIOENET0PTPDELAYREQRX(),   // GMII 0 Rx PTP delay req frame detected
     .EMIOENET0PTPPDELAYREQRX(),  // GMII 0 Rx PTP peer delay frame detected, output
-    .EMIOENET0PTPPDELAYRESPRX(), // GMII 0 Rx PTP peer delay responce frame detected, output
+    .EMIOENET0PTPPDELAYRESPRX(), // GMII 0 Rx PTP peer delay response frame detected, output
     .EMIOENET0PTPSYNCFRAMERX(),  // GMII 0 Rx PTP sync frame detected, output
     // MDIO 0
     .EMIOENET0MDIOMDC(),         // MDIO 0 MD clock output, output
@@ -338,7 +338,7 @@ PS7 ps7_i (
     .EMIOENET1SOFRX(),           // GMII 1 Rx Start of Frame, output
     .EMIOENET1PTPDELAYREQRX(),   // GMII 1 Rx PTP delay req frame detected
     .EMIOENET1PTPPDELAYREQRX(),  // GMII 1 Rx PTP peer delay frame detected, output
-    .EMIOENET1PTPPDELAYRESPRX(), // GMII 1 Rx PTP peer delay responce frame detected, output
+    .EMIOENET1PTPPDELAYRESPRX(), // GMII 1 Rx PTP peer delay response frame detected, output
     .EMIOENET1PTPSYNCFRAMERX(),  // GMII 1 Rx PTP sync frame detected, output
     // MDIO 1
     .EMIOENET1MDIOMDC(),         // MDIO 1 MD clock output, output
@@ -578,7 +578,7 @@ PS7 ps7_i (
     .MAXIGP0WID     (/*axi_wid[11:0]*/),       // AXI PS Master GP0 WID[11:0], output
     .MAXIGP0WLAST   (/*axi_wlast*/),         // AXI PS Master GP0 WLAST, output
     .MAXIGP0WSTRB   (/*axi_wstb[3:0]*/),    // AXI PS Master GP0 WSTRB[3:0], output
-// AXI PS Master GP0: Write Responce
+// AXI PS Master GP0: Write response
     .MAXIGP0BVALID  (/*axi_bvalid*/),       // AXI PS Master GP0 BVALID, input
     .MAXIGP0BREADY  (/*axi_bready*/),       // AXI PS Master GP0 BREADY, output
     .MAXIGP0BID     (/*axi_bid[11:0]*/),       // AXI PS Master GP0 BID[11:0], input
@@ -626,7 +626,7 @@ PS7 ps7_i (
     .MAXIGP1WID     (maxi1_wid),              // AXI PS Master GP1 WID[11:0], output
     .MAXIGP1WLAST   (maxi1_wlast),            // AXI PS Master GP1 WLAST, output
     .MAXIGP1WSTRB   (maxi1_wstb),             // AXI PS Master GP1 maxi1_wstb[3:0], output
-// AXI PS Master GP1: Write Responce
+// AXI PS Master GP1: Write response
     .MAXIGP1BVALID  (maxi1_bvalid),           // AXI PS Master GP1 BVALID, input
     .MAXIGP1BREADY  (maxi1_bready),           // AXI PS Master GP1 BREADY, output
     .MAXIGP1BID     (maxi1_bid),              // AXI PS Master GP1 BID[11:0], input
@@ -674,7 +674,7 @@ PS7 ps7_i (
     .SAXIGP0WID(),               // AXI PS Slave GP0 WID[5:0], input
     .SAXIGP0WLAST(),             // AXI PS Slave GP0 WLAST, input
     .SAXIGP0WSTRB(),             // AXI PS Slave GP0 WSTRB[3:0], input
-// AXI PS Slave GP0: Write Responce
+// AXI PS Slave GP0: Write response
     .SAXIGP0BVALID(),            // AXI PS Slave GP0 BVALID, output
     .SAXIGP0BREADY(),            // AXI PS Slave GP0 BREADY, input
     .SAXIGP0BID(),               // AXI PS Slave GP0 BID[5:0], output //TODO:  Update range !!!
@@ -722,7 +722,7 @@ PS7 ps7_i (
     .SAXIGP1WID(),               // AXI PS Slave GP1 WID[5:0], input
     .SAXIGP1WLAST(),             // AXI PS Slave GP1 WLAST, input
     .SAXIGP1WSTRB(),             // AXI PS Slave GP1 WSTRB[3:0], input
-// AXI PS Slave GP1: Write Responce
+// AXI PS Slave GP1: Write response
     .SAXIGP1BVALID(),            // AXI PS Slave GP1 BVALID, output
     .SAXIGP1BREADY(),            // AXI PS Slave GP1 BREADY, input
     .SAXIGP1BID(),               // AXI PS Slave GP1 BID[5:0], output
@@ -776,7 +776,7 @@ PS7 ps7_i (
     .SAXIHP0WCOUNT(),            // AXI PS Slave HP0 WCOUNT[7:0], output
     .SAXIHP0WACOUNT(),           // AXI PS Slave HP0 WACOUNT[5:0], output
     .SAXIHP0WRISSUECAP1EN(),     // AXI PS Slave HP0 WRISSUECAP1EN, input
-// AXI PS Slave HP0: Write Responce
+// AXI PS Slave HP0: Write response
     .SAXIHP0BVALID(),            // AXI PS Slave HP0 BVALID, output
     .SAXIHP0BREADY(),            // AXI PS Slave HP0 BREADY, input
     .SAXIHP0BID(),               // AXI PS Slave HP0 BID[5:0], output
@@ -830,7 +830,7 @@ PS7 ps7_i (
     .SAXIHP1WCOUNT(),            // AXI PS Slave HP1 WCOUNT[7:0], output
     .SAXIHP1WACOUNT(),           // AXI PS Slave HP1 WACOUNT[5:0], output
     .SAXIHP1WRISSUECAP1EN(),     // AXI PS Slave HP1 WRISSUECAP1EN, input
-// AXI PS Slave HP1: Write Responce
+// AXI PS Slave HP1: Write response
     .SAXIHP1BVALID(),            // AXI PS Slave HP1 BVALID, output
     .SAXIHP1BREADY(),            // AXI PS Slave HP1 BREADY, input
     .SAXIHP1BID(),               // AXI PS Slave HP1 BID[5:0], output
@@ -884,7 +884,7 @@ PS7 ps7_i (
     .SAXIHP2WCOUNT(),            // AXI PS Slave HP2 WCOUNT[7:0], output
     .SAXIHP2WACOUNT(),           // AXI PS Slave HP2 WACOUNT[5:0], output
     .SAXIHP2WRISSUECAP1EN(),     // AXI PS Slave HP2 WRISSUECAP1EN, input
-// AXI PS Slave HP2: Write Responce
+// AXI PS Slave HP2: Write response
     .SAXIHP2BVALID(),            // AXI PS Slave HP2 BVALID, output
     .SAXIHP2BREADY(),            // AXI PS Slave HP2 BREADY, input
     .SAXIHP2BID(),               // AXI PS Slave HP2 BID[5:0], output
@@ -938,7 +938,7 @@ PS7 ps7_i (
     .SAXIHP3WCOUNT          (afi3_wcount),            // AXI PS Slave HP3 WCOUNT[7:0], output
     .SAXIHP3WACOUNT         (afi3_wacount),           // AXI PS Slave HP3 WACOUNT[5:0], output
     .SAXIHP3WRISSUECAP1EN   (afi3_wrissuecap1en),     // AXI PS Slave HP3 WRISSUECAP1EN, input
-// AXI PS Slave HP3: Write Responce
+// AXI PS Slave HP3: Write response
     .SAXIHP3BVALID          (afi3_bvalid),            // AXI PS Slave HP3 BVALID, output
     .SAXIHP3BREADY          (afi3_bready),            // AXI PS Slave HP3 BREADY, input
     .SAXIHP3BID             (afi3_bid),               // AXI PS Slave HP3 BID[5:0], output
@@ -989,7 +989,7 @@ PS7 ps7_i (
     .SAXIACPWID(),               // AXI PS Slave ACP WID[2:0], input
     .SAXIACPWLAST(),             // AXI PS Slave ACP WLAST, input
     .SAXIACPWSTRB(),             // AXI PS Slave ACP WSTRB[7:0], input
-// AXI PS Slave ACP: Write Responce
+// AXI PS Slave ACP: Write response
     .SAXIACPBVALID(),            // AXI PS Slave ACP BVALID, output
     .SAXIACPBREADY(),            // AXI PS Slave ACP BREADY, input
     .SAXIACPBID(),               // AXI PS Slave ACP BID[2:0], output

@@ -112,7 +112,7 @@ oob_dev oob_dev(
     .rst                (rst),
     // gtx is ready = all resets are done
     .gtx_ready          (gtx_ready),
-    // oob responces
+    // oob responses
     .rxcominitdet_in    (rxcominitdet),
     .rxcomwakedet_in    (rxcomwakedet),
     .rxelecidle_in      (rxelecidle),

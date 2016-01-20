@@ -45,7 +45,7 @@ code_rom_path=  '../includes/ahxi_fsm_code.vh'
 #Set actions, conditions to empty string to rebuild list. Then edit order and put here
 actions = ['NOP',
     # CTRL_STAT
-    'PXSERR_DIAG_X', 'SIRQ_DHR', 'SIRQ_DP', 'SIRQ_DS', 'SIRQ_IF', 'SIRQ_PS', 'SIRQ_SDB', 'SIRQ_TFE', 'SIRQ_UF',
+    'PXSERR_DIAG_X', 'SIRQ_DHR', 'SIRQ_DP', 'SIRQ_DS', 'SIRQ_IF', 'SIRQ_INF', 'SIRQ_PS', 'SIRQ_SDB', 'SIRQ_TFE', 'SIRQ_UF',
     'PFSM_STARTED', 'PCMD_CR_CLEAR', 'PCMD_CR_SET', 'PXCI0_CLEAR', 'PXSSTS_DET_1', 'SSTS_DET_OFFLINE', 'SCTL_DET_CLEAR',
     # FIS RECEIVE
     'SET_UPDATE_SIG', 'UPDATE_SIG', 'UPDATE_ERR_STS', 'UPDATE_PIO', 'UPDATE_PRDBC', 'CLEAR_BSY_DRQ',
@@ -55,7 +55,7 @@ actions = ['NOP',
     # DMA
     'DMA_ABORT', 'DMA_PRD_IRQ_CLEAR',
     # SATA TRANSPORT/LINK/PHY
-    'XMIT_COMRESET', 'SEND_SYNC_ESC', 'SET_OFFLINE', 'R_OK', 'R_ERR',
+    'XMIT_COMRESET', 'SEND_SYNC_ESC*', 'SET_OFFLINE', 'R_OK', 'R_ERR',
     # FIS TRANSMIT/WAIT DONE
     'FETCH_CMD*', 'ATAPI_XMIT*', 'CFIS_XMIT*', 'DX_XMIT*',
     #FIS RECEIVE/WAIT DONE
@@ -227,7 +227,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {IF:'PIO_SETUP',            GOTO:'PIO:Entry' },          # 12 FIS == FIS_PIO_SETUP
             {                           GOTO:'UFIS:Entry' },         # 13 Unknown FIS (else)
 #5.3.6. Command Transfer State            
-            {LBL:'CFIS:SyncEscape',     ACT: 'SEND_SYNC_ESC'},       # syncesc_send, should wait (for syncesc_send_done)
+            {LBL:'CFIS:SyncEscape',     ACT: 'SEND_SYNC_ESC*'},      # syncesc_send, should wait (for syncesc_send_done)
             {                           ACT: 'SET_UPDATE_SIG'},      # set_update_sig
             {                           GOTO:'CFIS:Xmit' },          # 1
             
@@ -438,6 +438,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'ERR:WaitForClear'  },  # Loop until PxCMD.ST is cleared by software
             
             {LBL:'ERR:Non-Fatal',       ACT: 'NOP'},                 # Do anything else here?
+            {                           ACT: 'SIRQ_INF'},            # sirq_INF            
             {                           GOTO:'P:Idle'},              #
             ]
 def get_cnk (start,end,level):

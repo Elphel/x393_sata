@@ -54,10 +54,9 @@ module  ahci_ctrl_stat #(
     input                         update_pcmd,
     input                         update_pci,
 
-    // Next - obsolete?    
-    output reg                    st01_pending,    // software turned PxCMD.ST from 0 to 1
-    output reg                    st10_pending,    // software turned PxCMD.ST from 1 to 0
-    input                         st_pending_reset,// reset both st01_pending and st10_pending
+///    output reg                    st01_pending,    // software turned PxCMD.ST from 0 to 1
+///    output reg                    st10_pending,    // software turned PxCMD.ST from 1 to 0
+///    input                         st_pending_reset,// reset both st01_pending and st10_pending
 
 // PxCMD
     input                         pcmd_clear_icc, // clear PxCMD.ICC field
@@ -505,7 +504,7 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         else                 updating[5:1] <= updating[5:1] & ~ update_next[5:1];  
         
         // detect software setting for PxCMD.ST 0->1 and 1->0
-        
+/*        
         if      (mrst)                                                                             st01_pending <= 0;
         else if (swr_HBA_PORT__PxCMD && (HBA_PORT__PxCMD__ST__MASK &  soft_write_data & ~PxCMD_r)) st01_pending <= 1;
         if      (st_pending_reset)                                                                 st01_pending <= 0;
@@ -513,7 +512,7 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         if      (mrst)                                                                             st10_pending <= 0;
         else if (swr_HBA_PORT__PxCMD && (HBA_PORT__PxCMD__ST__MASK & ~soft_write_data &  PxCMD_r)) st10_pending <= 1;
         if      (st_pending_reset)                                                                 st10_pending <= 0;
-        
+*/        
     end
     
 endmodule

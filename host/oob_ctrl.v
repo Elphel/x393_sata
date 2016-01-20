@@ -44,7 +44,7 @@ module oob_ctrl #(
     // gtx is ready = all resets are done
     input   wire    gtx_ready,
     output  wire  [11:0] debug,
-    // oob responces
+    // oob responses
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
     input   wire    rxelecidle_in,
@@ -137,7 +137,7 @@ oob
     .clk                            (clk),
 // reset oob
     .rst                            (rst),
-// oob responces
+// oob responses
     .rxcominitdet_in                (rxcominitdet_in),
     .rxcomwakedet_in                (rxcomwakedet_in),
     .rxelecidle_in                  (rxelecidle_in),

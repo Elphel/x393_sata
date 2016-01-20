@@ -30,7 +30,7 @@ module  ahci_top#(
     input             arst,    // @aclk sync reset, active high
     input             mclk,    // SATA system clock (current 75MHz for SATA2)
     input             mrst,    // reset in mclk clock domain (after SATA PLL is on)
-    // async reset for SATA (mrst will be responce to it)
+    // async reset for SATA (mrst will be response to it)
     output            hba_arst,          // hba async reset (currently does ~ the same as port reset)
     output            port_arst,         // port0 async reset by software
     
@@ -52,7 +52,7 @@ module  ahci_top#(
     input      [11:0] wid,     // WID[11:0], input
     input             wlast,   // WLAST, input
     input      [ 3:0] wstb,    // WSTRB[3:0], input
-// AXI PS Master GP0: Write Responce
+// AXI PS Master GP0: Write response
     output            bvalid,  // BVALID, output
     input             bready,  // BREADY, input
     output     [11:0] bid,     // BID[11:0], output
@@ -141,8 +141,8 @@ module  ahci_top#(
     output             d2h_ready,   // This module or DMA consumes DWORD
     
     // communication with transport/link/phys layers
-//    input              phy_rst,      // frome phy, as a responce to hba_arst || port_arst. It is deasserted when clock is stable
-    input              phy_ready,
+//    input              phy_rst,      // frome phy, as a response to hba_arst || port_arst. It is deasserted when clock is stable
+    input       [ 1:0] phy_ready, // 0 - not ready, 1..3 - negotiated speed
     input              syncesc_recv, // These two inputs interrupt transmit
     input              xmit_err,     // Error during sending of a FIS
     output             syncesc_send,  // Send sync escape
@@ -154,6 +154,27 @@ module  ahci_top#(
     
     output             send_R_OK,    // Should it be originated in this layer SM?
     output             send_R_ERR,
+    
+    // additional errors from SATA layers (single-clock pulses):
+    input              serr_DT,   // RWC: Transport state transition error
+    input              serr_DS,   // RWC: Link sequence error
+    input              serr_DH,   // RWC: Handshake Error (i.e. Device got CRC error)
+    input              serr_DC,   // RWC: CRC error in Link layer
+    input              serr_DB,   // RWC: 10B to 8B decode error
+    input              serr_DW,   // RWC: COMMWAKE signal was detected
+    input              serr_DI,   // RWC: PHY Internal Error
+                                  // sirq_PRC,
+                                  // sirq_IF || // sirq_INF  
+    input              serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
+    input              serr_EC,   // RWC: Persistent Communication or Data Integrity Error
+    input              serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+    input              serr_EM,   // RWC: Communication between the device and host was lost but re-established
+    input              serr_EI,   // RWC: Recovered Data integrity Error
+    // additional control signals for SATA layers
+    output       [3:0] sctl_ipm,          // Interface power management transitions allowed
+    output       [3:0] sctl_spd,          // Interface maximal speed
+    
+    
 
     output             irq // CPU interrupt request
     
@@ -214,10 +235,10 @@ module  ahci_top#(
     wire             [ 4:0] dma_ct_addr; // input[4:0] 
     wire             [ 1:0] dma_ct_re; // input
     wire             [31:0] dma_ct_data; // output[31:0] reg 
-    wire                    dma_prd_done; // output (finished next prd)
+///    wire                    dma_prd_done; // output (finished next prd)
     wire                    dma_prd_irq_clear; // reset pending prd_irq
     wire                    dma_prd_irq_pend;  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
-    wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
+///    wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
     wire                    dma_cmd_done; // output (last PRD is over)
     wire             [31:0] dma_dout;    // output[31:0] 
     wire                    dma_dav; // output
@@ -266,30 +287,30 @@ module  ahci_top#(
     wire                    frcv_extra;         // DMA all transferred, but some data is still in left. . Does not deny frcv_ok
     
     wire                    frcv_set_update_sig; // when set, enables get_sig (and resets itself)
-    wire                    frcv_pUpdateSig;     // state variable
-    wire                    frcv_sig_available;  // signature data available
+///    wire                    frcv_pUpdateSig;     // state variable
+///    wire                    frcv_sig_available;  // signature data available
     wire                    frcv_update_sig;        // update signature
 
     
     // fsm <- state variables that are maintained inside 'ahc_fis_receive'
     wire              [7:0] tfd_sts;       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                            // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
-    wire              [7:0] tfd_err;       // Current PxTFD error field (updated after regFIS and SDB)
+//    wire              [7:0] tfd_err;       // Current PxTFD error field (updated after regFIS and SDB)
     wire                    fis_i;         // value of "I" field in received regsD2H or SDB FIS
-    wire                    sdb_n;         // value of "N" field in received SDB FIS 
+///    wire                    sdb_n;         // value of "N" field in received SDB FIS 
     wire                    dma_a;         // value of "A" field in received DMA Setup FIS 
-    wire                    dma_d;         // value of "D" field in received DMA Setup FIS
+///    wire                    dma_d;         // value of "D" field in received DMA Setup FIS
     wire                    pio_i;         // value of "I" field in received PIO Setup FIS
     wire                    pio_d;         // value of "D" field in received PIO Setup FIS
-    wire              [7:0] pio_es;        // value of PIO E_Status
+///    wire              [7:0] pio_es;        // value of PIO E_Status
     wire                    pPioXfer;
-    wire                    sactive0;      // bit 0 of sActive DWORD received in SDB FIS
+///    wire                    sactive0;      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     
     wire             [31:0] xfer_cntr; 
     wire                    xfer_cntr_zero; 
                                              
-    wire             [11:0] data_in_dwords;  // number of DWORDs received in data FIS (can be updated internally). Is it needed?
+///    wire             [11:0] data_in_dwords;  // number of DWORDs received in data FIS (can be updated internally). Is it needed?
 
     // fsm <-> ahc_fis_transmit
     // Command pulses to execute states fsm -> ahc_fis_transmit
@@ -301,7 +322,7 @@ module  ahci_top#(
     wire                    fsnd_atapi_xmit;  // tarsmit ATAPI command FIS
     // responses fsm <- ahc_fis_transmit
     wire                    fsnd_done;
-    wire                    fsnd_busy;
+///    wire                    fsnd_busy;
     // Short action pulses fsm -> ahc_fis_transmit
     wire                    fsnd_clearCmdToIssue; // From CFIS:SUCCESS 
     // State variables fsm <- ahc_fis_transmit 
@@ -313,7 +334,7 @@ module  ahci_top#(
     wire                    fsnd_ch_p;        // prefetchable - only used with non-zero PRDTL or ATAPI bit set
     wire                    fsnd_ch_w;        // Write: system memory -> device
     wire                    fsnd_ch_a;        // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
-    wire              [4:0] fsnd_ch_cfl;      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal, ... Maybe not needed outside ahc_fis_transmit
+///    wire              [4:0] fsnd_ch_cfl;      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal, ... Maybe not needed outside ahc_fis_transmit
 
     wire             [11:0] data_out_dwords; // number of DWORDs sent in data FIS
 
@@ -321,34 +342,34 @@ module  ahci_top#(
     wire                    was_port_rst; 
 
     // signals between ahci_fsm and ahci_ctrl_stat
-    wire                          update_regs_pending;
+///    wire                          update_regs_pending;
     wire                          update_all_regs;
     wire                          update_regs_busy; // valid same cycle as update_all_regs
 
-    wire                          st01_pending;    // software turned PxCMD.ST from 0 to 1
-    wire                          st10_pending;    // software turned PxCMD.ST from 1 to 0
-    wire                          st_pending_reset;// reset both st01_pending and st10_pending
+///    wire                          st01_pending;    // software turned PxCMD.ST from 0 to 1
+///    wire                          st10_pending;    // software turned PxCMD.ST from 1 to 0
+///    wire                          st_pending_reset;// reset both st01_pending and st10_pending
 
     
     // these following individual signals may be unneded - use update_all_regs -> update_regs_busy
-    wire                          update_GHC__IS;
-    wire                          update_HBA_PORT__PxIS;
-    wire                          update_HBA_PORT__PxSSTS;
-    wire                          update_HBA_PORT__PxSERR;
-    wire                          update_HBA_PORT__PxCMD;
-    wire                          update_HBA_PORT__PxCI;
+//    wire                          update_GHC__IS;
+//    wire                          update_HBA_PORT__PxIS;
+//    wire                          update_HBA_PORT__PxSSTS;
+//    wire                          update_HBA_PORT__PxSERR;
+//    wire                          update_HBA_PORT__PxCMD;
+//    wire                          update_HBA_PORT__PxCI;
 
 // PxCMD
-    wire                          pcmd_clear_icc; // clear PxCMD.ICC field
-    wire                          pcmd_esp;       // external SATA port (just forward value)
-    wire                          pcmd_cr;        // command list run - current
+//    wire                          pcmd_clear_icc; // clear PxCMD.ICC field
+    wire                          pcmd_esp = 1'b0;       // external SATA port (just forward value)
+///    wire                          pcmd_cr;        // command list run - current - read only by software (set by HBA)
     wire                          pcmd_cr_set;    // command list run set
     wire                          pcmd_cr_reset;  // command list run reset
-    wire                          pcmd_fr;        // ahci_fis_receive:get_fis_busy
+//    wire                          pcmd_fr;        // ahci_fis_receive:get_fis_busy - use frcv_busy
     wire                          pcmd_fre;       // FIS enable copy to memory
-    wire                          pcmd_clear_bsy_drq; // == ahci_fis_receive:clear_bsy_drq
-    wire                          pcmd_clo;       //RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
-    wire                          pcmd_clear_st;  // RW clear ST (start) bit
+//    wire                          pcmd_clear_bsy_drq; // == ahci_fis_receive:clear_bsy_drq
+    wire                          pcmd_clo;       // RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
+//    wire                          pcmd_clear_st;  // RW clear ST (start) bit
     wire                          pcmd_st;        // current value
     wire                          pfsm_started;   // H: FSM done, P: FSM started (enable sensing pcmd_st_cleared)
     wire                          pcmd_st_cleared; // bit was cleared by software    
@@ -369,20 +390,6 @@ module  ahci_top#(
 // SCR1:SError (only inputs that are not available in sirq_* ones
                                   //sirq_PC;
                                   //sirq_UF
-    wire                          serr_DT;   // RWC: Transport state transition error
-    wire                          serr_DS;   // RWC: Link sequence error
-    wire                          serr_DH;   // RWC: Handshake Error (i.e. Device got CRC error)
-    wire                          serr_DC;   // RWC: CRC error in Link layer
-    wire                          serr_DB;   // RWC: 10B to 8B decode error
-    wire                          serr_DW;   // RWC: COMMWAKE signal was detected
-    wire                          serr_DI;   // RWC: PHY Internal Error
-                                  // sirq_PRC;
-                                  // sirq_IF || // sirq_INF  
-    wire                          serr_EP;   // RWC: Protocol Error - a violation of SATA protocol detected
-    wire                          serr_EC;   // RWC: Persistent Communication or Data Integrity Error
-    wire                          serr_ET;   // RWC: Transient Data Integrity Error (error not recovered by the interface)
-    wire                          serr_EM;   // RWC: Communication between the device and host was lost but re-established
-    wire                          serr_EI;   // RWC: Recovered Data integrity Error
     wire                          serr_diag_X; // value of PxSERR.DIAG.X
 
      
@@ -406,8 +413,6 @@ module  ahci_top#(
     wire                    [3:0] ssts_det;          // current value of PxSSTS.DET
     
  // SCR2:SControl (written by software only)
-    wire                    [3:0] sctl_ipm;          // Interface power management transitions allowed
-    wire                    [3:0] sctl_spd;          // Interface maximal speed
     wire                    [3:0] sctl_det;          // Device detection initialization requested
     wire                          sctl_det_changed;  // Software had written new value to sctl_det
     wire                          sctl_det_reset;    // clear sctl_det_changed
@@ -444,27 +449,27 @@ module  ahci_top#(
         .send_R_OK                (send_R_OK),         // output
         .send_R_ERR               (send_R_ERR),        // output
         
-        .update_pending           (update_regs_pending),// input
+///        .update_pending           (update_regs_pending),// input
         .update_all               (update_all_regs),   // output
         .update_busy              (update_regs_busy),  // input
-        .update_gis               (update_GHC__IS),    // output
-        .update_pis               (update_HBA_PORT__PxIS),   // output
-        .update_ssts              (update_HBA_PORT__PxSSTS), // output
-        .update_serr              (update_HBA_PORT__PxSERR), // output
-        .update_pcmd              (update_HBA_PORT__PxCMD),  // output
-        .update_pci               (update_HBA_PORT__PxCI),   // output
-        .st01_pending             (st01_pending),      // input 
-        .st10_pending             (st10_pending),      // input 
-        .st_pending_reset         (st_pending_reset),  // output
-        .pcmd_clear_icc           (pcmd_clear_icc),    // output
-        .pcmd_esp                 (pcmd_esp),          // output
-        .pcmd_cr                  (pcmd_cr),           // input
+///        .update_gis               (update_GHC__IS),    // output
+///        .update_pis               (update_HBA_PORT__PxIS),   // output
+///        .update_ssts              (update_HBA_PORT__PxSSTS), // output
+///        .update_serr              (update_HBA_PORT__PxSERR), // output
+///        .update_pcmd              (update_HBA_PORT__PxCMD),  // output
+///        .update_pci               (update_HBA_PORT__PxCI),   // output
+///        .st01_pending             (st01_pending),      // input 
+///        .st10_pending             (st10_pending),      // input 
+///        .st_pending_reset         (st_pending_reset),  // output
+//        .pcmd_clear_icc           (pcmd_clear_icc),    // output
+//        .pcmd_esp                 (pcmd_esp),          // output
+//        .pcmd_cr                  (pcmd_cr),           // input
         .pcmd_cr_set              (pcmd_cr_set),       // output
         .pcmd_cr_reset            (pcmd_cr_reset),     // output
-        .pcmd_fr                  (pcmd_fr),           // output
-        .pcmd_clear_bsy_drq       (pcmd_clear_bsy_drq),// output
+//        .pcmd_fr                  (pcmd_fr),           // output
+//        .pcmd_clear_bsy_drq       (pcmd_clear_bsy_drq),// output
         .pcmd_clo                 (pcmd_clo),          // input
-        .pcmd_clear_st            (pcmd_clear_st),     // output
+//        .pcmd_clear_st            (pcmd_clear_st),     // output
         .pcmd_st                  (pcmd_st),           // input
         .pfsm_started             (pfsm_started),      // output
         .pcmd_st_cleared          (pcmd_st_cleared),   // input 
@@ -480,18 +485,6 @@ module  ahci_top#(
         .sirq_DS                  (sirq_DS),           // output
         .sirq_PS                  (sirq_PS),           // output
         .sirq_DHR                 (sirq_DHR),          // output
-        .serr_DT                  (serr_DT),           // output
-        .serr_DS                  (serr_DS),           // output
-        .serr_DH                  (serr_DH),           // output
-        .serr_DC                  (serr_DC),           // output
-        .serr_DB                  (serr_DB),           // output
-        .serr_DW                  (serr_DW),           // output
-        .serr_DI                  (serr_DI),           // output
-        .serr_EP                  (serr_EP),           // output
-        .serr_EC                  (serr_EC),           // output
-        .serr_ET                  (serr_ET),           // output
-        .serr_EM                  (serr_EM),           // output
-        .serr_EI                  (serr_EI),           // output
         .serr_diag_X              (serr_diag_X),       // input
         .ssts_ipm_dnp             (ssts_ipm_dnp),      // output
         .ssts_ipm_active          (ssts_ipm_active),   // output
@@ -507,20 +500,20 @@ module  ahci_top#(
         .ssts_det_dp              (ssts_det_dp),       // output
         .ssts_det_offline         (ssts_det_offline),  // output
         .ssts_det                 (ssts_det),          // input[3:0]
-        .sctl_ipm                 (sctl_ipm),          // input[3:0] 
-        .sctl_spd                 (sctl_spd),          // input[3:0] 
+///        .sctl_ipm                 (sctl_ipm),          // input[3:0] 
+///        .sctl_spd                 (sctl_spd),          // input[3:0] 
         .sctl_det                 (sctl_det),          // input[3:0] 
         .sctl_det_changed         (sctl_det_changed),  // input 
         .sctl_det_reset           (sctl_det_reset),    // output
         .pxci0_clear              (pxci0_clear),       // output
         .pxci0                    (pxci0),             // input
 
-        .dma_prd_done             (dma_prd_done),       // input
+///        .dma_prd_done             (dma_prd_done),       // input
         .dma_prd_irq_clear        (dma_prd_irq_clear),  // output
         .dma_prd_irq_pend         (dma_prd_irq_pend),   // input
         
-        .dma_cmd_busy             (dma_cmd_busy),       // input
-        .dma_cmd_done             (dma_cmd_done),       // input
+///        .dma_cmd_busy             (dma_cmd_busy),       // input
+///        .dma_cmd_done             (dma_cmd_done),       // input
         .dma_cmd_abort            (dma_cmd_abort_fsm),  // output
         
         .fis_first_invalid (frcv_first_invalid),// input
@@ -537,7 +530,7 @@ module  ahci_top#(
         .get_ufis        (frcv_get_ufis),      // output
         .get_data_fis    (frcv_get_data_fis),  // output
         .get_ignore      (frcv_get_ignore),    // output
-        .get_fis_busy    (frcv_busy),          // input
+///        .get_fis_busy    (frcv_busy),          // input
         .get_fis_done    (frcv_done),          // input
         .fis_ok          (frcv_ok),            // input
         .fis_err         (frcv_err),           // input
@@ -545,8 +538,8 @@ module  ahci_top#(
         .fis_extra       (frcv_extra || dma_extra_din), // input // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
         
         .set_update_sig  (frcv_set_update_sig),// output
-        .pUpdateSig      (frcv_pUpdateSig),    // input
-        .sig_available   (frcv_sig_available), // input
+///        .pUpdateSig      (frcv_pUpdateSig),    // input
+///        .sig_available   (frcv_sig_available), // input
         .update_sig      (frcv_update_sig),    // output
         
         .update_err_sts  (frcv_update_err_sts),// output
@@ -565,16 +558,16 @@ module  ahci_top#(
         .pPioXfer        (pPioXfer),           // input      
          
         .tfd_sts         (tfd_sts),            // input[7:0] 
-        .tfd_err         (tfd_err),            // input[7:0] 
+///        .tfd_err         (tfd_err),            // input[7:0] 
         .fis_i           (fis_i),              // input
-        .sdb_n           (sdb_n),              // input
+///        .sdb_n           (sdb_n),              // input
         .dma_a           (dma_a),              // input
-        .dma_d           (dma_d),              // input
+///        .dma_d           (dma_d),              // input
         .pio_i           (pio_i),              // input
         .pio_d           (pio_d),              // input
-        .sactive0        (sactive0),            // input
-        .pio_es          (pio_es),             // input[7:0] 
-        .xfer_cntr       (xfer_cntr[31:2]),    // input[31:2] 
+///        .sactive0        (sactive0),            // input
+///        .pio_es          (pio_es),             // input[7:0] 
+///        .xfer_cntr       (xfer_cntr[31:2]),    // input[31:2] 
         .xfer_cntr_zero  (xfer_cntr_zero),     // input
         
         .fetch_cmd       (fsnd_fetch_cmd),     // output
@@ -582,19 +575,19 @@ module  ahci_top#(
         .dx_transmit     (fsnd_dx_transmit),   // output
         .atapi_xmit      (fsnd_atapi_xmit),    // output
         .xmit_done       (fsnd_done),          // input
-        .xmit_busy       (fsnd_busy),          // input
+///        .xmit_busy       (fsnd_busy),          // input
         .clearCmdToIssue (fsnd_clearCmdToIssue),// output // From CFIS:SUCCESS 
         .pCmdToIssue     (fsnd_pCmdToIssue),   // input
         .dx_err          (fsnd_dx_err),        // input[1:0] 
-        .ch_prdtl        (prdtl),              // input[15:0] 
+///        .ch_prdtl        (prdtl),              // input[15:0] 
         .ch_c            (fsnd_ch_c),          // input
         .ch_b            (fsnd_ch_b),          // input
         .ch_r            (fsnd_ch_r),          // input
         .ch_p            (fsnd_ch_p),          // input
         .ch_w            (fsnd_ch_w),          // input
-        .ch_a            (fsnd_ch_a),          // input
-        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
-        .dwords_sent     (data_out_dwords)     // input[11:0] ????
+        .ch_a            (fsnd_ch_a)          // input
+///        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
+///        .dwords_sent     (data_out_dwords)     // input[11:0] ????
     );
 
 
@@ -671,29 +664,30 @@ module  ahci_top#(
         .regs_addr               (regs_saddr),              // output[9:0] reg 
         .regs_we                 (regs_we_acs),             // output reg 
         .regs_din                (regs_din_from_acs),       // output[31:0] reg 
-        .update_pending          (update_regs_pending),     // output
+        .update_pending          (), /// update_regs_pending),     // output
         .update_all              (update_all_regs),         // input
         .update_busy             (update_regs_busy),        // output
-        .st01_pending            (st01_pending),            // output reg 
-        .st10_pending            (st10_pending),            // output reg 
-        .st_pending_reset        (st_pending_reset),        // input
+///        .st01_pending            (st01_pending),            // output reg 
+///        .st10_pending            (st10_pending),            // output reg 
+///        .st_pending_reset        (st_pending_reset),        // input
         
-        .update_gis              (update_GHC__IS),          // input
-        .update_pis              (update_HBA_PORT__PxIS),   // input
-        .update_ssts             (update_HBA_PORT__PxSSTS), // input
-        .update_serr             (update_HBA_PORT__PxSERR), // input
-        .update_pcmd             (update_HBA_PORT__PxCMD),  // input
-        .update_pci              (update_HBA_PORT__PxCI),   // input
-        .pcmd_clear_icc          (pcmd_clear_icc),          // input
+        .update_gis              (1'b0), // update_GHC__IS),          // input
+        .update_pis              (1'b0), // update_HBA_PORT__PxIS),   // input
+        .update_ssts             (1'b0), // update_HBA_PORT__PxSSTS), // input
+        .update_serr             (1'b0), // update_HBA_PORT__PxSERR), // input
+        .update_pcmd             (1'b0), // update_HBA_PORT__PxCMD),  // input
+        .update_pci              (1'b0), // update_HBA_PORT__PxCI),   // input
+        
+        .pcmd_clear_icc          (1'b0), // pcmd_clear_icc),          // input
         .pcmd_esp                (pcmd_esp),                // input
-        .pcmd_cr                 (pcmd_cr),                 // output
+        .pcmd_cr                 (), //pcmd_cr),                 // output
         .pcmd_cr_set             (pcmd_cr_set),             // input
         .pcmd_cr_reset           (pcmd_cr_reset),           // input
-        .pcmd_fr                 (pcmd_fr),                 // input
+        .pcmd_fr                 (frcv_busy),               // input
         .pcmd_fre                (pcmd_fre),                // output
-        .pcmd_clear_bsy_drq      (pcmd_clear_bsy_drq),      // input
+        .pcmd_clear_bsy_drq      (frcv_clear_bsy_drq),      // input
         .pcmd_clo                (pcmd_clo),                // output
-        .pcmd_clear_st           (pcmd_clear_st),           // input
+        .pcmd_clear_st           (1'b0), // pcmd_clear_st),           // input
         .pcmd_st                 (pcmd_st),                 // output
         .pfsm_started            (pfsm_started),            // input
         .pcmd_st_cleared         (pcmd_st_cleared),         // output reg 
@@ -766,12 +760,12 @@ module  ahci_top#(
         .ct_addr               (dma_ct_addr),   // input[4:0] 
         .ct_re                 (dma_ct_re[0]),  // input
         .ct_data               (dma_ct_data),   // output[31:0] reg 
-        .prd_done              (dma_prd_done),  // output
+        .prd_done              (), /// dma_prd_done),  // output
         
         .prd_irq_clear         (dma_prd_irq_clear),// input
         .prd_irq_pend          (dma_prd_irq_pend), // output reg
         
-        .cmd_busy              (dma_cmd_busy),  // output reg 
+        .cmd_busy              (), // dma_cmd_busy),  // output reg 
         .cmd_done              (dma_cmd_done),  // output
         .sys_out               (dma_dout),      // output[31:0] 
         .sys_dav               (dma_dav),       // output
@@ -854,8 +848,8 @@ module  ahci_top#(
         .fis_extra         (frcv_extra),             // output
 
         .set_update_sig    (frcv_set_update_sig),    // input
-        .pUpdateSig        (frcv_pUpdateSig),        // output
-        .sig_available     (frcv_sig_available),     // output reg 
+        .pUpdateSig        (), /// frcv_pUpdateSig),        // output
+        .sig_available     (), ///frcv_sig_available),     // output reg 
         .update_sig        (frcv_update_sig),        // input
         
         .update_err_sts    (frcv_update_err_sts),    // input
@@ -876,18 +870,18 @@ module  ahci_top#(
         .pPioXfer          (pPioXfer),               // output reg 
         
         .tfd_sts           (tfd_sts),                // output[7:0] 
-        .tfd_err           (tfd_err),                // output[7:0] 
+        .tfd_err           (), /// tfd_err),                // output[7:0] 
         .fis_i             (fis_i),                  // output reg 
-        .sdb_n             (sdb_n),                  // output reg 
+        .sdb_n             (), /// sdb_n),                  // output reg 
         .dma_a             (dma_a),                  // output reg 
-        .dma_d             (dma_d),                  // output reg 
+        .dma_d             (), /// dma_d),                  // output reg 
         .pio_i             (pio_i),                  // output reg 
         .pio_d             (pio_d),                  // output reg 
-        .pio_es            (pio_es),                 // output[7:0] reg 
-        .sactive0          (sactive0),               // output reg 
+        .pio_es            (), /// pio_es),                 // output[7:0] reg 
+        .sactive0          (), /// sactive0),               // output reg 
         .xfer_cntr         (xfer_cntr[31:2]),        // output[31:2] 
         .xfer_cntr_zero    (xfer_cntr_zero),         // output reg
-        .data_in_dwords    (data_in_dwords),         // output[11:0] 
+        .data_in_dwords    (), /// data_in_dwords),         // output[11:0] 
          
         .reg_addr          (regs_waddr),             // output[9:0] reg 
         .reg_we            (regs_we_freceive),       // output reg 
@@ -916,7 +910,7 @@ module  ahci_top#(
         .atapi_xmit        (fsnd_atapi_xmit),      // input
         
         .done              (fsnd_done),            // output reg 
-        .busy              (fsnd_busy),            // output reg 
+        .busy              (), /// fsnd_busy),            // output reg 
         .clearCmdToIssue   (fsnd_clearCmdToIssue), // input
         .pCmdToIssue       (fsnd_pCmdToIssue),     // output
         .syncesc_recv      (syncesc_recv),         // input
@@ -929,7 +923,7 @@ module  ahci_top#(
         .ch_p              (fsnd_ch_p),            // output
         .ch_w              (fsnd_ch_w),            // output
         .ch_a              (fsnd_ch_a),            // output
-        .ch_cfl            (fsnd_ch_cfl),          // output[4:0] 
+        .ch_cfl            (), /// fsnd_ch_cfl),          // output[4:0] 
 
         .dwords_sent       (data_out_dwords),      // output[11:0] reg
         .reg_addr          (regs_raddr),           // output[9:0] reg 

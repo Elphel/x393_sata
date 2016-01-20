@@ -47,7 +47,7 @@ module oob #(
     input   wire    clk,
     // reset oob
     input   wire    rst,
-    // oob responces
+    // oob responses
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
     input   wire    rxelecidle_in,
