@@ -24,7 +24,8 @@ module  ahci_sata_layers #(
     parameter  BITS_TO_START_XMIT = 6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
     parameter  DATA_BYTE_WIDTH = 4
 )(
-    input              exrst,   // master reset that resets PLL and GTX    
+    input              exrst,   // master reset that resets PLL and GTX
+    input              reliable_clk, // use aclk that runs independently of the GTX
     output             rst,     // PHY-generated reset after PLL lock
     output             clk,     // PHY-generated clock, 75MHz for SATA2
 // Data/type FIFO, host -> device   
@@ -44,13 +45,15 @@ module  ahci_sata_layers #(
     input              d2h_ready,   // This module or DMA consumes DWORD
     
    // communication with link/phys layers
-    output      [ 1:0] phy_ready,       // 0 - not ready, 1..3 - negotiated speed
+    output      [ 1:0] phy_speed,       // 0 - not ready, 1..3 - negotiated speed (Now 0/2)
+    output             gtx_ready,       // How to use it?
     output             xmit_ok,         // received R_OK after transmission
     output             xmit_err,        // Error during/after sending of a FIS (got R_ERR)
     output             x_rdy_collision, // X_RDY/X_RDY collision on interface 
     output             syncesc_recv,    // Where to get it?
 
-    input              syncesc_send,  // Send sync escape
+    input              pcmd_cleared,      // PxCMD.ST 1->0 transition by software
+    input              syncesc_send,      // Send sync escape
     output             syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     input              comreset_send,     // Not possible yet?
     output             cominit_got,
@@ -60,6 +63,7 @@ module  ahci_sata_layers #(
     input              send_R_ERR,
     
     // additional errors from SATA layers (single-clock pulses):
+    
     output             serr_DT,   // RWC: Transport state transition error
     output             serr_DS,   // RWC: Link sequence error
     output             serr_DH,   // RWC: Handshake Error (i.e. Device got CRC error)
@@ -75,8 +79,8 @@ module  ahci_sata_layers #(
     output             serr_EM,   // RWC: Communication between the device and host was lost but re-established
     output             serr_EI,   // RWC: Recovered Data integrity Error
     // additional control signals for SATA layers
-    input        [3:0] sctl_ipm,  // Interface power management transitions allowed
-    input        [3:0] sctl_spd,  // Interface maximal speed
+    input        [3:0] sctl_ipm,  // Interface power management transitions allowed // @SuppressThisWarning Veditor Unused (yet)
+    input        [3:0] sctl_spd,  // Interface maximal speed                        // @SuppressThisWarning Veditor Unused (yet)
 
     // Device high speed pads and clock inputs    
     // ref clk from an external source, shall be connected to pads
@@ -88,6 +92,7 @@ module  ahci_sata_layers #(
     input   wire        rxp_in,
     input   wire        rxn_in
 );
+    localparam PHY_SPEED = 2; // SATA2
     localparam FIFO_ADDR_WIDTH = 9;
     
     localparam D2H_TYPE_DMA =      0;
@@ -98,7 +103,8 @@ module  ahci_sata_layers #(
     localparam H2D_TYPE_FIS_DATA = 0; // @SuppressThisWarning VEditor unused
     localparam H2D_TYPE_FIS_HEAD = 1;
     localparam H2D_TYPE_FIS_LAST = 2;
-
+    
+    wire               phy_ready;
     wire        [31:0] ll_h2d_data_in;
     wire         [1:0] ll_h2d_mask_in;
     wire               ll_strobe_out;
@@ -128,8 +134,9 @@ module  ahci_sata_layers #(
 //    wire incom_ack_good = send_R_OK;    // -> link  // transport layer responds on a completion of a FIS
 //    wire incom_ack_bad = send_R_ERR;     // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle
     
-    wire ll_link_reset;        // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle
-    wire ll_incom_stop_req;    // -> link  // TL demands to stop current recieving session (use !PxCMD.ST)?
+    wire ll_link_reset = ~phy_ready;        // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle //TODO Alexey:mb it shall be independent
+    
+//    wire ll_incom_stop_req;    // -> link  // TL demands to stop current recieving session (use !PxCMD.ST)?
     
     wire [DATA_BYTE_WIDTH*8 - 1:0] ph2ll_data_out;
     wire [DATA_BYTE_WIDTH   - 1:0] ph2ll_charisk_out; // charisk
@@ -142,14 +149,14 @@ module  ahci_sata_layers #(
     wire     [FIFO_ADDR_WIDTH-1:0] h2d_waddr;
     wire       [FIFO_ADDR_WIDTH:0] h2d_fill;
     wire                           h2d_nempty;
-    wire                           h2d_under;
+//    wire                           h2d_under;
     
     wire     [FIFO_ADDR_WIDTH-1:0] d2h_raddr;
     wire                     [1:0] d2h_fifo_re_regen;    
     wire     [FIFO_ADDR_WIDTH-1:0] d2h_waddr;
     wire       [FIFO_ADDR_WIDTH:0] d2h_fill;
     wire                           d2h_nempty;
-    wire                           d2h_over;
+//    wire                           d2h_over;
     wire                           h2d_fifo_rd = h2d_nempty && ll_strobe_out; // TODO: check latency in link.v
     wire                           h2d_fifo_wr = h2d_valid;
     
@@ -169,7 +176,26 @@ module  ahci_sata_layers #(
     assign ll_frame_req_w = !ll_frame_busy && h2d_pending && (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) || (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT]));
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
 //assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
+    assign phy_speed = phy_ready ? PHY_SPEED:0;
 
+    assign serr_DB = |ph2ll_err_out;
+    assign serr_DH = xmit_err;
+    
+// not yet assigned errors
+    assign serr_DT = 0;   // RWC: Transport state transition error
+    assign serr_DS = 0;   // RWC: Link sequence error
+    assign serr_DC = 0;   // RWC: CRC error in Link layer
+    assign serr_DB = 0;   // RWC: 10B to 8B decode error
+    assign serr_DI = 0;   // RWC: PHY Internal Error
+    assign serr_EP = 0;   // RWC: Protocol Error - a violation of SATA protocol detected
+    assign serr_EC = 0;   // RWC: Persistent Communication or Data Integrity Error
+    assign serr_ET = 0;   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+    assign serr_EM = 0;   // RWC: Communication between the device and host was lost but re-established
+    assign serr_EI = 0;   // RWC: Recovered Data integrity Error
+    
+    
+    
+    
     link #(
         .DATA_BYTE_WIDTH(4)
     ) link_i (
@@ -205,9 +231,9 @@ module  ahci_sata_layers #(
         .link_reset       (ll_link_reset),         // input wire  // oob sequence is reinitiated and link now is not established or rxelecidle
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
-        .incom_stop_req   (ll_incom_stop_req),     // input wire  // TL demands to stop current recieving session
+        .incom_stop_req   (pcmd_cleared),          // input wire  // TL demands to stop current recieving session
         // inputs from phy
-        .phy_ready        (), // input wire        // phy is ready - link is established
+        .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established
         // data-primitives stream from phy
         .phy_data_in      (ph2ll_data_out),        // input[31:0] wire  // phy_data_in
         .phy_isk_in       (ph2ll_charisk_out),     // input[3:0] wire   // charisk
@@ -246,9 +272,9 @@ module  ahci_sata_layers #(
         .extrst          (exrst),             // input wire 
         .clk             (clk),               // output wire 
         .rst             (rst),               // output wire 
-        .reliable_clk    (), // input wire 
-        .phy_ready       (), // output wire 
-        .gtx_ready       (), // output wire 
+        .reliable_clk    (reliable_clk),      // input wire 
+        .phy_ready       (phy_ready),         // output wire 
+        .gtx_ready       (gtx_ready),         // output wire 
         .debug_cnt       (), // output[11:0] wire 
         .extclk_p        (extclk_p),          // input wire 
         .extclk_n        (extclk_n),          // input wire 
@@ -260,7 +286,12 @@ module  ahci_sata_layers #(
         .ll_charisk_out  (ph2ll_charisk_out), // output[3:0] wire 
         .ll_err_out      (ph2ll_err_out),     // output[3:0] wire 
         .ll_data_in      (ll2ph_data_in),     // input[31:0] wire 
-        .ll_charisk_in   (ll2ph_charisk_in)   // input[3:0] wire 
+        .ll_charisk_in   (ll2ph_charisk_in),  // input[3:0] wire
+        .set_offline     (set_offline),       // input
+        .comreset_send   (comreset_send),     // input
+        .cominit_got     (cominit_got),       // output wire 
+        .comwake_got     (serr_DW)            // output wire 
+        
     );
 
     fifo_sameclock_control #(
@@ -277,7 +308,7 @@ module  ahci_sata_layers #(
         .mem_re   (h2d_fifo_re_regen[0]),   // output
         .mem_regen(h2d_fifo_re_regen[1]),   // output
         .over     (),                       // output reg 
-        .under    (h2d_under)               // output reg 
+        .under    () //h2d_under)               // output reg 
     );
     
     ram18p_var_w_var_r #(
@@ -310,7 +341,7 @@ module  ahci_sata_layers #(
         .mem_ra   (d2h_raddr),              // output[8:0] reg 
         .mem_re   (d2h_fifo_re_regen[0]),   // output
         .mem_regen(d2h_fifo_re_regen[1]),   // output
-        .over     (d2h_over),               // output reg 
+        .over     (), //d2h_over),               // output reg 
         .under    ()                        // output reg 
     );
 

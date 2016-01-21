@@ -710,7 +710,13 @@ sata_phy phy(
 
     // from link layer
     .ll_data_in         (ll2phy_data),
-    .ll_charisk_in      (ll2phy_isk)
+    .ll_charisk_in      (ll2phy_isk),
+     // added for AHCI
+    .set_offline        (1'b0), // input
+    .comreset_send      (1'b0), // input
+    .cominit_got        (),     // output wire 
+    .comwake_got        ()      // output wire 
+    
 );
 
 endmodule

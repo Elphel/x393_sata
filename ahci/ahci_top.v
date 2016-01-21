@@ -146,6 +146,7 @@ module  ahci_top#(
     input              xmit_ok,      // FIS transmission acknowledged OK
     input              xmit_err,     // Error during sending of a FIS
     input              syncesc_recv, // These two inputs interrupt transmit
+    output             pcmd_st_cleared, // bit was cleared by software    
     output             syncesc_send,  // Send sync escape
     input              syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     output             comreset_send,     // Not possible yet?
@@ -373,7 +374,6 @@ module  ahci_top#(
 //    wire                          pcmd_clear_st;  // RW clear ST (start) bit
     wire                          pcmd_st;        // current value
     wire                          pfsm_started;   // H: FSM done, P: FSM started (enable sensing pcmd_st_cleared)
-    wire                          pcmd_st_cleared; // bit was cleared by software    
 //clear_bsy_drq    
 // Interrupt inputs
     wire                          sirq_TFE; // RWC: Task File Error Status

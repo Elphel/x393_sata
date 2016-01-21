@@ -76,7 +76,10 @@ module oob_ctrl #(
     input   wire    rxbyteisaligned,
 
     // shows if channel is ready
-    output  wire    phy_ready
+    output  wire    phy_ready,
+    // From 
+    input              set_offline, // electrically idle
+    input              comreset_send     // Not possible yet?
 );
 
 // oob sequence needs to be issued
@@ -108,20 +111,30 @@ reg     link_state;
 // 1 - connection is being established OR already established, 0 - is not
 reg     oob_state;
 
+// Force offline from AHCI
+reg             force_offline_r; // AHCI conrol need setting offline/sending comreset
+always @ (posedge clk) begin
+    if (rst || comreset_send) force_offline_r <= 0;
+    else if (set_offline)     force_offline_r <= 1;
+end
+
+
 assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
 
 always @ (posedge clk)
-    link_state  <= (link_state | link_up) & ~link_down & ~rst; 
+    link_state  <= (link_state | link_up) & ~link_down & ~rst & ~force_offline_r; 
 
 always @ (posedge clk)
     oob_state   <= (oob_state | oob_start | cominit_req & cominit_allow) & ~oob_error & ~oob_silence & ~(link_down & ~oob_busy & ~oob_start) & ~rst;
 
 // decide when to issue oob: always when gtx is ready
-assign  oob_start = gtx_ready & ~oob_state & ~oob_busy;
+//assign  oob_start = gtx_ready & ~oob_state & ~oob_busy;
+assign  oob_start = gtx_ready & ~oob_state & ~oob_busy & ~force_offline_r;
 
 // set line to idle state before if we're waiting for a device to answer AND while oob sequence
 wire    txelecidle_inner;
-assign  txelecidle = /*~oob_state |*/ txelecidle_inner;
+//assign  txelecidle = /*~oob_state |*/ txelecidle_inner ;
+assign  txelecidle = /*~oob_state |*/ txelecidle_inner || force_offline_r;
 
 // let devices always begin oob sequence, if only it's not a glitch
 assign  cominit_allow = cominit_req & link_state;

@@ -69,7 +69,13 @@ module sata_phy #(
 
     // from link layer
     input   wire    [DATA_BYTE_WIDTH * 8 - 1:0] ll_data_in,
-    input   wire    [DATA_BYTE_WIDTH - 1:0]     ll_charisk_in
+    input   wire    [DATA_BYTE_WIDTH - 1:0]     ll_charisk_in,
+    
+    input                                       set_offline,     // electrically idle
+    input                                       comreset_send,   // Not possible yet?
+    output  wire                                cominit_got,
+    output  wire                                comwake_got
+    
 );
 
 wire    [DATA_BYTE_WIDTH * 8 - 1:0] txdata;
@@ -110,7 +116,8 @@ wire            rxelsfull;
 wire            rxelsempty;
 
 //wire            gtx_ready;
-
+assign cominit_got = rxcominitdet; // For AHCI
+assign comwake_got = rxcomwakedet; // For AHCI
 wire dummy;
 oob_ctrl oob_ctrl(
     // sata clk = usrclk2
@@ -152,7 +159,11 @@ oob_ctrl oob_ctrl(
     .rxbyteisaligned    (rxbyteisaligned),
 
     // shows if channel is ready
-    .phy_ready          (phy_ready)
+    .phy_ready          (phy_ready),
+    // To/from AHCI
+    .set_offline        (set_offline), // input
+    .comreset_send      (comreset_send) // input
+    
 );
 
 wire    cplllockdetclk; // TODO
