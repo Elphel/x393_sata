@@ -48,7 +48,7 @@ module  ahci_fsm
     output                        comreset_send,     // Not possible yet?
     input                         cominit_got,   // asynchronously jumps to P:Cominit state
     output                        set_offline, // electrically idle
-    input                         x_rdy_collision, // X_RDY/X_RDY collision on interface 
+//    input                         x_rdy_collision, // X_RDY/X_RDY collision on interface 
     output                        send_R_OK,    // Should it be originated in this layer SM?
     output                        send_R_ERR,
     
@@ -210,10 +210,10 @@ module  ahci_fsm
     
     // Communication with ahci_fis_transmit
     // Command pulses to execute states
-    output                        fetch_cmd,   // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
-                                               // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
+    output                        fetch_cmd,    // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
+                                                // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
     output                        cfis_xmit,    // transmit command (wait for dma_ct_busy == 0)
-    output                        dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
+    output                        dx_xmit,      // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     output                        atapi_xmit,   // tarsmit ATAPI command FIS
     input                         xmit_done,
@@ -224,7 +224,7 @@ module  ahci_fsm
 //    output                        dmaCntrZero, // DMA counter is zero - would be a duplicate to the one in receive module and dwords_sent output
 //    input                         syncesc_recv, // These two inputs interrupt transmit
 //    input                         xmit_err,     // 
-    input                  [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
+    input                  [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err, 2 - X_RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
     
 ///    input                  [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     input                         ch_c,        // Clear busy upon R_OK for this FIS
@@ -272,7 +272,7 @@ module  ahci_fsm
     reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
     wire                           asynq_rq = cominit_got || pcmd_st_cleared;
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
-    reg                            x_rdy_collision_pend;
+//    reg                            x_rdy_collision_pend;
     reg                            syncesc_send_pend; // waiting for 'syncesc_send' confiramtion 'syncesc_send_done'
     reg                      [1:0] phy_ready_prev;    // previous state of phy_ready / speed
     reg                            phy_ready_chng_r;  // pulse when phy_ready changes
@@ -353,8 +353,8 @@ module  ahci_fsm
         else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  
         
         
-        if (hba_rst || pcmd_cr_set) x_rdy_collision_pend <= 0;
-        else if (x_rdy_collision)   x_rdy_collision_pend <= 1;
+//        if (hba_rst || pcmd_cr_set) x_rdy_collision_pend <= 0;
+//        else if (x_rdy_collision)   x_rdy_collision_pend <= 1;
         
         if (hba_rst || syncesc_send_done) syncesc_send_pend <= 0;
         else if (syncesc_send)            syncesc_send_pend <= 1;
@@ -435,7 +435,7 @@ module  ahci_fsm
         .FETCH_CMD          (fetch_cmd),         // output reg 
         .ATAPI_XMIT         (atapi_xmit),        // output reg 
         .CFIS_XMIT          (cfis_xmit),         // output reg 
-        .DX_XMIT            (dx_transmit),       // output reg
+        .DX_XMIT            (dx_xmit),           // output reg
     //FIS RECEIVE/WAIT DONE
         .GET_DATA_FIS       (get_data_fis),      // output reg 
         .GET_DSFIS          (get_dsfis),         // output reg 
@@ -500,7 +500,7 @@ module  ahci_fsm
     // DMA
         .DMA_PRD_IRQ_PEND      (dma_prd_irq_pend),                        // input
     // SATA TRANSPORT/LINK/PHY        
-        .X_RDY_COLLISION       (x_rdy_collision_pend)                     // input
+        .X_RDY_COLLISION       (dx_err[2]) //x_rdy_collision_pend)                     // input
     );
 
 

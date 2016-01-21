@@ -33,21 +33,25 @@ module  ahci_fis_transmit #(
     input                         fetch_cmd,   // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
                                                // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
     input                         cfis_xmit,    // transmit command (wait for dma_ct_busy == 0)
-    input                         dx_transmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
+    input                         dx_xmit,  // send FIS header DWORD, (just 0x46), then forward DMA data
                                                 // transmit until error, 2048DWords or pDmaXferCnt 
     input                         atapi_xmit,   // trasmit ATAPI command FIS
     
     
-    output reg                    done,
+    output reg                    done, // for fetch_cmd - dma_start, for *_xmit - xmit_ok, xmit_err, syncesc_recv or xrdy_collision
     output reg                    busy,
 
     input                         clearCmdToIssue, // From CFIS:SUCCESS 
     output                        pCmdToIssue, // AHCI port variable
 //    output                        dmaCntrZero, // DMA counter is zero - would be a duplicate to the one in receive module and dwords_sent output
 //    output reg                    fetch_cmd_busy, // does not include prefetching CT - now just use busy/done
-    input                         syncesc_recv, // These two inputs interrupt transmit
+
+// Should wait for xmit_ok? Timeout? Timeout will be handled by software, so just wait for OK or some error
+    input                         xmit_ok,      // FIS transmission acknowledged OK
     input                         xmit_err,     // 
-    output                 [ 1:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
+    input                         syncesc_recv, // These two inputs interrupt transmit
+    input                         xrdy_collision, 
+    output                 [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err, 2 - collision  (valid @ xmit_err and later, reset by new command)
     
     output                 [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     output                        ch_c,        // Clear busy upon R_OK for this FIS
@@ -89,7 +93,7 @@ module  ahci_fis_transmit #(
     
     // Data System memory or FIS -> device
     output reg             [31:0] todev_data,     // 32-bit data from the system memory to HBA (dma data)
-    output reg             [ 1:0] todev_type,     // 0 - data, 1 - FIS head, 2 - FIS END (make FIS_Last?)
+    output reg             [ 1:0] todev_type,     // 0 - data, 1 - FIS head, 2 - FIS LAST)
     output                        todev_valid,    // output register full
     input                         todev_ready     // send FIFO has room for data (>= 8? dwords)
     
@@ -152,12 +156,15 @@ module  ahci_fis_transmit #(
     reg                      dx_fis_pend_r; // waiting to send first DWORD of the  H2D data transfer
     wire                     dx_dma_last_w; // sending last adat word
     reg                      dx_busy_r;
-    reg               [ 1:0] dx_err_r;
-    wire                     any_cmd_start = fetch_cmd || cfis_xmit || dx_transmit || atapi_xmit;
-    wire                     done_w = dx_dma_last_w || ((|dx_err_r) && dx_busy_r) || chead_done_w || acfis_xmit_end || dma_start; // done on last transmit or error
+    reg               [ 2:0] dx_err_r;
+    reg                      xmit_ok_r;
+    wire                     any_cmd_start = fetch_cmd || cfis_xmit || dx_xmit || atapi_xmit;
+//    wire                     done_w = dx_dma_last_w || ((|dx_err_r) && dx_busy_r) || chead_done_w || acfis_xmit_end || dma_start; // done on last transmit or error
                              // dma_start ends 'fetch_cmd'
+    wire                     done_w = xmit_ok_r || ((|dx_err_r) && dx_busy_r) || dma_start; // done on last transmit or error
     
     reg                      fetch_cmd_busy_r;
+    
     
     assign todev_valid = todev_full_r;
     assign dma_re =   dma_re_w;
@@ -283,15 +290,15 @@ module  ahci_fis_transmit #(
        
        //TODO: update xfer length, prdtl (only after R_OK) - yes, do it outside
        
-       if   (dx_transmit) dx_dwords_left[11:2] <= (|xfer_cntr[31:11])?10'h200:{1'b0,xfer_cntr[10:2]};
+       if   (dx_xmit)     dx_dwords_left[11:2] <= (|xfer_cntr[31:11])?10'h200:{1'b0,xfer_cntr[10:2]};
        else if (dma_re_w) dx_dwords_left[11:2] <= dx_dwords_left[11:2] - 1;
        
-       if   (dx_transmit) dwords_sent <= 0;
+       if   (dx_xmit)     dwords_sent <= 0;
        else if (dma_re_w) dwords_sent <= dwords_sent + 1;
 
        // send FIS header
        if (hba_rst || write_or_w) dx_fis_pend_r <= 0;
-       else if (dx_transmit)      dx_fis_pend_r <= 1;
+       else if (dx_xmit)          dx_fis_pend_r <= 1;
        
        if (hba_rst || dx_dma_last_w || (|dx_err_r)) dma_en_r  <= 0;
        else if (dx_fis_pend_r &&  write_or_w)       dma_en_r  <= 1;
@@ -303,9 +310,14 @@ module  ahci_fis_transmit #(
        if (hba_rst || any_cmd_start) dx_err_r[1] <= 0;
        else if (xmit_err)            dx_err_r[1] <= 1;
        
-       if      (hba_rst)                      dx_busy_r <= 0;
-       else if (dx_transmit)                  dx_busy_r <= 1;
-       else if (dx_dma_last_w || (|dx_err_r)) dx_busy_r <= 0;
+       if (hba_rst || any_cmd_start) dx_err_r[2] <= 0;
+       else if (xrdy_collision)      dx_err_r[2] <= 1;
+
+       if      (hba_rst)                           dx_busy_r <= 0;   // sending CFIS, AFIS or data FIS (until error or R_OK)
+//       else if (dx_xmit)                  dx_busy_r <= 1;
+//       else if (dx_dma_last_w || (|dx_err_r)) dx_busy_r <= 0;
+       else if (dx_xmit || acfis_xmit_start_r) dx_busy_r <= 1;
+       else if (xmit_ok || (|dx_err_r))        dx_busy_r <= 0;
 
        dma_prd_start <= (dma_start && (PREFETCH_ALWAYS || ch_p_r || !ch_w_r)) ||  // device read may prefetch just prd addresses
                         (dx_fis_pend_r &&  write_or_w); // enable PRD read now (if it was not already done)
@@ -316,6 +328,11 @@ module  ahci_fis_transmit #(
        if      (hba_rst)                      busy <= 0;
        else if (any_cmd_start)                busy <= 1;
        else if (done_w)                       busy <= 0;
+       
+       if      (hba_rst)                      xmit_ok_r <= 0;
+       else                                   xmit_ok_r <= dx_busy_r && !(|dx_err_r) && xmit_ok;
+       
+       
 
        dma_cmd_abort <= done_w && (|dx_err_r);
 

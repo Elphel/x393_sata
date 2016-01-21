@@ -88,6 +88,8 @@ module link #(
     output  wire    incom_done,
     // if incoming transition had errors
     output  wire    incom_invalidate,
+    // particular type - got sync escape
+    output  wire    incom_sync_escape,
     // transport layer responds on a completion of a FIS
     input   wire    incom_ack_good,
     input   wire    incom_ack_bad,
@@ -611,8 +613,11 @@ assign  incom_start = set_rcvr_wait & ~alignes_pair;
 // ... and processed
 assign  incom_done  = set_rcvr_goodcrc & ~alignes_pair;
 // or the FIS had errors
-assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP] 
-                         | (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
+//assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP] 
+//                         | (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
+// Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
+assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
+assign  incom_sync_escape = (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
 
 // shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val
 assign  dword_val = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP];

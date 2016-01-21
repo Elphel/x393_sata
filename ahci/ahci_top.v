@@ -143,8 +143,9 @@ module  ahci_top#(
     // communication with transport/link/phys layers
 //    input              phy_rst,      // frome phy, as a response to hba_arst || port_arst. It is deasserted when clock is stable
     input       [ 1:0] phy_ready, // 0 - not ready, 1..3 - negotiated speed
-    input              syncesc_recv, // These two inputs interrupt transmit
+    input              xmit_ok,      // FIS transmission acknowledged OK
     input              xmit_err,     // Error during sending of a FIS
+    input              syncesc_recv, // These two inputs interrupt transmit
     output             syncesc_send,  // Send sync escape
     input              syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     output             comreset_send,     // Not possible yet?
@@ -314,12 +315,12 @@ module  ahci_top#(
 
     // fsm <-> ahc_fis_transmit
     // Command pulses to execute states fsm -> ahc_fis_transmit
-    wire                    fsnd_fetch_cmd;   // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
+    wire                    fsnd_fetch_cmd;    // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
                                                // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
     wire                    fsnd_cfis_xmit;    // transmit command (wait for dma_ct_busy == 0)
-    wire                    fsnd_dx_transmit;  // send FIS header DWORD, (just 0x46), then forward DMA data
-                                                // transmit until error, 2048DWords or pDmaXferCnt 
-    wire                    fsnd_atapi_xmit;  // tarsmit ATAPI command FIS
+    wire                    fsnd_dx_xmit;      // send FIS header DWORD, (just 0x46), then forward DMA data
+                                               // transmit until error, 2048DWords or pDmaXferCnt 
+    wire                    fsnd_atapi_xmit;   // tarsmit ATAPI command FIS
     // responses fsm <- ahc_fis_transmit
     wire                    fsnd_done;
 ///    wire                    fsnd_busy;
@@ -327,7 +328,7 @@ module  ahci_top#(
     wire                    fsnd_clearCmdToIssue; // From CFIS:SUCCESS 
     // State variables fsm <- ahc_fis_transmit 
     wire                    fsnd_pCmdToIssue; // AHCI port variable
-    wire             [ 1:0] fsnd_dx_err;       // bit 0 - syncesc_recv, 1 - xmit_err  (valid @ xmit_err and later, reset by new command)
+    wire             [ 2:0] fsnd_dx_err;       // bit 0 - syncesc_recv, 1 - xmit_err  2 - X-RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
     wire                    fsnd_ch_c;        // Clear busy upon R_OK for this FIS
     wire                    fsnd_ch_b;        // Built-in self test command
     wire                    fsnd_ch_r;        // reset - may need to send SYNC escape before this command
@@ -444,7 +445,7 @@ module  ahci_top#(
         .syncesc_send_done        (syncesc_send_done), // input
         .cominit_got              (cominit_got),       // input
         .set_offline              (set_offline),       // output
-        .x_rdy_collision          (x_rdy_collision),   // input 
+//        .x_rdy_collision          (x_rdy_collision),   // input 
         
         .send_R_OK                (send_R_OK),         // output
         .send_R_ERR               (send_R_ERR),        // output
@@ -572,7 +573,7 @@ module  ahci_top#(
         
         .fetch_cmd       (fsnd_fetch_cmd),     // output
         .cfis_xmit       (fsnd_cfis_xmit),     // output
-        .dx_transmit     (fsnd_dx_transmit),   // output
+        .dx_xmit         (fsnd_dx_xmit),       // output
         .atapi_xmit      (fsnd_atapi_xmit),    // output
         .xmit_done       (fsnd_done),          // input
 ///        .xmit_busy       (fsnd_busy),          // input
@@ -901,20 +902,23 @@ module  ahci_top#(
         .READ_CT_LATENCY  (READ_CT_LATENCY),
         .ADDRESS_BITS     (ADDRESS_BITS)
     ) ahci_fis_transmit_i (
-        .hba_rst           (mrst),                 // input
+//        .hba_rst           (mrst),                 // input TODO: Reset when !PxCMD.ST? pcmd_st
+        .hba_rst           (mrst || !pcmd_st),     // input TODO: Reset when !PxCMD.ST? pcmd_st
         .mclk              (mclk),                 // input
 
         .fetch_cmd         (fsnd_fetch_cmd),       // input
         .cfis_xmit         (fsnd_cfis_xmit),       // input
-        .dx_transmit       (fsnd_dx_transmit),     // input
+        .dx_xmit           (fsnd_dx_xmit),         // input
         .atapi_xmit        (fsnd_atapi_xmit),      // input
         
         .done              (fsnd_done),            // output reg 
         .busy              (), /// fsnd_busy),            // output reg 
         .clearCmdToIssue   (fsnd_clearCmdToIssue), // input
         .pCmdToIssue       (fsnd_pCmdToIssue),     // output
-        .syncesc_recv      (syncesc_recv),         // input
+        .xmit_ok           (xmit_ok),              // input
         .xmit_err          (xmit_err),             // input
+        .syncesc_recv      (syncesc_recv),         // input
+        .xrdy_collision    (x_rdy_collision),      // input
         .dx_err            (fsnd_dx_err),          // output[1:0] 
         .ch_prdtl          (prdtl),                // output[15:0]
         .ch_c              (fsnd_ch_c),            // output

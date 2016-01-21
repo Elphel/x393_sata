@@ -386,6 +386,7 @@ wire    ll2tl_incom_start;
 wire    ll2tl_incom_done;
 // LL reports of errors in current FIS
 wire    ll2tl_incom_invalidate; // TODO
+wire    ll2tl_incom_sync_escape;
 // TL analyzes FIS and returnes if FIS makes sense.
 wire    ll2tl_incom_ack_good;
 // ... and if it doesn't
@@ -452,7 +453,7 @@ transport transport(
     // LL reports of a completion of an incoming frame transmission.
     .incom_done                         (ll2tl_incom_done),
     // LL reports of errors in current FIS
-    .incom_invalidate                   (ll2tl_incom_invalidate), // TODO
+    .incom_invalidate                   (ll2tl_incom_invalidate || ll2tl_incom_sync_escape), // TODO
     // TL analyzes FIS and returnes if FIS makes sense.
     .incom_ack_good                     (ll2tl_incom_ack_good),
     // ... and if it doesn't
@@ -648,6 +649,8 @@ link link(
     .incom_done                         (ll2tl_incom_done),
     // if incoming transition had errors
     .incom_invalidate                   (ll2tl_incom_invalidate),
+    // if incoming got sync escape
+    .incom_sync_escape                  (ll2tl_incom_sync_escape), // output wire 
     // transport layer responds on a completion of a FIS
     .incom_ack_good                     (ll2tl_incom_ack_good),
     .incom_ack_bad                      (ll2tl_incom_ack_bad),
