@@ -759,7 +759,7 @@ module  ahci_top#(
         .set_axi_rd_cache_mode (set_axi_cache_mode), // input
         .ct_busy               (dma_ct_busy),   // output reg 
         .ct_addr               (dma_ct_addr),   // input[4:0] 
-        .ct_re                 (dma_ct_re[0]),  // input
+        .ct_re                 (dma_ct_re),     // input[1:0]
         .ct_data               (dma_ct_data),   // output[31:0] reg 
         .prd_done              (), /// dma_prd_done),  // output
         

@@ -261,7 +261,7 @@ module  ahci_fsm
     reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
 //    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
 //    reg                      [7:0] conditions;
-    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
+    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : |(cond_met_w & fsm_transitions[1]);
     wire                           fsm_act_done = get_fis_done || xmit_done || (syncesc_send_pend && syncesc_send_done);
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];

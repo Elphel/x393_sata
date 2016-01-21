@@ -60,7 +60,7 @@ module  ahci_dma (
     output reg                    ct_busy,      // cleared after 0x20 DWORDs are read out
     // reading out command table data
     input                  [ 4:0] ct_addr,     // DWORD address
-    input                         ct_re,       //  
+    input                  [ 1:0] ct_re,       // [0] - re, [1]-regen  
     output reg             [31:0] ct_data,     // 
     
     // After the first 0x80 bytes of the Command Table are read out, this module will read/process PRDs,
@@ -232,6 +232,8 @@ module  ahci_dma (
     
     wire           fifo_nempty_mclk;
     reg            en_extra_din_r;
+    reg     [31:0] ct_data_reg;
+    
       
 //    assign prd_done = done_dev_wr || done_dev_rd;
     assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || done_flush || done_dev_rd;
@@ -274,8 +276,11 @@ module  ahci_dma (
     assign afi_arqos =         4'h0;
     assign afi_rdissuecap1en = 1'b0;
     assign extra_din = en_extra_din_r && fifo_nempty_mclk;
+//    reg             [31:0] ct_data_reg;
     always @ (posedge mclk) begin
-        if (ct_re) ct_data <=         ct_data_ram[ct_addr];
+        if (ct_re[0]) ct_data_reg <=  ct_data_ram[ct_addr];
+        if (ct_re[1]) ct_data <=      ct_data_reg;
+        
         if (ctba_ld) ctba_r <=        ctba[31:7];
         if (cmd_start) prdtl_mclk <=  prdtl;
         if (cmd_start) dev_wr_mclk <= dev_wr;

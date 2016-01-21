@@ -144,8 +144,8 @@ if (DATA_BYTE_WIDTH == 4) begin
     // 2*Fin = Fout => WIDTHin = 2*WIDTHout
     // Andrey:
     reg            txdata_resync_strobe;
-    reg     [15:0] txdata_enc_in_r;
-    reg     [ 1:0] txcharisk_enc_in_r;
+    reg     [15:0] txdata_enc_in_r;     // TODO: remove async reset
+    reg     [ 1:0] txcharisk_enc_in_r;  // TODO: remove async reset
     wire    [38:0] txdata_resync_out;
     wire           txdata_resync_valid;
     reg      [1:0] txcomwake_gtx_f; // 2 registers just to match latency (data to the 3 next) in Alexey's code, probbaly not needed
@@ -170,7 +170,7 @@ if (DATA_BYTE_WIDTH == 4) begin
     always @ (posedge txreset or posedge txusrclk) begin
         if      (txreset)             txdata_resync_strobe <= 0;
         else if (txdata_resync_valid) txdata_resync_strobe <= ~txdata_resync_strobe;
-        
+/*        
         if (txreset) begin
             txdata_enc_in_r <=    0;
             txcharisk_enc_in_r <= 0;
@@ -178,7 +178,7 @@ if (DATA_BYTE_WIDTH == 4) begin
             txdata_enc_in_r <=    txdata_resync_strobe? txdata_resync_out[31:16]: txdata_resync_out[15:0];
             txcharisk_enc_in_r <= txdata_resync_strobe? txdata_resync_out[35:34]: txdata_resync_out[33:32];
         end
-        
+*/        
         if (txreset) begin
             txcomwake_gtx_f  <= 0;
             txcominit_gtx_f  <= 0;
@@ -189,6 +189,19 @@ if (DATA_BYTE_WIDTH == 4) begin
             txelecidle_gtx_f <= {txdata_resync_out[38],txelecidle_gtx_f[1]};
         end
     end
+// Changing to sync reset (otherwise WARNING: [DRC 23-20] Rule violation (REQP-1839) RAMB36 async control check ...)
+    always @ (posedge txusrclk) begin
+        if (txreset) begin
+            txdata_enc_in_r <=    0;
+            txcharisk_enc_in_r <= 0;
+        end else if (txdata_resync_valid) begin
+            txdata_enc_in_r <=    txdata_resync_strobe? txdata_resync_out[31:16]: txdata_resync_out[15:0];
+            txcharisk_enc_in_r <= txdata_resync_strobe? txdata_resync_out[35:34]: txdata_resync_out[33:32];
+        end
+    
+    end
+
+
     assign  txdata_enc_in       = txdata_enc_in_r;
     assign  txcharisk_enc_in    = txcharisk_enc_in_r;
     assign  txcominit_gtx       = txcominit_gtx_f[0];
@@ -437,7 +450,8 @@ if (DATA_BYTE_WIDTH == 4) begin
       .DATA_DEPTH (4)
     )
     rxdata_resynchro(
-        .rst        (~wrap_rxreset_),
+//        .rst        (~wrap_rxreset_),
+        .rst        (1'b0),
         .rrst       (~wrap_rxreset_),
         .wrst       (~wrap_rxreset_),
         .rclk       (rxusrclk2),

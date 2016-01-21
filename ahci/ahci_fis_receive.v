@@ -160,8 +160,8 @@ localparam DATA_TYPE_ERR =      3;
     reg [ADDRESS_BITS-1:0] reg_addr_r;
     reg           [3:0] fis_dcount; // number of DWORDS left to be written to the "memory"
     reg                 fis_save;   // save FIS data
-    wire                fis_end = (hba_data_in_type == DATA_TYPE_OK) || (hba_data_in_type == DATA_TYPE_ERR);
-    wire                fis_end_w = data_in_ready && fis_end & ~(|fis_end_r);
+    wire                is_fis_end = (hba_data_in_type == DATA_TYPE_OK) || (hba_data_in_type == DATA_TYPE_ERR);
+    wire                fis_end_w = data_in_ready && is_fis_end & ~(|fis_end_r);
     reg           [1:0] fis_end_r;
      
     reg                 fis_rec_run; // running received FIS
@@ -170,7 +170,8 @@ localparam DATA_TYPE_ERR =      3;
     wire                is_FIS_HEAD =     data_in_ready && (hba_data_in_type == DATA_TYPE_FIS_HEAD);
     wire                is_FIS_NOT_HEAD = data_in_ready && (hba_data_in_type != DATA_TYPE_FIS_HEAD);
     
-    wire                data_in_ready =  hba_data_in_valid && (hba_data_in_many || !(|was_data_in || hba_data_in_ready) );
+//    wire                data_in_ready =  hba_data_in_valid && (hba_data_in_many || (!(|was_data_in) && hba_data_in_ready));
+    wire                data_in_ready =  hba_data_in_valid && (hba_data_in_many || !(|was_data_in));
     
     wire                get_fis = get_dsfis || get_psfis || get_rfis || get_sdbfis || get_ufis || get_data_fis ||  get_ignore;
     reg                 wreg_we_r; 
@@ -288,15 +289,15 @@ localparam DATA_TYPE_ERR =      3;
            
         end
         
-        if      (hba_rst)                  fis_rec_run <= 0;
-        else if (get_fis)                  fis_rec_run <= 1;
-        else if (fis_end && data_in_ready) fis_rec_run <= 0;
+        if      (hba_rst)                     fis_rec_run <= 0;
+        else if (get_fis)                     fis_rec_run <= 1;
+        else if (is_fis_end && data_in_ready) fis_rec_run <= 0;
         
         if      (hba_rst)                     dwords_over <= 0;
         else if (wreg_we_r && !(|fis_dcount)) dwords_over <= 1;
         
         if (hba_rst) wreg_we_r <= 0;
-        else         wreg_we_r <= fis_rec_run && data_in_ready && !fis_end && !dwords_over && (|fis_dcount || !wreg_we_r);
+        else         wreg_we_r <= fis_rec_run && data_in_ready && !is_fis_end && !dwords_over && (|fis_dcount || !wreg_we_r);
 
         fis_end_r <= {fis_end_r[0], fis_end_w};
         

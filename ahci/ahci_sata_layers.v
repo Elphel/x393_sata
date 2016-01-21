@@ -198,7 +198,7 @@ module  ahci_sata_layers #(
     
     link #(
         .DATA_BYTE_WIDTH(4)
-    ) link_i (
+    ) link (
         .rst              (rst),                   // input wire 
         .clk              (clk),                   // input wire 
     // data inputs from transport layer
@@ -268,7 +268,7 @@ module  ahci_sata_layers #(
 
     sata_phy #(
         .DATA_BYTE_WIDTH(4)
-    ) sata_phy_i (
+    ) phy (
         .extrst          (exrst),             // input wire 
         .clk             (clk),               // output wire 
         .rst             (rst),               // output wire 

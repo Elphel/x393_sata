@@ -156,7 +156,13 @@
 
 //    wire sata_clk;
 //    wire sata_rst;
-    wire exrst;
+    
+    wire hba_arst;
+    
+    wire port_arst;
+    
+    wire exrst = port_arst; // now both hba_arst and port_arst are the same?
+    
     
 // Data/type FIFO, host -> device   
     // Data System memory or FIS -> device
@@ -207,6 +213,14 @@
     // additional control signals for SATA layers
     wire         [3:0] sctl_ipm;          // Interface power management transitions allowed
     wire         [3:0] sctl_spd;          // Interface maximal speed
+    
+    reg          [2:0] hrst_r;
+    wire               hrst = hrst_r[2];
+    
+    always @ (posedge hclk or posedge arst) begin
+        if (arst) hrst_r <= 0;
+        else      hrst_r <= (hrst_r << 1) | 1;
+    end
 
     
     ahci_top #(
@@ -219,10 +233,10 @@
         .arst              (arst),              // input
         .mclk              (sata_clk),          // input
         .mrst              (sata_rst),          // input
-        .hba_arst          (exrst),             // output
-        .port_arst   (), // output
+        .hba_arst          (hba_arst),          // output
+        .port_arst         (port_arst),         // output
         .hclk              (hclk),              // input
-        .hrst        (), // input
+        .hrst              (hrst),              // input
         
         .awaddr            (AWADDR),            // input[31:0] 
         .awvalid           (AWVALID),           // input
@@ -298,15 +312,18 @@
         .afi_rcount        (afi_rcount),        // input[7:0] 
         .afi_racount       (afi_racount),       // input[2:0] 
         .afi_rdissuecap1en (afi_rdissuecap1en), // output
+        
         .h2d_data          (h2d_data),          // output[31:0] 
         .h2d_type          (h2d_type),          // output[1:0] 
         .h2d_valid         (h2d_valid),         // output
         .h2d_ready         (h2d_ready),         // input
+        
         .d2h_data          (d2h_data),          // input[31:0] 
         .d2h_type          (d2h_type),          // input[1:0] 
         .d2h_valid         (d2h_valid),         // input
         .d2h_many          (d2h_many),          // input
         .d2h_ready         (d2h_ready),         // output
+        
         .phy_ready         (phy_speed),         // input[1:0] 
         .xmit_ok           (xmit_ok),           // input
         .xmit_err          (xmit_err),          // input
@@ -345,17 +362,20 @@
         .reliable_clk      (reliable_clk),      // input
         .rst               (sata_rst),          // output
         .clk               (sata_clk),          // output
+        
         .h2d_data          (h2d_data),          // input[31:0] 
         .h2d_mask          (2'h3),              //h2d_mask), // input[1:0] 
         .h2d_type          (h2d_type),          // input[1:0] 
         .h2d_valid         (h2d_valid),         // input
         .h2d_ready         (h2d_ready),         // output
+        
         .d2h_data          (d2h_data),          // output[31:0] 
         .d2h_mask          (),                  // 2h_mask), // output[1:0] 
         .d2h_type          (d2h_type),          // output[1:0] 
         .d2h_valid         (d2h_valid),         // output
         .d2h_many          (d2h_many),          // output
         .d2h_ready         (d2h_ready),         // input
+        
         .phy_speed         (phy_speed),         // output[1:0] 
         .gtx_ready(), // output
         .xmit_ok           (xmit_ok),           // output
