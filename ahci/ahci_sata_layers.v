@@ -52,7 +52,7 @@ module  ahci_sata_layers #(
     output             x_rdy_collision, // X_RDY/X_RDY collision on interface 
     output             syncesc_recv,    // Where to get it?
 
-    input              pcmd_cleared,      // PxCMD.ST 1->0 transition by software
+    input              pcmd_st_cleared,      // PxCMD.ST 1->0 transition by software
     input              syncesc_send,      // Send sync escape
     output             syncesc_send_done, // "SYNC escape until the interface is quiescent..."
     input              comreset_send,     // Not possible yet?
@@ -231,7 +231,7 @@ module  ahci_sata_layers #(
         .link_reset       (ll_link_reset),         // input wire  // oob sequence is reinitiated and link now is not established or rxelecidle
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
-        .incom_stop_req   (pcmd_cleared),          // input wire  // TL demands to stop current recieving session
+        .incom_stop_req   (pcmd_st_cleared),          // input wire  // TL demands to stop current recieving session
         // inputs from phy
         .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established
         // data-primitives stream from phy

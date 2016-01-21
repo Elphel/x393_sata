@@ -49,7 +49,7 @@
  * Commands interface
  */
     input   wire                ACLK,              // AXI PS Master GP1 Clock , input
-    input   wire                ARESETN,           // AXI PS Master GP1 Reset, output
+    input   wire                ARESETN,           // AXI PS Master GP1 Reset, output // @SuppressThisWarning VEditor unused (arst instead)
 // AXI PS Master GP1: Read Address    
     input   wire    [31:0]      ARADDR,            // AXI PS Master GP1 ARADDR[31:0], output  
     input   wire                ARVALID,           // AXI PS Master GP1 ARVALID, output
@@ -141,6 +141,7 @@
     input   wire    [2:0]   afi_racount,
     output  wire            afi_rdissuecap1en,
 
+    output  wire            irq,
 /*
  * PHY
  */
@@ -153,8 +154,8 @@
     input   wire            EXTCLK_N
  );
 
-    wire sata_clk;
-    wire sata_rst;
+//    wire sata_clk;
+//    wire sata_rst;
     wire exrst;
     
 // Data/type FIFO, host -> device   
@@ -173,7 +174,7 @@
     
     // communication with transport/link/phys layers
 //    wire               phy_rst;      // frome phy, as a response to hba_arst || port_arst. It is deasserted when clock is stable
-    wire        [ 1:0] phy_ready; // 0 - not ready, 1..3 - negotiated speed
+    wire        [ 1:0] phy_speed; // 0 - not ready, 1..3 - negotiated speed
     wire               xmit_ok;      // FIS transmission acknowledged OK
     wire               xmit_err;     // Error during sending of a FIS
     wire               syncesc_recv; // These two inputs interrupt transmit
@@ -207,9 +208,6 @@
     wire         [3:0] sctl_ipm;          // Interface power management transitions allowed
     wire         [3:0] sctl_spd;          // Interface maximal speed
 
-    wire               irq; // CPU interrupt request
-    
-    
     
     ahci_top #(
         .PREFETCH_ALWAYS(0),
@@ -217,181 +215,181 @@
         .READ_CT_LATENCY(1),
         .ADDRESS_BITS(10)
     ) ahci_top_i (
-        .aclk              (ACLK),     // input
-        .arst              (arst),     // input
-        .mclk              (sata_clk), // input
-        .mrst              (sata_rst), // input
-        .hba_arst          (exrst),    // output
+        .aclk              (ACLK),              // input
+        .arst              (arst),              // input
+        .mclk              (sata_clk),          // input
+        .mrst              (sata_rst),          // input
+        .hba_arst          (exrst),             // output
         .port_arst   (), // output
-        .hclk              (hclk), // input
+        .hclk              (hclk),              // input
         .hrst        (), // input
         
-        .awaddr(AWADDR), // input[31:0] 
-        .awvalid(AWVALID), // input
-        .awready(AWREADY), // output
-        .awid(AWID), // input[11:0] 
-        .awlen(AWLEN), // input[3:0] 
-        .awsize(AWSIZE), // input[1:0] 
-        .awburst(AWBURST), // input[1:0] 
-        .wdata(WDATA), // input[31:0] 
-        .wvalid(WVALID), // input
-        .wready(WREADY), // output
-        .wid(WID), // input[11:0] 
-        .wlast(WLAST), // input
-        .wstb(WSTRB), // input[3:0] 
-        .bvalid(BVALID), // output
-        .bready(BREADY), // input
-        .bid(BID), // output[11:0] 
-        .bresp(BRESP), // output[1:0] 
-        .araddr(ARADDR), // input[31:0] 
-        .arvalid(ARVALID), // input
-        .arready(ARREADY), // output
-        .arid(ARID), // input[11:0] 
-        .arlen(ARLEN), // input[3:0] 
-        .arsize(ARSIZE), // input[1:0] 
-        .arburst(ARBURST), // input[1:0] 
-        .rdata(RDATA), // output[31:0] 
-        .rvalid(RVALID), // output
-        .rready(RREADY), // input
-        .rid(RID), // output[11:0] 
-        .rlast(RLAST), // output
-        .rresp(RRESP), // output[1:0] 
-        .afi_awaddr(afi_awaddr), // output[31:0] 
-        .afi_awvalid(afi_awvalid), // output
-        .afi_awready(afi_awready), // input
-        .afi_awid(afi_awid), // output[5:0] 
-        .afi_awlock(afi_awlock), // output[1:0] 
-        .afi_awcache(afi_awcache), // output[3:0] 
-        .afi_awprot(afi_awprot), // output[2:0] 
-        .afi_awlen(afi_awlen), // output[3:0] 
-        .afi_awsize(afi_awsize), // output[1:0] 
-        .afi_awburst(afi_awburst), // output[1:0] 
-        .afi_awqos(afi_awqos), // output[3:0] 
-        .afi_wdata(afi_wdata), // output[63:0] 
-        .afi_wvalid(afi_wvalid), // output
-        .afi_wready(afi_wready), // input
-        .afi_wid(afi_wid), // output[5:0] 
-        .afi_wlast(afi_wlast), // output
-        .afi_wstrb(afi_wstrb), // output[7:0] 
-        .afi_bvalid(afi_bvalid), // input
-        .afi_bready(afi_bready), // output
-        .afi_bid(afi_bid), // input[5:0] 
-        .afi_bresp(afi_bresp), // input[1:0] 
-        .afi_wcount(afi_wcount), // input[7:0] 
-        .afi_wacount(afi_wacount), // input[5:0] 
+        .awaddr            (AWADDR),            // input[31:0] 
+        .awvalid           (AWVALID),           // input
+        .awready           (AWREADY),           // output
+        .awid              (AWID),              // input[11:0] 
+        .awlen             (AWLEN),             // input[3:0] 
+        .awsize            (AWSIZE),            // input[1:0] 
+        .awburst           (AWBURST),           // input[1:0] 
+        .wdata             (WDATA),             // input[31:0] 
+        .wvalid            (WVALID),            // input
+        .wready            (WREADY),            // output
+        .wid               (WID),               // input[11:0] 
+        .wlast             (WLAST),             // input
+        .wstb              (WSTRB),             // input[3:0] 
+        .bvalid            (BVALID),            // output
+        .bready            (BREADY),            // input
+        .bid               (BID),               // output[11:0] 
+        .bresp             (BRESP),             // output[1:0] 
+        .araddr            (ARADDR),            // input[31:0] 
+        .arvalid           (ARVALID),           // input
+        .arready           (ARREADY),           // output
+        .arid              (ARID),              // input[11:0] 
+        .arlen             (ARLEN),             // input[3:0] 
+        .arsize            (ARSIZE),            // input[1:0] 
+        .arburst           (ARBURST),           // input[1:0] 
+        .rdata             (RDATA),             // output[31:0] 
+        .rvalid            (RVALID),            // output
+        .rready            (RREADY),            // input
+        .rid               (RID),               // output[11:0] 
+        .rlast             (RLAST),             // output
+        .rresp             (RRESP),             // output[1:0] 
+        .afi_awaddr        (afi_awaddr),        // output[31:0] 
+        .afi_awvalid       (afi_awvalid),       // output
+        .afi_awready       (afi_awready),       // input
+        .afi_awid          (afi_awid),          // output[5:0] 
+        .afi_awlock        (afi_awlock),        // output[1:0] 
+        .afi_awcache       (afi_awcache),       // output[3:0] 
+        .afi_awprot        (afi_awprot),        // output[2:0] 
+        .afi_awlen         (afi_awlen),         // output[3:0] 
+        .afi_awsize        (afi_awsize),        // output[1:0] 
+        .afi_awburst       (afi_awburst),       // output[1:0] 
+        .afi_awqos         (afi_awqos),         // output[3:0] 
+        .afi_wdata         (afi_wdata),         // output[63:0] 
+        .afi_wvalid        (afi_wvalid),        // output
+        .afi_wready        (afi_wready),        // input
+        .afi_wid           (afi_wid),           // output[5:0] 
+        .afi_wlast         (afi_wlast),         // output
+        .afi_wstrb         (afi_wstrb),         // output[7:0] 
+        .afi_bvalid        (afi_bvalid),        // input
+        .afi_bready        (afi_bready),        // output
+        .afi_bid           (afi_bid),           // input[5:0] 
+        .afi_bresp         (afi_bresp),         // input[1:0] 
+        .afi_wcount        (afi_wcount),        // input[7:0] 
+        .afi_wacount       (afi_wacount),       // input[5:0] 
         .afi_wrissuecap1en (afi_wrissuecap1en), // output
-        .afi_araddr(afi_araddr), // output[31:0] 
-        .afi_arvalid(afi_arvalid), // output
-        .afi_arready(afi_arready), // input
-        .afi_arid(afi_arid), // output[5:0] 
-        .afi_arlock(afi_arlock), // output[1:0] 
-        .afi_arcache(afi_arcache), // output[3:0] 
-        .afi_arprot(afi_arprot), // output[2:0] 
-        .afi_arlen(afi_arlen), // output[3:0] 
-        .afi_arsize(afi_arsize), // output[1:0] 
-        .afi_arburst(afi_arburst), // output[1:0] 
-        .afi_arqos(afi_arqos), // output[3:0] 
-        .afi_rdata(afi_rdata), // input[63:0] 
-        .afi_rvalid(afi_rvalid), // input
-        .afi_rready(afi_rready), // output
-        .afi_rid(afi_rid), // input[5:0] 
-        .afi_rlast(afi_rlast), // input
-        .afi_rresp(afi_rresp), // input[1:0] 
-        .afi_rcount(afi_rcount), // input[7:0] 
-        .afi_racount(afi_racount), // input[2:0] 
-        .afi_rdissuecap1en(afi_rdissuecap1en), // output
-        .h2d_data(h2d_data), // output[31:0] 
-        .h2d_type(h2d_type), // output[1:0] 
-        .h2d_valid(h2d_valid), // output
-        .h2d_ready(h2d_ready), // input
-        .d2h_data(d2h_data), // input[31:0] 
-        .d2h_type(d2h_type), // input[1:0] 
-        .d2h_valid(d2h_valid), // input
-        .d2h_many(), // input
-        .d2h_ready(), // output
-        .phy_ready(), // input[1:0] 
-        .xmit_ok(), // input
-        .xmit_err(), // input
-        .syncesc_recv(), // input
-        .pcmd_st_cleared(), // output
-        .syncesc_send(), // output
-        .syncesc_send_done(), // input
-        .comreset_send(), // output
-        .cominit_got(), // input
-        .set_offline(), // output
-        .x_rdy_collision(), // input
-        .send_R_OK(), // output
-        .send_R_ERR(), // output
-        .serr_DT(), // input
-        .serr_DS(), // input
-        .serr_DH(), // input
-        .serr_DC(), // input
-        .serr_DB(), // input
-        .serr_DW(), // input
-        .serr_DI(), // input
-        .serr_EP(), // input
-        .serr_EC(), // input
-        .serr_ET(), // input
-        .serr_EM(), // input
-        .serr_EI(), // input
-        .sctl_ipm(), // output[3:0] 
-        .sctl_spd(), // output[3:0] 
-        .irq() // output
+        .afi_araddr        (afi_araddr),        // output[31:0] 
+        .afi_arvalid       (afi_arvalid),       // output
+        .afi_arready       (afi_arready),       // input
+        .afi_arid          (afi_arid),          // output[5:0] 
+        .afi_arlock        (afi_arlock),        // output[1:0] 
+        .afi_arcache       (afi_arcache),       // output[3:0] 
+        .afi_arprot        (afi_arprot),        // output[2:0] 
+        .afi_arlen         (afi_arlen),         // output[3:0] 
+        .afi_arsize        (afi_arsize),        // output[1:0] 
+        .afi_arburst       (afi_arburst),       // output[1:0] 
+        .afi_arqos         (afi_arqos),         // output[3:0] 
+        .afi_rdata         (afi_rdata),         // input[63:0] 
+        .afi_rvalid        (afi_rvalid),        // input
+        .afi_rready        (afi_rready),        // output
+        .afi_rid           (afi_rid),           // input[5:0] 
+        .afi_rlast         (afi_rlast),         // input
+        .afi_rresp         (afi_rresp),         // input[1:0] 
+        .afi_rcount        (afi_rcount),        // input[7:0] 
+        .afi_racount       (afi_racount),       // input[2:0] 
+        .afi_rdissuecap1en (afi_rdissuecap1en), // output
+        .h2d_data          (h2d_data),          // output[31:0] 
+        .h2d_type          (h2d_type),          // output[1:0] 
+        .h2d_valid         (h2d_valid),         // output
+        .h2d_ready         (h2d_ready),         // input
+        .d2h_data          (d2h_data),          // input[31:0] 
+        .d2h_type          (d2h_type),          // input[1:0] 
+        .d2h_valid         (d2h_valid),         // input
+        .d2h_many          (d2h_many),          // input
+        .d2h_ready         (d2h_ready),         // output
+        .phy_ready         (phy_speed),         // input[1:0] 
+        .xmit_ok           (xmit_ok),           // input
+        .xmit_err          (xmit_err),          // input
+        .syncesc_recv      (syncesc_recv),      // input
+        .pcmd_st_cleared   (pcmd_st_cleared),   // output
+        .syncesc_send      (syncesc_send),      // output
+        .syncesc_send_done (syncesc_send_done), // input
+        .comreset_send     (comreset_send),     // output
+        .cominit_got       (cominit_got),       // input
+        .set_offline       (set_offline),       // output
+        .x_rdy_collision   (x_rdy_collision),   // input
+        .send_R_OK         (send_R_OK),         // output
+        .send_R_ERR        (send_R_ERR),        // output
+        .serr_DT           (serr_DT),           // input
+        .serr_DS           (serr_DS),           // input
+        .serr_DH           (serr_DH),           // input
+        .serr_DC           (serr_DC),           // input
+        .serr_DB           (serr_DB),           // input
+        .serr_DW           (serr_DW),           // input
+        .serr_DI           (serr_DI),           // input
+        .serr_EP           (serr_EP),           // input
+        .serr_EC           (serr_EC),           // input
+        .serr_ET           (serr_ET),           // input
+        .serr_EM           (serr_EM),           // input
+        .serr_EI           (serr_EI),           // input
+        .sctl_ipm          (sctl_ipm),          // output[3:0] 
+        .sctl_spd          (sctl_spd),          // output[3:0] 
+        .irq               (irq)                // output
     );
 
     ahci_sata_layers #(
         .BITS_TO_START_XMIT(6),
         .DATA_BYTE_WIDTH(4)
     ) ahci_sata_layers_i (
-        .exrst             (exrst), // input
-        .reliable_clk      (ACLK), // input
-        .rst               (sata_rst), // output
-        .clk               (sata_clk), // output
-        .h2d_data(), // input[31:0] 
-        .h2d_mask(), // input[1:0] 
-        .h2d_type(), // input[1:0] 
-        .h2d_valid(), // input
-        .h2d_ready(), // output
-        .d2h_data(), // output[31:0] 
-        .d2h_mask(), // output[1:0] 
-        .d2h_type(), // output[1:0] 
-        .d2h_valid(), // output
-        .d2h_many(), // output
-        .d2h_ready(), // input
-        .phy_speed(), // output[1:0] 
+        .exrst             (exrst),             // input
+        .reliable_clk      (reliable_clk),      // input
+        .rst               (sata_rst),          // output
+        .clk               (sata_clk),          // output
+        .h2d_data          (h2d_data),          // input[31:0] 
+        .h2d_mask          (2'h3),              //h2d_mask), // input[1:0] 
+        .h2d_type          (h2d_type),          // input[1:0] 
+        .h2d_valid         (h2d_valid),         // input
+        .h2d_ready         (h2d_ready),         // output
+        .d2h_data          (d2h_data),          // output[31:0] 
+        .d2h_mask          (),                  // 2h_mask), // output[1:0] 
+        .d2h_type          (d2h_type),          // output[1:0] 
+        .d2h_valid         (d2h_valid),         // output
+        .d2h_many          (d2h_many),          // output
+        .d2h_ready         (d2h_ready),         // input
+        .phy_speed         (phy_speed),         // output[1:0] 
         .gtx_ready(), // output
-        .xmit_ok(), // output
-        .xmit_err(), // output
-        .x_rdy_collision(), // output
-        .syncesc_recv(), // output
-        .pcmd_cleared(), // input
-        .syncesc_send(), // input
-        .syncesc_send_done(), // output
-        .comreset_send(), // input
-        .cominit_got(), // output
-        .set_offline(), // input
-        .send_R_OK(), // input
-        .send_R_ERR(), // input
-        .serr_DT(), // output
-        .serr_DS(), // output
-        .serr_DH(), // output
-        .serr_DC(), // output
-        .serr_DB(), // output
-        .serr_DW(), // output
-        .serr_DI(), // output
-        .serr_EP(), // output
-        .serr_EC(), // output
-        .serr_ET(), // output
-        .serr_EM(), // output
-        .serr_EI(), // output
-        .sctl_ipm(), // input[3:0] 
-        .sctl_spd(), // input[3:0] 
-        .extclk_p(), // input wire 
-        .extclk_n(), // input wire 
-        .txp_out(), // output wire 
-        .txn_out(), // output wire 
-        .rxp_in(), // input wire 
-        .rxn_in() // input wire 
+        .xmit_ok           (xmit_ok),           // output
+        .xmit_err          (xmit_err),          // output
+        .x_rdy_collision   (x_rdy_collision),   // output
+        .syncesc_recv      (syncesc_recv),      // output
+        .pcmd_st_cleared   (pcmd_st_cleared),   // input
+        .syncesc_send      (syncesc_send),      // input
+        .syncesc_send_done (syncesc_send_done), // output
+        .comreset_send     (comreset_send),     // input
+        .cominit_got       (cominit_got),       // output
+        .set_offline       (set_offline),       // input
+        .send_R_OK         (send_R_OK),         // input
+        .send_R_ERR        (send_R_ERR),        // input
+        .serr_DT           (serr_DT),           // output
+        .serr_DS           (serr_DS),           // output
+        .serr_DH           (serr_DH),           // output
+        .serr_DC           (serr_DC),           // output
+        .serr_DB           (serr_DB),           // output
+        .serr_DW           (serr_DW),           // output
+        .serr_DI           (serr_DI),           // output
+        .serr_EP           (serr_EP),           // output
+        .serr_EC           (serr_EC),           // output
+        .serr_ET           (serr_ET),           // output
+        .serr_EM           (serr_EM),           // output
+        .serr_EI           (serr_EI),           // output
+        .sctl_ipm          (sctl_ipm),          // input[3:0] 
+        .sctl_spd          (sctl_spd),          // input[3:0] 
+        .extclk_p          (EXTCLK_P),          // input wire 
+        .extclk_n          (EXTCLK_N),          // input wire 
+        .txp_out           (TXP),               // output wire 
+        .txn_out           (TXN),               // output wire 
+        .rxp_in            (RXP),               // input wire 
+        .rxn_in            (RXN)                // input wire 
     );
 
 

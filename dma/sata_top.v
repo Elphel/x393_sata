@@ -42,9 +42,10 @@
  * Takes commands from axi iface as a slave, transfers data with another axi iface as a master
  */
  module sata_top(
-    output  wire    sclk,
+    output  wire    sata_clk,
     output  wire    sata_rst,
-    input   wire    extrst,
+//    input   wire    extrst,
+    input   wire    arst,
     
     // reliable clock to source drp and cpll lock det circuits
     input   wire    reliable_clk,
@@ -147,6 +148,8 @@
     input   wire    [2:0]   afi_racount,
     output  wire            afi_rdissuecap1en,
 
+    output  wire            irq, // not used here, for compatibility with AHCI branch
+
 /*
  * PHY
  */
@@ -158,7 +161,7 @@
     input   wire            EXTCLK_P,
     input   wire            EXTCLK_N
  );
-
+assign irq = 0;
 //wire    sata_rst;
 // dma_regs <-> sata host
 // tmp to cmd control
@@ -238,7 +241,7 @@ wire                bram_regen;
 // sata logic reset
 //wire            rst;
 // sata clk
-//wire            sclk;
+//wire            sata_clk;
 // dma_regs <-> dma_control
 wire    [31:7]  mem_address;
 wire    [31:0]  lba;
@@ -354,7 +357,7 @@ axi_regs axi_regs(
 dma_regs dma_regs(
     .rst            (ARESETN),                     // input wire 
     .ACLK           (ACLK),                        // input wire
-    .sclk           (sclk),                        // input wire
+    .sclk           (sata_clk),                        // input wire
 // control iface
     .mem_address    (mem_address[31:7]),           // output[31:7] wire
     .lba            (lba),                         // output[31:0] wire
@@ -442,7 +445,7 @@ dma_regs dma_regs(
 
 
 dma_control dma_control(
-    .sclk               (sclk),               // input wire
+    .sclk               (sata_clk),               // input wire
     .hclk               (hclk),               // input wire
     .rst                (sata_rst),           // input wire
 
@@ -545,9 +548,9 @@ V    .MEMBRIDGE_ADDR         (),
     .FRAME_HEIGHT_BITS      (),
     .FRAME_WIDTH_BITS       ()
 )*/ membridge(
-    .mrst                   (sata_rst), // hrst),   // input Andrey: Wrong, should be @sclk
+    .mrst                   (sata_rst), // hrst),   // input Andrey: Wrong, should be @sata_clk
     .hrst                   (hrst),                 // input
-    .mclk                   (sclk),                 // input
+    .mclk                   (sata_clk),                 // input
     .hclk                   (hclk),                 // input
     .cmd_ad                 (cmd_ad),               // input[7:0]
     .cmd_stb                (cmd_stb),              // input // Nothing here
@@ -619,11 +622,11 @@ V    .MEMBRIDGE_ADDR         (),
 assign rdata_done = 1'b0;
 
 sata_host sata_host(
-    .extrst                     (extrst),
+    .extrst                     (arst),
     // sata rst
     .rst                        (sata_rst),
     // sata clk
-    .clk                        (sclk),
+    .clk                        (sata_clk),
     // reliable clock to source drp and cpll lock det circuits
     .reliable_clk               (reliable_clk),
 // temporary

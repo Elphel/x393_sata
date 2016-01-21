@@ -2,6 +2,7 @@
 `ifndef SYSTEM_DEFINES
   `define SYSTEM_DEFINES
   `define PRELOAD_BRAMS
+  `define AHCI_SATA 1
 // Enviroment-dependent options
   `ifdef IVERILOG
     `define SIMULATION

@@ -54,12 +54,12 @@ module top #(
 );
 
 wire            axi_aclk0;
-wire            sclk;
-wire            sata_rst;
+wire            sclk    ; // Just output from SATA subsystem SuppressThisWarning VEditor Not used
+wire            sata_rst; // Just output from SATA subsystem SuppressThisWarning VEditor Not used
 wire            extrst;
 wire    [3:0]   fclk;
 wire    [3:0]   frst;
-wire            axi_aclk;
+//wire            axi_aclk;
 wire            axi_rst;
 wire            hclk;
 wire            comb_rst;
@@ -141,6 +141,8 @@ wire [ 7:0] afi3_rcount;     // input[7:0]
 wire [ 2:0] afi3_racount;     // input[2:0] 
 wire        afi3_rdissuecap1en; // output
 
+wire        irq;              // ps7 IRQ
+
 assign comb_rst=~frst[0] | frst[1];
 always @(posedge comb_rst or posedge axi_aclk0) begin
     if (comb_rst) axi_rst_pre <= 1'b1;
@@ -148,10 +150,10 @@ always @(posedge comb_rst or posedge axi_aclk0) begin
 end
 
 //BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
-assign  axi_aclk = sclk;
+//assign  axi_aclk = sclk;
 BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
-BUFG bufg_axi_rst_i   (.O(axi_rst),.I(axi_rst_pre));
-BUFG bufg_extrst_i    (.O(extrst),.I(axi_rst_pre));
+BUFG bufg_axi_rst_i    (.O(axi_rst),.I(axi_rst_pre));
+BUFG bufg_extrst_i     (.O(extrst),.I(axi_rst_pre));
 axi_hp_clk #(
     .CLKIN_PERIOD(20.000),
     .CLKFBOUT_MULT_AXIHP(18),
@@ -162,14 +164,17 @@ axi_hp_clk #(
     .clk_axihp    (hclk), // output
     .locked_axihp () // output // not controlled?
 );
-
+`ifdef AHCI_SATA
+sata_ahci_top sata_top(
+`else
 sata_top sata_top(
-    .sclk                       (sclk),
+`endif
+    .sata_clk                   (sclk),
     // reliable clock to source drp and cpll lock det circuits
     .reliable_clk               (axi_aclk0),
     .hclk                       (hclk),
     .sata_rst                   (sata_rst),
-    .extrst                     (extrst),
+    .arst                       (extrst),
     .ACLK                       (axi_aclk0),
     .ARESETN                    (axi_rst/* | sata_rst*/),
 // AXI PS Master GP1: Read Address    
@@ -262,6 +267,8 @@ sata_top sata_top(
     .afi_rcount                 (afi3_rcount),
     .afi_racount                (afi3_racount),
     .afi_rdissuecap1en          (afi3_rdissuecap1en),
+
+    .irq                        (irq), // output wire 
 
 /*
  * PHY
@@ -502,8 +509,8 @@ PS7 ps7_i (
     .DMA3DATYPE(),               // DMAC 3 DMA Ackbowledge TYpe (completed single AXI, completed burst AXI, flush request), output
     .DMA3RSTN(),                 // DMAC 3 RESET output (reserved, do not use), output
  // Interrupt signals
-    .IRQF2P(),                   // Interrupts, OL to PS [19:0], input
-    .IRQP2F(),                   // Interrupts, OL to PS [28:0], output
+    .IRQF2P({19'b0,irq}),        // Interrupts, PL to PS [19:0], input
+    .IRQP2F(),                   // Interrupts, PS to PL [28:0], output
  // Event Signals
     .EVENTEVENTI(),              // EVENT Wake up one or both CPU from WFE state, input
     .EVENTEVENTO(),              // EVENT Asserted when one of the COUs executed SEV instruction, output
