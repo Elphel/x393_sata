@@ -38,13 +38,13 @@
  */
  // Including system defines at the top level can distinguish between simulation and synthesis?
 `include "system_defines.vh" 
-//`include "sata_top.v"
+
 module top #(
 `include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
 (
 // sata serial data iface
-    input   wire    RXN,
+    input   wire    RXN, 
     input   wire    RXP,
     output  wire    TXN,
     output  wire    TXP,
