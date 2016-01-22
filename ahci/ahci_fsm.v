@@ -293,7 +293,7 @@ module  ahci_fsm
     assign ssts_spd_gen3 =     phy_ready_chng_r && (phy_ready_prev == 3);  // Gen 3 rate negotiated
     
     assign ssts_det_ndnp =     phy_ready_chng_r && (phy_ready_prev == 0);  // no device detected, phy communication not established
-    assign ssts_det_dnp =      0;                                          // device detected, but phy communication not established
+//    assign ssts_det_dnp =      0;                                          // device detected, but phy communication not established
     assign ssts_det_dp =       phy_ready_chng_r && (phy_ready_prev != 0);  // device detected, phy communication established
 
     assign sirq_OF =           0;  // RWC: Overflow Status (buffer overrun - should not happen, add?)
@@ -380,7 +380,7 @@ module  ahci_fsm
         .wclk     (aclk),      // input
         .waddr    (pgm_waddr), // input[10:0] 
         .we       (pgm_wd),    // input
-        .web      (4'hff),     // input[7:0] 
+        .web      (4'hf),     // input[7:0] 
         .data_in  (pgm_ad)     // input[17:0] 
     );
 
