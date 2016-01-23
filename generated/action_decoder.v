@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Module: action_decoder
- * Date:2016-01-19  
+ * Date:2016-01-22  
  * Author: auto-generated file, see ahci_fsm_sequence.py
  * Description: Decode sequencer code to 1-hot actions
  *******************************************************************************/

@@ -35,7 +35,14 @@
 /*
  * Takes commands from axi iface as a slave, transfers data with another axi iface as a master
  */
- module sata_ahci_top(
+ module sata_ahci_top#(
+    parameter PREFETCH_ALWAYS =       0,
+//    parameter READ_REG_LATENCY =      2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
+//    parameter READ_CT_LATENCY =       1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter ADDRESS_BITS =         10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+    parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
+    parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
+ )(
     output  wire    sata_clk,
     output  wire    sata_rst,
     input   wire    arst, // extrst,
@@ -157,11 +164,11 @@
 //    wire sata_clk;
 //    wire sata_rst;
     
-    wire hba_arst;
+    wire hba_arst;  // @SuppressThisWarning VEditor unused
+    wire port_arst; // @SuppressThisWarning VEditor unused
+    wire port_arst_any;
+    wire exrst = port_arst_any; // now both hba_arst and port_arst are the same?
     
-    wire port_arst;
-    
-    wire exrst = port_arst; // now both hba_arst and port_arst are the same?
     
     
 // Data/type FIFO, host -> device   
@@ -224,10 +231,12 @@
 
     
     ahci_top #(
-        .PREFETCH_ALWAYS(0),
-        .READ_REG_LATENCY(2),
-        .READ_CT_LATENCY(1),
-        .ADDRESS_BITS(10)
+        .PREFETCH_ALWAYS       (PREFETCH_ALWAYS),
+//        .READ_REG_LATENCY      (READ_REG_LATENCY),
+//        .READ_CT_LATENCY       (READ_CT_LATENCY),
+        .ADDRESS_BITS          (ADDRESS_BITS),
+        .HBA_RESET_BITS        (HBA_RESET_BITS),
+        .RESET_TO_FIRST_ACCESS (RESET_TO_FIRST_ACCESS)
     ) ahci_top_i (
         .aclk              (ACLK),              // input
         .arst              (arst),              // input
@@ -235,6 +244,8 @@
         .mrst              (sata_rst),          // input
         .hba_arst          (hba_arst),          // output
         .port_arst         (port_arst),         // output
+        .port_arst_any     (port_arst_any),     // port0 async set by software and by arst
+        
         .hclk              (hclk),              // input
         .hrst              (hrst),              // input
         

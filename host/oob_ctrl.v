@@ -37,49 +37,32 @@ module oob_ctrl #(
     parameter CLK_SPEED_GRADE = 1 // 1 - 75 Mhz, 2 - 150Mhz, 4 - 300Mhz
 )
 (
-    // sata clk = usrclk2
-    input   wire    clk,
-    // reset oob
-    input   wire    rst,
-    // gtx is ready = all resets are done
-    input   wire    gtx_ready,
-    output  wire  [11:0] debug,
-    // oob responses
-    input   wire    rxcominitdet_in,
-    input   wire    rxcomwakedet_in,
-    input   wire    rxelecidle_in,
-    // oob issues
-    output  wire    txcominit,
-    output  wire    txcomwake,
-    output  wire    txelecidle,
-    // partial tx reset
-    output  wire    txpcsreset_req,
-    input   wire    recal_tx_done,
-    // rx reset (after rxelecidle -> 0)
-    output  wire    rxreset_req,
-    input   wire    rxreset_ack,
-
-    // input data stream (if any data during OOB setting => ignored)
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
-    input   wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_in,
-    // output data stream to gtx
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,
-    output  wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_out,
-    // input data from gtx
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_in,
-    input   wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_in,
-    // bypassed data from gtx
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_out,
-    output  wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_out,
-
-    // obvious
-    input   wire    rxbyteisaligned,
-
-    // shows if channel is ready
-    output  wire    phy_ready,
-    // From 
-    input              set_offline, // electrically idle
-    input              comreset_send     // Not possible yet?
+    input  wire                           clk,            // input wire        // sata clk = usrclk2
+    input  wire                           rst,            // input wire        // reset oob
+    input  wire                           gtx_ready,      // input wire        // gtx is ready = all resets are done 
+    output wire                    [11:0] debug,          // output[11:0] wire 
+    input  wire                           rxcominitdet_in,// input wire        // oob responses
+    input  wire                           rxcomwakedet_in,// input wire        // oob responses
+    input  wire                           rxelecidle_in,  // input wire        // oob responses
+    output wire                           txcominit,      // output wire       // oob issues
+    output wire                           txcomwake,      // output wire       // oob issues
+    output wire                           txelecidle,     // output wire       // oob issues
+    output wire                           txpcsreset_req, // output wire       // partial tx reset
+    input  wire                           recal_tx_done,  // input wire 
+    output wire                           rxreset_req,    // output wire       // rx reset (after rxelecidle -> 0)
+    input  wire                           rxreset_ack,    // input wire 
+    input  wire [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,      // output[31:0] wire // input data stream (if any data during OOB setting => ignored)
+    input  wire   [DATA_BYTE_WIDTH - 1:0] txcharisk_in,   // output[3:0] wire  // input data stream (if any data during OOB setting => ignored)
+    output wire [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,     // output[31:0] wire // output data stream to gtx
+    output wire   [DATA_BYTE_WIDTH - 1:0] txcharisk_out,  // output[3:0] wire  // output data stream to gtx
+    input  wire [DATA_BYTE_WIDTH*8 - 1:0] rxdata_in,      // input[31:0] wire  // input data from gtx
+    input  wire   [DATA_BYTE_WIDTH - 1:0] rxcharisk_in,   // input[3:0] wire   // input data from gtx
+    output wire [DATA_BYTE_WIDTH*8 - 1:0] rxdata_out,     // output[31:0] wire // bypassed data from gtx
+    output wire   [DATA_BYTE_WIDTH - 1:0] rxcharisk_out,  // output[3:0] wire  // bypassed data from gtx
+    input  wire                           rxbyteisaligned,// input wire        // obvious
+    output wire                           phy_ready,      // output wire       // shows if channel is ready
+    input                                 set_offline,    // input wire        // electrically idle // From
+    input                                 comreset_send   // input wire        // Not possible yet? // From
 );
 
 // oob sequence needs to be issued
@@ -145,62 +128,38 @@ oob #(
 )
 oob
 (
-    .debug (debug),
-// sata clk = usrclk2
-    .clk                            (clk),
-// reset oob
-    .rst                            (rst),
-// oob responses
-    .rxcominitdet_in                (rxcominitdet_in),
-    .rxcomwakedet_in                (rxcomwakedet_in),
-    .rxelecidle_in                  (rxelecidle_in),
-// oob issues
-    .txcominit                      (txcominit),
-    .txcomwake                      (txcomwake),
-    .txelecidle                     (txelecidle_inner),
-
-    .txpcsreset_req                 (txpcsreset_req),
-    .recal_tx_done                  (recal_tx_done),
-
-    .rxreset_req                    (rxreset_req),
-    .rxreset_ack                    (rxreset_ack),
-
-// input data stream (if any data during OOB setting => ignored)
-    .txdata_in                      (txdata_in),
-    .txcharisk_in                   (txcharisk_in),
-// output data stream to gtx
-    .txdata_out                     (txdata_out),
-    .txcharisk_out                  (txcharisk_out),
-// input data from gtx
-    .rxdata_in                      (rxdata_in),
-    .rxcharisk_in                   (rxcharisk_in),
-// bypassed data from gtx
-    .rxdata_out                     (rxdata_out),
-    .rxcharisk_out                  (rxcharisk_out),
-
-// oob sequence needs to be issued
-    .oob_start                      (oob_start),
-// connection established, all further data is valid
-    .oob_done                       (oob_done),
-
-// doc p265, link is established after 3back-to-back non-ALIGNp
-    .link_up                        (link_up),
-    .link_down                      (link_down),
-
-// the device itself sends cominit
-    .cominit_req                    (cominit_req),
-// allow to respond to cominit
-    .cominit_allow                  (cominit_allow),
-
-// status information to handle by a control block if any exists
-// incompatible host-device speed grades (host cannot lock to alignp)
-    .oob_incompatible               (oob_incompatible),
-// timeout in an unexpected place
-    .oob_error                      (oob_error),
-// noone responds to our cominits
-    .oob_silence                    (oob_silence),
-// oob can't handle new start request
-    .oob_busy                       (oob_busy)
+    .debug                (debug), // output [11:0] reg
+    .clk                  (clk), // input wire  // sata clk = usrclk2
+    .rst                  (rst), // input wire  // reset oob
+    .rxcominitdet_in      (rxcominitdet_in), // input wire // oob responses
+    .rxcomwakedet_in      (rxcomwakedet_in), // input wire // oob responses
+    .rxelecidle_in        (rxelecidle_in), // input wire // oob responses
+    .txcominit            (txcominit), // output wire   // oob issues
+    .txcomwake            (txcomwake), // output wire   // oob issues
+    .txelecidle           (txelecidle_inner), // output wire // oob issues
+    .txpcsreset_req       (txpcsreset_req), // output wire
+    .recal_tx_done        (recal_tx_done), // input wire 
+    .rxreset_req          (rxreset_req), // output wire
+    .rxreset_ack          (rxreset_ack),     // input wire 
+    .txdata_in            (txdata_in),       // input [31:0] wire // input data stream (if any data during OOB setting => ignored)
+    .txcharisk_in         (txcharisk_in),    // input [3:0] wire // input data stream (if any data during OOB setting => ignored)
+    .txdata_out           (txdata_out),      // output [31:0] wire // output data stream to gtx
+    .txcharisk_out        (txcharisk_out),   // output [3:0] wire// output data stream to gtx
+    .rxdata_in            (rxdata_in),       // input [31:0] wire // input data from gtx
+    .rxcharisk_in         (rxcharisk_in),    // input [3:0] wire // input data from gtx
+    .rxdata_out           (rxdata_out),      // output [31:0] wire  // bypassed data from gtx
+    .rxcharisk_out        (rxcharisk_out),   // output [3:0] wire // bypassed data from gtx
+    .oob_start            (oob_start),       // input wire // oob sequence needs to be issued
+    .oob_done             (oob_done),        // output wire // connection established, all further data is valid
+    .oob_busy             (oob_busy),        // output wire // oob can't handle new start request
+    .link_up              (link_up),         // output wire // doc p265, link is established after 3back-to-back non-ALIGNp
+    .link_down            (link_down),       // output wire
+    .cominit_req          (cominit_req),     // output wire // the device itself sends cominit
+    .cominit_allow        (cominit_allow),   // input wire // allow to respond to cominit
+                                             // status information to handle by a control block if any exists
+    .oob_incompatible     (oob_incompatible),// output wire // incompatible host-device speed grades (host cannot lock to alignp)
+    .oob_error            (oob_error),       // output wire // timeout in an unexpected place 
+    .oob_silence          (oob_silence)      // output wire // noone responds to our cominits
 );
 
 

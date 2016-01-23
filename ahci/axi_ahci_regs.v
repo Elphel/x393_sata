@@ -40,7 +40,8 @@
 module  axi_ahci_regs#(
 //    parameter ADDRESS_BITS = 8 // number of memory address bits
     parameter ADDRESS_BITS =  10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
-    parameter HBA_RESET_BITS = 9 // duration of HBA reset in aclk periods (9: ~10usec)
+    parameter HBA_RESET_BITS = 9, // duration of HBA reset in aclk periods (9: ~10usec)
+    parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
 )(
     input             aclk,    // clock - should be buffered
     input             arst,     // @aclk sync reset, active high
@@ -89,6 +90,7 @@ module  axi_ahci_regs#(
     // Apply next 2 resets and arst OR-ed to SATA.extrst
     output                    hba_arst,          // hba async reset (currently does ~ the same as port reset)
     output                    port_arst,         // port0 async reset by software
+    output                    port_arst_any,    // port0 async reset by POR or software
 
 // 2. HBA R/W registers, use hba clock
     input                     hba_clk,          // SATA clock, now 75MHz
@@ -161,9 +163,10 @@ module  axi_ahci_regs#(
     wire            [31:0] wmask = {{8{bram_wstb_r[3]}},{8{bram_wstb_r[2]}},{8{bram_wstb_r[1]}},{8{bram_wstb_r[0]}}};
     reg [ADDRESS_BITS-1:0] bram_waddr_r;
     
-    reg [HBA_RESET_BITS-1:0] hba_reset_cntr = 1; // time to keep hba_reset_r active after writing to GHC.HR
+    reg [HBA_RESET_BITS-1:0] hba_reset_cntr; // time to keep hba_reset_r active after writing to GHC.HR
     reg                      hba_rst_r;      // hba _reset (currently does ~ the same as port reset)
     reg                      port_rst_r;     // port _reset by software
+    reg                      port_arst_any_r = 1;   // port _reset by software or POR
     
     wire                   high_sel = bram_waddr_r[ADDRESS_BITS-1]; // high addresses - use single-cycle writes without read-modify-write
     wire                   afi_cache_set_w = bram_wen_r && !high_sel && (bram_addr == HBA_PORT__AFI_CACHE__WR_CM__ADDR);
@@ -178,17 +181,19 @@ module  axi_ahci_regs#(
     wire                   port_rst_on = set_port_rst && ahci_regs_di[0];
     reg                    was_hba_rst_aclk;     // last reset was hba reset (not counting system reset)
     reg                    was_port_rst_aclk;    // last reset was port reset
-    reg             [2:0]  was_hba_rst_r;     // last reset was hba reset (not counting system reset)
-    reg             [2:0]  was_port_rst_r;    // last reset was port reset
-    
+    reg             [2:0]  was_hba_rst_r;        // last reset was hba reset (not counting system reset)
+    reg             [2:0]  was_port_rst_r;       // last reset was port reset
+    reg             [2:0]  arst_r = ~0;          // previous state of arst
+    reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
+    wire                   any_access = bram_wen_r || bram_ren[0];
     
 //    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
-    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
-    assign hba_arst =  hba_rst_r;       // hba _reset (currently does ~ the same as port reset)
-    assign port_arst = port_rst_r;     // port _reset by software
-    
-    assign was_hba_rst =  was_hba_rst_r[0]; 
-    assign was_port_rst = was_port_rst_r[0];
+    assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+    assign hba_arst =      hba_rst_r;       // hba _reset (currently does ~ the same as port reset)
+    assign port_arst =     port_rst_r;     // port _reset by software
+    assign port_arst_any = port_arst_any_r;
+    assign was_hba_rst =   was_hba_rst_r[0]; 
+    assign was_port_rst =  was_port_rst_r[0];
     
     
     always @(posedge aclk) begin
@@ -221,6 +226,17 @@ module  axi_ahci_regs#(
         end
     endgenerate    
 
+//    always @ (posedge aclk or posedge arst) begin
+    always @ (posedge aclk) begin
+        if      (arst)                      wait_first_access <= RESET_TO_FIRST_ACCESS;
+        else if (any_access)                wait_first_access <= 0;
+    
+        if      (arst)                            port_arst_any_r <= 1;
+        else if (set_port_rst)                    port_arst_any_r <= ahci_regs_di[0]; // write "1" - reset on, write 0 - reset off
+        else if (wait_first_access && any_access) port_arst_any_r <= 0;
+        else if (arst_r[2] && !arst_r[1])         port_arst_any_r <= wait_first_access;
+    end
+
     always @(posedge aclk) begin
         if      (arst)            hba_reset_cntr <= 0; // 1; no HBA reset at arst
         else if (set_hba_rst)     hba_reset_cntr <= {HBA_RESET_BITS{1'b1}};
@@ -236,6 +252,9 @@ module  axi_ahci_regs#(
         
         if (arst || set_hba_rst) was_port_rst_aclk <= 0;
         else if (port_rst_on)    was_port_rst_aclk <= 1;
+        
+        if (arst) arst_r <= ~0;
+        else      arst_r <= arst_r << 1;
 
     end
 

@@ -1,0 +1,254 @@
+[*]
+[*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
+[*] Sat Jan 23 07:05:52 2016
+[*]
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160122235411900.fst"
+[dumpfile_mtime] "Sat Jan 23 06:55:08 2016"
+[dumpfile_size] 6269364
+[savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
+[timestart] 0
+[size] 1823 1173
+[pos] 1942 0
+*-21.079729 6065536 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb_ahci.
+[treeopen] tb_ahci.dut.
+[treeopen] tb_ahci.dut.axi_hp_clk_i.
+[treeopen] tb_ahci.dut.sata_top.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.
+[treeopen] tb_ahci.dut.sata_top.ahci_top_i.
+[treeopen] tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.
+[treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.
+[treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.
+[sst_width] 402
+[signals_width] 245
+[sst_expanded] 1
+[sst_vpaned_height] 621
+@820
+tb_ahci.TESTBENCH_TITLE[639:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.HOST_OOB_TITLE[639:0]
+@28
+tb_ahci.CLK
+tb_ahci.RST
+@22
+tb_ahci.read_and_wait.address[31:0]
+@28
+tb_ahci.dut.TXN
+tb_ahci.dut.RXN
+@800200
+-axi_ahci_regs
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.aclk
+@c00200
+-axibram_read
+@22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.araddr[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.arvalid
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.arready
+@22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_raddr[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.dev_ready
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.start_burst
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_ren
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_regen
+@22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_rdata[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.rdata[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.rready
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.rvalid
+tb_ahci.dut.sata_top.RREADY
+tb_ahci.dut.ps7_i.MAXIGP1RREADY
+tb_ahci.dut.ps7_i.MAXIGP1RVALID
+tb_ahci.rready
+tb_ahci.rvalid
+tb_ahci.rstb
+@200
+-
+@1401200
+-axibram_read
+@1000200
+-axi_ahci_regs
+@800200
+-ahci_sata_layers
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.exrst
+tb_ahci.dut.sata_top.ahci_sata_layers_i.reliable_clk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.extclk_n
+tb_ahci.dut.sata_top.ahci_sata_layers_i.rst
+tb_ahci.dut.sata_top.ahci_sata_layers_i.clk
+@200
+-
+@1000200
+-ahci_sata_layers
+@800200
+-ahci_top
+@28
+tb_ahci.dut.sata_top.ahci_top_i.port_arst
+tb_ahci.dut.sata_top.ahci_top_i.hba_arst
+tb_ahci.dut.sata_top.ahci_top_i.phy_ready[1:0]
+@1000200
+-ahci_top
+@800200
+-axi_ahci_regs
+@22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_reset_cntr[8:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_arst
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.port_arst
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.port_arst_any
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.wait_first_access
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.any_access
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.set_port_rst
+@1000200
+-axi_ahci_regs
+@800200
+-ahci_fsm
+@c00022
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(3)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(4)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(5)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(6)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(7)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(8)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+(9)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
+@1401200
+-group_end
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_data[17:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_preload
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_actions
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_transitions[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_next
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_wait_act_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_last_act_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.cond_met_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pre_jump_w
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_jump_addr[9:0]
+@800028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+@1001200
+-group_end
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pfsm_started
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pxci0_clear
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.clear_bsy_set_drq
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.set_sts_7f
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.set_update_sig
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.comreset_send
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.set_sts_80
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.ssts_det_dnp
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.sirq_PC
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.serr_diag_X
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fis_first_vld
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pcmd_st_cleared
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.cominit_got
+@c00028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+@1401200
+-group_end
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
+@1000200
+-ahci_fsm
+@800200
+-link
+@200
+-
+@1000200
+-link
+@800200
+-phy
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.comreset_send
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtrefclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txoutclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.usrclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.usrclk2
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.usrpll_locked
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.cpllreset
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.cplllock
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset_req
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset_oob
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset_oob_stop
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset_oob
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_ready
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_configured
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset_f
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxreset
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtrefclk
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxeyereset_cnt[6:0]
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxeyereset_done
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.clk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rst_r
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.sata_reset_done
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.usrpll_locked
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.cplllock
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.cpllreset
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxuserrdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txuserrdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxresetdone
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txresetdone
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_ready
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txreset
+@1000200
+-phy
+@800200
+-oob_ctrl
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.gtx_ready
+@200
+-
+@800200
+-oob
+@200
+-
+@1000200
+-oob
+-oob_ctrl
+@800200
+-gtx
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.cpllreset
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.cplllock
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.cplllockdetclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txelecidle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txelecidle_gtx
+@200
+-
+@1000200
+-gtx
+[pattern_trace] 1
+[pattern_trace] 0

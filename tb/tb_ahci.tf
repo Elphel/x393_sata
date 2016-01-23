@@ -1,16 +1,16 @@
 /*******************************************************************************
- * Module: tb
+ * Module: tb_ahci
  * Date: 2015-07-11  
  * Author: Alexey     
- * Description: testbench for top.v
+ * Description: testbench for ahci_top.v
  *
  * Copyright (c) 2015 Elphel, Inc.
- * tb_top.v is free software; you can redistribute it and/or modify
+ * tb_ahci.tf is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * tb_top.v file is distributed in the hope that it will be useful,
+ * tb_ahci.tf file is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
@@ -37,6 +37,8 @@
 `define OPEN_SOURCE_ONLY
 `define PRELOAD_BRAMS
 `define CHECKERS_ENABLED
+`define use200Mhz 1
+
 /*
  * using x393_testbench01.tf style, contains a lot of copy-pasted code from there
  */
@@ -44,7 +46,7 @@
 //`include "top.v"
 //`include "sata_device.v"
 
-module tb #(
+module tb_ahci #(
 `include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
 `include "includes/x393_simulation_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
@@ -52,24 +54,16 @@ module tb #(
 );
 
 `ifdef IVERILOG              
-    `ifdef NON_VDT_ENVIROMENT
-        parameter fstname="x393.fst";
-    `else
-        `include "IVERILOG_INCLUDE.v"
-    `endif // NON_VDT_ENVIROMENT
+    `include "IVERILOG_INCLUDE.v"
 `else // IVERILOG
     `ifdef CVC
-        `ifdef NON_VDT_ENVIROMENT
-            parameter fstname = "x393.fst";
-        `else // NON_VDT_ENVIROMENT
-            `include "IVERILOG_INCLUDE.v"
-        `endif // NON_VDT_ENVIROMENT
+        `include "IVERILOG_INCLUDE.v"
     `else
-        parameter fstname = "x393.fst";
+         parameter fstname = "x393_sata.fst";
     `endif // CVC
 `endif // IVERILOG
 
-reg [639:0] TESTBENCH_TITLE; // to show human-readable state in the GTKWave
+reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
 reg  [31:0] TESTBENCH_DATA;
 reg  [11:0] TESTBENCH_ID;
 
@@ -78,110 +72,78 @@ initial #1 $display("HI THERE");
 initial
 begin
     $dumpfile(fstname);
-    $dumpvars(0, tb);       // SuppressThisWarning VEditor - no idea why here was a warning
+    $dumpvars(0, tb_ahci);       // SuppressThisWarning VEditor - no idea why here was a warning
+    $dumpvars(0, glbl);       // SuppressThisWarning VEditor - no idea why here was a warning
 end
 
 reg EXTCLK_P = 1'b1;
 reg EXTCLK_N = 1'b0;
 //reg serial_clk = 1'b1;
 
-reg     [11:0]  ARID_IN_r;
-reg     [31:0]  ARADDR_IN_r;
-reg     [3:0]   ARLEN_IN_r;
-reg     [1:0]   ARSIZE_IN_r;
-reg     [1:0]   ARBURST_IN_r;
-reg     [11:0]  AWID_IN_r;
-reg     [31:0]  AWADDR_IN_r;
-reg     [3:0]   AWLEN_IN_r;
-reg     [1:0]   AWSIZE_IN_r;
-reg     [1:0]   AWBURST_IN_r;
+reg      [11:0] ARID_IN_r;
+reg      [31:0] ARADDR_IN_r;
+reg       [3:0] ARLEN_IN_r;
+reg       [1:0] ARSIZE_IN_r;
+reg       [1:0] ARBURST_IN_r;
+reg      [11:0] AWID_IN_r;
+reg      [31:0] AWADDR_IN_r;
+reg       [3:0] AWLEN_IN_r;
+reg       [1:0] AWSIZE_IN_r;
+reg       [1:0] AWBURST_IN_r;
 
-reg     [11:0]  WID_IN_r;
-reg     [31:0]  WDATA_IN_r;
-reg     [3:0]   WSTRB_IN_r;
+reg      [11:0] WID_IN_r;
+reg      [31:0] WDATA_IN_r;
+reg       [3:0] WSTRB_IN_r;
 reg             WLAST_IN_r;
-reg DEBUG1, DEBUG2, DEBUG3;
-reg [11:0] GLOBAL_WRITE_ID=0;
-reg [11:0] GLOBAL_READ_ID=0;
-reg [11:0] LAST_ARID; // last issued ARID
-// SuppressWarnings VEditor : assigned in $readmem() system task
+reg DEBUG1, DEBUG2, DEBUG3; // SuppressThisWarnings VEditor not used, just for simulation (inside included tasks)
+reg      [11:0] GLOBAL_WRITE_ID=0;
+reg      [11:0] GLOBAL_READ_ID=0;
+reg      [11:0] LAST_ARID; // last issued ARID
+
 wire [SIMUL_AXI_READ_WIDTH-1:0] SIMUL_AXI_ADDR_W;
-// SuppressWarnings VEditor
-wire        SIMUL_AXI_MISMATCH;
-// SuppressWarnings VEditor
-reg  [31:0] SIMUL_AXI_READ;
-// SuppressWarnings VEditor
-reg  [SIMUL_AXI_READ_WIDTH-1:0] SIMUL_AXI_ADDR;
-// SuppressWarnings VEditor
-reg         SIMUL_AXI_FULL; // some data available
-wire        SIMUL_AXI_EMPTY;
-reg  [31:0] registered_rdata; // here read data from task
 
-reg        CLK;
+//wire        SIMUL_AXI_MISMATCH;
+// SuppressWarnings VEditor
+reg      [31:0] SIMUL_AXI_READ;
+// SuppressWarnings VEditor
+reg [SIMUL_AXI_READ_WIDTH-1:0] SIMUL_AXI_ADDR;
+// SuppressWarnings VEditor
+reg             SIMUL_AXI_FULL; // some data available
+wire            SIMUL_AXI_EMPTY;  // SuppressThisWarnings VEditor not used, just for simulation
+reg      [31:0] registered_rdata; // here read data from task SuppressThisWarnings VEditor not used, just for simulation
+
+reg             CLK;
 //wire    CLK;
-reg        RST;
-reg        AR_SET_CMD_r;
-wire       AR_READY;
+//reg             RST;
+tri0 RST = glbl.GSR;
 
-reg        AW_SET_CMD_r;
-wire       AW_READY;
+reg             AR_SET_CMD_r;
+wire            AR_READY;
 
-reg        W_SET_CMD_r;
-wire       W_READY;
-reg  [3:0] RD_LAG;  // ready signal lag in axi read channel (0 - RDY=1, 1..15 - RDY is asserted N cycles after valid)   
-reg  [3:0] B_LAG;   // ready signal lag in axi arete response channel (0 - RDY=1, 1..15 - RDY is asserted N cycles after valid)   
+reg             AW_SET_CMD_r;
+wire            AW_READY;
+
+reg             W_SET_CMD_r;
+wire            W_READY;
+reg       [3:0] RD_LAG;  // ready signal lag in axi read channel (0 - RDY=1, 1..15 - RDY is asserted N cycles after valid)   
+reg       [3:0] B_LAG;   // ready signal lag in axi arete response channel (0 - RDY=1, 1..15 - RDY is asserted N cycles after valid)   
 
 // Simulation modules interconnection
-wire [11:0] arid;
-wire [31:0] araddr;
-wire [3:0]  arlen;
-wire [1:0]  arsize;
-wire [1:0]  arburst;
-// SuppressWarnings VEditor : assigned in $readmem(14) system task
-wire [3:0]  arcache;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire [2:0]  arprot;
-wire        arvalid;
-wire        arready;
 
-wire [11:0] awid;
-wire [31:0] awaddr;
-wire [3:0]  awlen;
-wire [1:0]  awsize;
-wire [1:0]  awburst;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire [3:0]  awcache;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire [2:0]  awprot;
-wire        awvalid;
-wire        awready;
+wire     [31:0] rdata;
+wire     [11:0] rid;
+wire            rlast;
+wire      [1:0] rresp; // SuppressThisWarnings VEditor not used, just for simulation
+wire            rvalid;
+wire            rready;
+wire            rstb=rvalid && rready;
 
-wire [11:0] wid;
-wire [31:0] wdata;
-wire [3:0]  wstrb;
-wire        wlast;
-wire        wvalid;
-wire        wready;
-
-wire [31:0] rdata;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire [11:0] rid;
-wire        rlast;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire  [1:0] rresp;
-wire        rvalid;
-wire        rready;
-wire        rstb=rvalid && rready;
-
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire  [1:0] bresp;
-// SuppressWarnings VEditor : assigned in $readmem() system task
-wire [11:0] bid;
-wire        bvalid;
-wire        bready;
+wire      [1:0] bresp; // SuppressThisWarnings VEditor not used, just for simulation
+wire     [11:0] bid; // SuppressThisWarnings VEditor not used, just for simulation
+wire            bvalid;
+wire            bready;
 integer     NUM_WORDS_READ;
 integer     NUM_WORDS_EXPECTED;
-reg  [15:0] ENABLED_CHANNELS = 0; // currently enabled memory channels
 //  integer     SCANLINE_CUR_X;
 //  integer     SCANLINE_CUR_Y;
 wire AXI_RD_EMPTY=NUM_WORDS_READ==NUM_WORDS_EXPECTED; //SuppressThisWarning VEditor : may be unused, just for simulation
@@ -205,22 +167,11 @@ wire         #(AXI_TASK_HOLD) AR_SET_CMD = AR_SET_CMD_r;
 wire         #(AXI_TASK_HOLD) AW_SET_CMD = AW_SET_CMD_r;
 wire         #(AXI_TASK_HOLD) W_SET_CMD =  W_SET_CMD_r;
 
-//always #(CLKIN_PERIOD/2) CLK = ~CLK;
-//assign CLK = dut.axi_aclk;
-
 /*
  * connect axi ports to the dut
  */
 assign dut.ps7_i.FCLKCLK=        {4{CLK}};
 assign dut.ps7_i.FCLKRESETN=     {RST,~RST,RST,~RST};
-// Read address
-assign dut.ps7_i.MAXIGP1ARADDR=  araddr;
-assign dut.ps7_i.MAXIGP1ARVALID= arvalid;
-assign arready=                            dut.ps7_i.MAXIGP1ARREADY;
-assign dut.ps7_i.MAXIGP1ARID=    arid; 
-assign dut.ps7_i.MAXIGP1ARLEN=   arlen;
-assign dut.ps7_i.MAXIGP1ARSIZE=  arsize[1:0]; // arsize[2] is not used
-assign dut.ps7_i.MAXIGP1ARBURST= arburst;
 // Read data
 assign rdata=                              dut.ps7_i.MAXIGP1RDATA; 
 assign rvalid=                             dut.ps7_i.MAXIGP1RVALID;
@@ -228,33 +179,6 @@ assign dut.ps7_i.MAXIGP1RREADY=  rready;
 assign rid=                                dut.ps7_i.MAXIGP1RID;
 assign rlast=                              dut.ps7_i.MAXIGP1RLAST;
 assign rresp=                              dut.ps7_i.MAXIGP1RRESP;
-// Write address
-assign dut.ps7_i.MAXIGP1AWADDR=  awaddr;
-assign dut.ps7_i.MAXIGP1AWVALID= awvalid;
-
-assign awready=                            dut.ps7_i.MAXIGP1AWREADY;
-
-//assign awready= AWREADY_AAAA;
-assign dut.ps7_i.MAXIGP1AWID=awid;
-
-      // SuppressWarnings VEditor all
-//  wire [ 1:0] AWLOCK;
-      // SuppressWarnings VEditor all
-//  wire [ 3:0] AWCACHE;
-      // SuppressWarnings VEditor all
-//  wire [ 2:0] AWPROT;
-assign dut.ps7_i.MAXIGP1AWLEN=   awlen;
-assign dut.ps7_i.MAXIGP1AWSIZE=  awsize[1:0]; // awsize[2] is not used
-assign dut.ps7_i.MAXIGP1AWBURST= awburst;
-      // SuppressWarnings VEditor all
-//  wire [ 3:0] AWQOS;
-// Write data
-assign dut.ps7_i.MAXIGP1WDATA=   wdata;
-assign dut.ps7_i.MAXIGP1WVALID=  wvalid;
-assign wready=                             dut.ps7_i.MAXIGP1WREADY;
-assign dut.ps7_i.MAXIGP1WID=     wid;
-assign dut.ps7_i.MAXIGP1WLAST=   wlast;
-assign dut.ps7_i.MAXIGP1WSTRB=   wstrb;
 // Write response
 assign bvalid=                             dut.ps7_i.MAXIGP1BVALID;
 assign dut.ps7_i.MAXIGP1BREADY=  bready;
@@ -265,91 +189,108 @@ assign bresp=                              dut.ps7_i.MAXIGP1BRESP;
 // Simulation modules    
 simul_axi_master_rdaddr
 #(
-  .ID_WIDTH(12),
-  .ADDRESS_WIDTH(32),
-  .LATENCY(AXI_RDADDR_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
-  .DEPTH(8),            // maximal number of commands in FIFO
-  .DATA_DELAY(3.5),
-  .VALID_DELAY(4.0)
+  .ID_WIDTH        (12),
+  .ADDRESS_WIDTH   (32),
+  .LATENCY         (AXI_RDADDR_LATENCY),         // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH           (8),                          // maximal number of commands in FIFO
+  .DATA_DELAY      (3.5),
+  .VALID_DELAY     (4.0)
 ) simul_axi_master_rdaddr_i (
-    .clk(CLK),
-    .reset(RST),
-    .arid_in(ARID_IN[11:0]),
-    .araddr_in(ARADDR_IN[31:0]),
-    .arlen_in(ARLEN_IN[3:0]),
-    .arsize_in(ARSIZE_IN[1:0]),
-    .arburst_in(ARBURST_IN[1:0]),
-    .arcache_in(4'b0),
-    .arprot_in(3'b0), //     .arprot_in(2'b0),
-    .arid(arid[11:0]),
-    .araddr(araddr[31:0]),
-    .arlen(arlen[3:0]),
-    .arsize(arsize[1:0]),
-    .arburst(arburst[1:0]),
-    .arcache(arcache[3:0]),
-    .arprot(arprot[2:0]),
-    .arvalid(arvalid),
-    .arready(arready),
-    .set_cmd(AR_SET_CMD),  // latch all other input data at posedge of clock
-    .ready(AR_READY)     // command/data FIFO can accept command
+    .clk        (CLK),                           // input
+    .reset      (RST),                           // input
+    .arid_in    (ARID_IN[11:0]),                 // input[11:0]
+    .araddr_in  (ARADDR_IN[31:0]),               // input[31:0]
+    .arlen_in   (ARLEN_IN[3:0]),                 // input[3:0]
+    .arsize_in  (ARSIZE_IN[1:0]),                // input[1:0]
+    .arburst_in (ARBURST_IN[1:0]),               // input[1:0]
+    .arcache_in (4'b0),                          // input[3:0]
+    .arprot_in  (3'b0),                          // input[2:0]//     .arprot_in(2'b0),
+    .arid       (dut.ps7_i.MAXIGP1ARID[11:0]),   // output[11:0]
+    .araddr     (dut.ps7_i.MAXIGP1ARADDR[31:0]), // output[31:0]
+    .arlen      (dut.ps7_i.MAXIGP1ARLEN[3:0]),   // output[3:0]
+    .arsize     (dut.ps7_i.MAXIGP1ARSIZE[1:0]),  // output[1:0]
+    .arburst    (dut.ps7_i.MAXIGP1ARBURST[1:0]), // output[1:0]
+    .arcache    (dut.ps7_i.MAXIGP1ARCACHE[3:0]), // output3:0]
+    .arprot     (dut.ps7_i.MAXIGP1ARPROT[2:0]),  // output[2:0]
+    .arvalid    (dut.ps7_i.MAXIGP1ARVALID),      // output
+    .arready    (dut.ps7_i.MAXIGP1ARREADY),      // input
+    .set_cmd    (AR_SET_CMD),                    // input// latch all other input data at posedge of clock
+    .ready      (AR_READY)                       // command/data FIFO can accept command
 );
 
 simul_axi_master_wraddr
 #(
-  .ID_WIDTH(12),
-  .ADDRESS_WIDTH(32),
-  .LATENCY(AXI_WRADDR_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
-  .DEPTH(8),            // maximal number of commands in FIFO
-  .DATA_DELAY(3.5),
-  .VALID_DELAY(4.0)
+  .ID_WIDTH        (12),
+  .ADDRESS_WIDTH   (32),
+  .LATENCY         (AXI_WRADDR_LATENCY),         // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH           (8),                          // maximal number of commands in FIFO
+  .DATA_DELAY      (3.5),
+  .VALID_DELAY     (4.0)
 ) simul_axi_master_wraddr_i (
-    .clk(CLK),
-    .reset(RST),
-    .awid_in(AWID_IN[11:0]),
-    .awaddr_in(AWADDR_IN[31:0]),
-    .awlen_in(AWLEN_IN[3:0]),
-    .awsize_in(AWSIZE_IN[1:0]),
-    .awburst_in(AWBURST_IN[1:0]),
-    .awcache_in(4'b0),
-    .awprot_in(3'b0), //.awprot_in(2'b0),
-    .awid(awid[11:0]),
-    .awaddr(awaddr[31:0]),
-    .awlen(awlen[3:0]),
-    .awsize(awsize[1:0]),
-    .awburst(awburst[1:0]),
-    .awcache(awcache[3:0]),
-    .awprot(awprot[2:0]),
-    .awvalid(awvalid),
-    .awready(awready),
-    .set_cmd(AW_SET_CMD),  // latch all other input data at posedge of clock
-    .ready(AW_READY)     // command/data FIFO can accept command
+    .clk        (CLK),                           // input
+    .reset      (RST),                           // input
+    .awid_in    (AWID_IN[11:0]),                 // input[11:0]
+    .awaddr_in  (AWADDR_IN[31:0]),               // input[31:0]
+    .awlen_in   (AWLEN_IN[3:0]),                 // input[3:0]
+    .awsize_in  (AWSIZE_IN[1:0]),                // input[2:0]
+    .awburst_in (AWBURST_IN[1:0]),               // input[1:0]
+    .awcache_in (4'b0),                          // input[1:0]
+    .awprot_in  (3'b0),                          // input[2:0]//.awprot_in(2'b0),
+    .awid       (dut.ps7_i.MAXIGP1AWID[11:0]),   // output[11:0]
+    .awaddr     (dut.ps7_i.MAXIGP1AWADDR[31:0]), // output[31:0]
+    .awlen      (dut.ps7_i.MAXIGP1AWLEN[3:0]),   // output[31:0]
+    .awsize     (dut.ps7_i.MAXIGP1AWSIZE[1:0]),  // output[2:0]
+    .awburst    (dut.ps7_i.MAXIGP1AWBURST[1:0]), // output[1:0]
+    .awcache    (dut.ps7_i.MAXIGP1AWCACHE[3:0]), // output[3:0]
+    .awprot     (dut.ps7_i.MAXIGP1AWPROT[2:0]),  // output[2:0]
+    .awvalid    (dut.ps7_i.MAXIGP1AWVALID),      // output
+    .awready    (dut.ps7_i.MAXIGP1AWREADY),      // input
+    
+    .set_cmd    (AW_SET_CMD),                    // input // latch all other input data at posedge of clock
+    .ready      (AW_READY)                       // output// command/data FIFO can accept command
 );
 
-simul_axi_master_wdata
-#(
-  .ID_WIDTH(12),
-  .DATA_WIDTH(32),
-  .WSTB_WIDTH(4),
-  .LATENCY(AXI_WRDATA_LATENCY),          // minimal delay between inout and output ( 0 - next cycle)
-  .DEPTH(8),            // maximal number of commands in FIFO
+
+simul_axi_master_wdata #(
+  .ID_WIDTH        (12),
+  .DATA_WIDTH      (32),
+  .WSTB_WIDTH      (4),
+  .LATENCY         (AXI_WRDATA_LATENCY),         // minimal delay between inout and output ( 0 - next cycle)
+  .DEPTH           (8),                          // maximal number of commands in FIFO
   .DATA_DELAY(3.2),
   .VALID_DELAY(3.6)
 ) simul_axi_master_wdata_i (
-    .clk(CLK),
-    .reset(RST),
-    .wid_in(WID_IN[11:0]),
-    .wdata_in(WDATA_IN[31:0]),
-    .wstrb_in(WSTRB_IN[3:0]),
-    .wlast_in(WLAST_IN),
-    .wid(wid[11:0]),
-    .wdata(wdata[31:0]),
-    .wstrb(wstrb[3:0]),
-    .wlast(wlast),
-    .wvalid(wvalid),
-    .wready(wready),
-    .set_cmd(W_SET_CMD),  // latch all other input data at posedge of clock
-    .ready(W_READY)        // command/data FIFO can accept command
+    .clk       (CLK),                           // input
+    .reset     (RST),                           // input
+    .wid_in    (WID_IN[11:0]),                  // input[11:0]
+    .wdata_in  (WDATA_IN[31:0]),                // input[31:0]
+    .wstrb_in  (WSTRB_IN[3:0]),                 // input[3:0]
+    .wlast_in  (WLAST_IN),                      // input
+    .wid       (dut.ps7_i.MAXIGP1WID[11:0]),    // output[11:0]
+    .wdata     (dut.ps7_i.MAXIGP1WDATA[31:0]),  // output[31:0]
+    .wstrb     (dut.ps7_i.MAXIGP1WSTRB[3:0]),   // output[3:0]
+    .wlast     (dut.ps7_i.MAXIGP1WLAST),        // output
+    .wvalid    (dut.ps7_i.MAXIGP1WVALID),       // output
+    .wready    (dut.ps7_i.MAXIGP1WREADY),       // input
+    .set_cmd   (W_SET_CMD),                     // input // latch all other input data at posedge of clock
+    .ready     (W_READY)                        // output        // command/data FIFO can accept command
 );
+
+simul_axi_read #(
+  .ADDRESS_WIDTH   (SIMUL_AXI_READ_WIDTH)
+  ) simul_axi_read_i(
+  .clk         (CLK),                           // input
+  .reset       (RST),                           // input
+  .last        (rlast),                         // input
+  .data_stb    (rstb),                          // input
+  .raddr       (ARADDR_IN[SIMUL_AXI_READ_WIDTH+1:2]), // input[9:0]
+  .rlen        (ARLEN_IN),                      // input[3:0] 
+  .rcmd        (AR_SET_CMD),                    // input
+  .addr_out    (SIMUL_AXI_ADDR_W[SIMUL_AXI_READ_WIDTH-1:0]),  // output[9:0] 
+  .burst       (),                              // output // burst in progress - just debug
+  .err_out     ());                             // output reg // data last does not match predicted or FIFO over/under run - just debug
+
+
 
 simul_axi_slow_ready simul_axi_slow_ready_read_i(
     .clk(CLK),
@@ -366,20 +307,6 @@ simul_axi_slow_ready simul_axi_slow_ready_write_resp_i(
     .valid(bvalid), // input       ADDRESS_NUMBER+2:0  valid,
     .ready(bready)  //output        ready
     );
-
-simul_axi_read #(
-    .ADDRESS_WIDTH(SIMUL_AXI_READ_WIDTH)
-  ) simul_axi_read_i(
-  .clk(CLK),
-  .reset(RST),
-  .last(rlast),
-  .data_stb(rstb),
-  .raddr(ARADDR_IN[SIMUL_AXI_READ_WIDTH+1:2]), 
-  .rlen(ARLEN_IN),
-  .rcmd(AR_SET_CMD),
-  .addr_out(SIMUL_AXI_ADDR_W[SIMUL_AXI_READ_WIDTH-1:0]),
-  .burst(),     // burst in progress - just debug
-  .err_out());  // data last does not match predicted or FIFO over/under run - just debug
 
 
 // device-under-test instance
@@ -449,8 +376,11 @@ sata_device dev(
   reg  [31:0] PS_REG_ADDR;
   reg         PS_REG_WR;
   reg         PS_REG_RD;
+  reg         PS_REG_WR1;
+  reg         PS_REG_RD1;
   reg  [31:0] PS_REG_DIN;
   wire [31:0] PS_REG_DOUT;
+  wire [31:0] PS_REG_DOUT1;
   reg  [31:0] PS_RDATA;  // SuppressThisWarning VEditor - not used - just view
 /*  
   reg  [31:0] afi_reg_addr; 
@@ -464,17 +394,22 @@ sata_device dev(
     PS_REG_ADDR <= 'bx;
     PS_REG_WR   <= 0;
     PS_REG_RD   <= 0;
+    PS_REG_WR1  <= 0;
+    PS_REG_RD1  <= 0;
     PS_REG_DIN  <= 'bx;
     PS_RDATA    <= 'bx;
   end 
-  always @ (posedge HCLK) if (PS_REG_RD) PS_RDATA <= PS_REG_DOUT;
+  always @ (posedge HCLK) begin
+      if      (PS_REG_RD)  PS_RDATA <= PS_REG_DOUT;
+      else if (PS_REG_RD1) PS_RDATA <= PS_REG_DOUT1;
+  end 
 
 simul_axi_hp_rd #(
         .HP_PORT(3)
     ) simul_axi_hp_rd_i (
-        .rst            (RST),                               // input
+        .rst            (RST),                            // input
         .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
-        .aresetn        (),                                  // output
+        .aresetn        (),                               // output
         .araddr         (dut.ps7_i.SAXIHP3ARADDR[31:0]),  // input[31:0] 
         .arvalid        (dut.ps7_i.SAXIHP3ARVALID),       // input
         .arready        (dut.ps7_i.SAXIHP3ARREADY),       // output
@@ -495,19 +430,19 @@ simul_axi_hp_rd #(
         .rcount         (dut.ps7_i.SAXIHP3RCOUNT),        // output[7:0] 
         .racount        (dut.ps7_i.SAXIHP3RACOUNT),       // output[2:0] 
         .rdissuecap1en  (dut.ps7_i.SAXIHP3RDISSUECAP1EN), // input
-        .sim_rd_address (afi_sim_rd_address), // output[31:0] 
-        .sim_rid        (afi_sim_rid), // output[5:0] 
-        .sim_rd_valid   (afi_sim_rd_valid), // input
-        .sim_rd_ready   (afi_sim_rd_ready), // output
-        .sim_rd_data    (afi_sim_rd_data), // input[63:0] 
-        .sim_rd_cap     (afi_sim_rd_cap), // output[2:0] 
-        .sim_rd_qos     (afi_sim_rd_qos), // output[3:0] 
-        .sim_rd_resp    (afi_sim_rd_resp), // input[1:0] 
-        .reg_addr       (PS_REG_ADDR), // input[31:0] 
-        .reg_wr         (PS_REG_WR), // input
-        .reg_rd         (PS_REG_RD), // input
-        .reg_din        (PS_REG_DIN), // input[31:0] 
-        .reg_dout       (PS_REG_DOUT) // output[31:0] 
+        .sim_rd_address (afi_sim_rd_address),             // output[31:0] 
+        .sim_rid        (afi_sim_rid),                    // output[5:0] 
+        .sim_rd_valid   (afi_sim_rd_valid),               // input
+        .sim_rd_ready   (afi_sim_rd_ready),               // output
+        .sim_rd_data    (afi_sim_rd_data),                // input[63:0] 
+        .sim_rd_cap     (afi_sim_rd_cap),                 // output[2:0] 
+        .sim_rd_qos     (afi_sim_rd_qos),                 // output[3:0] 
+        .sim_rd_resp    (afi_sim_rd_resp),                // input[1:0] 
+        .reg_addr       (PS_REG_ADDR),                    // input[31:0] 
+        .reg_wr         (PS_REG_WR),                      // input
+        .reg_rd         (PS_REG_RD),                      // input
+        .reg_din        (PS_REG_DIN),                     // input[31:0] 
+        .reg_dout       (PS_REG_DOUT)                     // output[31:0] 
     );
 
 simul_axi_hp_wr #(
@@ -515,7 +450,7 @@ simul_axi_hp_wr #(
     ) simul_axi_hp_wr_i (
         .rst            (RST), // input
         .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
-        .aresetn        (),                                  // output
+        .aresetn        (),                               // output
         .awaddr         (dut.ps7_i.SAXIHP3AWADDR),        // input[31:0] 
         .awvalid        (dut.ps7_i.SAXIHP3AWVALID),       // input
         .awready        (dut.ps7_i.SAXIHP3AWREADY),       // output
@@ -540,23 +475,21 @@ simul_axi_hp_wr #(
         .wcount         (dut.ps7_i.SAXIHP3WCOUNT),        // output[7:0] 
         .wacount        (dut.ps7_i.SAXIHP3WACOUNT),       // output[5:0] 
         .wrissuecap1en  (dut.ps7_i.SAXIHP3WRISSUECAP1EN), // input
-        .sim_wr_address (afi_sim_wr_address), // output[31:0] 
-        .sim_wid        (afi_sim_wid), // output[5:0] 
-        .sim_wr_valid   (afi_sim_wr_valid), // output
-        .sim_wr_ready   (afi_sim_wr_ready), // input
-        .sim_wr_data    (afi_sim_wr_data), // output[63:0] 
-        .sim_wr_stb     (afi_sim_wr_stb), // output[7:0] 
-        .sim_bresp_latency(afi_sim_bresp_latency), // input[3:0] 
-        .sim_wr_cap     (afi_sim_wr_cap), // output[2:0] 
-        .sim_wr_qos     (afi_sim_wr_qos), // output[3:0] 
-        .reg_addr       (PS_REG_ADDR), // input[31:0] 
-        .reg_wr         (PS_REG_WR), // input
-        .reg_rd         (PS_REG_RD), // input
-        .reg_din        (PS_REG_DIN), // input[31:0] 
-        .reg_dout       (PS_REG_DOUT) // output[31:0] 
+        .sim_wr_address (afi_sim_wr_address),             // output[31:0] 
+        .sim_wid        (afi_sim_wid),                    // output[5:0] 
+        .sim_wr_valid   (afi_sim_wr_valid),               // output
+        .sim_wr_ready   (afi_sim_wr_ready),               // input
+        .sim_wr_data    (afi_sim_wr_data),                // output[63:0] 
+        .sim_wr_stb     (afi_sim_wr_stb),                 // output[7:0] 
+        .sim_bresp_latency(afi_sim_bresp_latency),        // input[3:0] 
+        .sim_wr_cap     (afi_sim_wr_cap),                 // output[2:0] 
+        .sim_wr_qos     (afi_sim_wr_qos),                 // output[3:0] 
+        .reg_addr       (PS_REG_ADDR),                    // input[31:0] 
+        .reg_wr         (PS_REG_WR1),                      // input
+        .reg_rd         (PS_REG_RD1),                      // input
+        .reg_din        (PS_REG_DIN),                     // input[31:0] 
+        .reg_dout       (PS_REG_DOUT1)                     // output[31:0] 
     );
-
-
 
     
     //  wire [ 3:0] SIMUL_ADD_ADDR; 
@@ -582,7 +515,7 @@ simul_axi_hp_wr #(
 
 //tasks
 `include "includes/x393_tasks01.vh"     // SuppressThisWarning VEditor - partially used
-`include "includes/x393_tasks_afi.vh"   // SuppressThisWarning VEditor - partially used
+//`include "includes/x393_tasks_afi.vh"   // SuppressThisWarning VEditor - partially used
 
 /*
  * Monitor maxi bus read data. 
@@ -662,8 +595,80 @@ initial forever @ (posedge CLK) begin
     end
 end
 
+always #3.333 begin
+    EXTCLK_P = ~EXTCLK_P;
+    EXTCLK_N = ~EXTCLK_N;
+end
+
+/*
+// MAXI clock
+always #10
+begin
+    CLK = ~CLK;
+end
+*/
+initial CLK = 0;
+always #(CLKIN_PERIOD/2) CLK = ~CLK;
+//always #(10) CLK = ~CLK;
+
+// Simulation 
+`include "includes/ahci_localparams.vh" // SuppressThisWarning VEditor - many unused defines
+localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ahci_localparams.vh offsets)
+
+    task maxigp1_write_single; // address in bytes, not words
+        input [31:0] address;
+        input [31:0] data;
+        begin
+          axi_write_single(address + MAXIGP1, data);
+        end
+    endtask
+
+    task maxigp1_read;
+    input [31:0] address;
+        begin
+            read_and_wait (address + MAXIGP1);
+        end
+    endtask
+
+    task maxigp1_print;
+    input [31:0] address;
+        begin
+            read_and_wait (address + MAXIGP1);
+            $display ("%x -> %x @ %t",address + MAXIGP1, registered_rdata,$time);
+        end
+    endtask
+
+
+initial begin
+    wait (!RST);
+//reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
+    TESTBENCH_TITLE = "NO_RESET";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    repeat (10) begin
+        @ (posedge CLK);
+    end 
+    axi_set_rd_lag(0);
+    axi_set_b_lag(0);
+    
+    maxigp1_print(PCI_Header__CAP__CAP__ADDR);
+    maxigp1_print(GHC__PI__PI__ADDR);
+    maxigp1_print(HBA_PORT__PxCMD__ICC__ADDR);
+    
+//    $finish;
+
+end
+
+  initial begin
+//       #30000;
+     #50000;
+//     #250000;
+//     #60000;
+    $display("finish testbench 2");
+  $finish;
+  end
+
 // testing itself
-`include  "test_top.v" // S uppressThisWarning VEditor - to avoid strange warnings
+//`include  "test_top.v" // S uppressThisWarning VEditor - to avoid strange warnings
 
 endmodule
 

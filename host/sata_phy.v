@@ -204,9 +204,10 @@ localparam  RXISCANRESET_TIME   = 5'h1;
 localparam  RXEYERESET_TIME     = 7'h0 + RXPMARESET_TIME + RXCDRPHRESET_TIME + RXCDRFREQRESET_TIME + RXDFELPMRESET_TIME + RXISCANRESET_TIME;
 reg     [6:0]   rxeyereset_cnt;
 assign  rxeyereset_done = rxeyereset_cnt == RXEYERESET_TIME;
-always @ (posedge gtrefclk)
-    rxeyereset_cnt  <= rxreset ? 7'h0 : rxeyereset_done ? rxeyereset_cnt : rxeyereset_cnt + 1'b1;
-
+always @ (posedge gtrefclk) begin 
+    if      (rxreset)          rxeyereset_cnt  <= 0;
+    else if (!rxeyereset_done) rxeyereset_cnt  <= rxeyereset_cnt + 1;
+end
 /*
  * Resets
  */
@@ -221,8 +222,12 @@ reg rxreset_f_rr;
 reg txreset_f_rr;
 always @ (posedge gtrefclk)
 begin
-    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
-    txreset_f <= ~cplllock | cpllreset;
+//    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
+//    txreset_f <= ~cplllock | cpllreset;
+
+    rxreset_f <= ~cplllock | cpllreset | ~usrpll_locked | ~sata_reset_done | rxreset_oob & gtx_configured;
+    txreset_f <= ~cplllock | cpllreset | ~usrpll_locked;
+
     txreset_f_r <= txreset_f;
     rxreset_f_r <= rxreset_f;
     txreset_f_rr <= txreset_f_r;
@@ -283,8 +288,11 @@ always @ (posedge clk or posedge extrst)
 
 assign  rst = rst_r;
 always @ (posedge clk or posedge extrst)
-    if (extrst) rst_r <= 1; 
-    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
+    if      (extrst)       rst_r <= 1; 
+    else if (~|rst_timer)  rst_r <= 0;
+    else                   rst_r <= !sata_reset_done;
+
+//    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
 
 assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
 
@@ -389,44 +397,47 @@ gtx_wrap #(
 )
 gtx_wrap
 (
-    .debug (debug_cnt[11]),
-    .cplllock           (cplllock),
-    .cplllockdetclk     (cplllockdetclk),
-    .cpllreset          (cpllreset),
-    .gtrefclk           (gtrefclk),
-    .drpclk             (drpclk),
-    .rxuserrdy          (rxuserrdy),
-    .txuserrdy          (txuserrdy),
-    .rxusrclk           (rxusrclk),
-    .rxusrclk2          (rxusrclk2),
-    .rxp                (rxp),
-    .rxn                (rxn),
-    .rxbyteisaligned    (rxbyteisaligned),
-    .rxreset            (rxreset),
-    .rxcomwakedet       (rxcomwakedet),
-    .rxcominitdet       (rxcominitdet),
-    .rxelecidle         (rxelecidle),
-    .rxresetdone        (rxresetdone),
-    .txreset            (txreset),
-    .txusrclk           (txusrclk),
-    .txusrclk2          (txusrclk2),
-    .txelecidle         (txelecidle),
-    .txp                (txp),
-    .txn                (txn),
-    .txoutclk           (txoutclk),
-    .txpcsreset         (txpcsreset),
-    .txresetdone        (txresetdone),
-    .txcominit          (txcominit),
-    .txcomwake          (txcomwake),
-    .rxelsfull          (rxelsfull),
-    .rxelsempty         (rxelsempty),
-    .txdata             (txdata),
-    .txcharisk          (txcharisk),
-    .rxdata             (rxdata),
-    .rxcharisk          (rxcharisk),
-    .rxdisperr          (rxdisperr),
-    .rxnotintable       (rxnotintable)
+    .debug              (debug_cnt[11]),   // output reg 
+    .cplllock           (cplllock),        // output wire 
+    .cplllockdetclk     (cplllockdetclk),  // input wire 
+    .cpllreset          (cpllreset),       // input wire 
+    .gtrefclk           (gtrefclk),        // input wire 
+    .drpclk             (drpclk),          // input wire 
+    .rxuserrdy          (rxuserrdy),       // input wire 
+    .txuserrdy          (txuserrdy),       // input wire 
+    .rxusrclk           (rxusrclk),        // input wire 
+    .rxusrclk2          (rxusrclk2),       // input wire 
+    .rxp                (rxp),             // input wire 
+    .rxn                (rxn),             // input wire 
+    .rxbyteisaligned    (rxbyteisaligned), // output wire
+    .rxreset            (rxreset),         // input wire 
+    .rxcomwakedet       (rxcomwakedet),    // output wire
+    .rxcominitdet       (rxcominitdet),    // output wire
+    .rxelecidle         (rxelecidle),      // output wire
+    .rxresetdone        (rxresetdone),     // output wire
+    .txreset            (txreset),         // input wire 
+    .txusrclk           (txusrclk),        // input wire 
+    .txusrclk2          (txusrclk2),       // input wire 
+    .txelecidle         (txelecidle),      // input wire 
+    .txp                (txp),             // output wire
+    .txn                (txn),             // output wire
+    .txoutclk           (txoutclk),        // output wire
+    .txpcsreset         (txpcsreset),      // input wire 
+    .txresetdone        (txresetdone),     // output wire
+    .txcominit          (txcominit),       // input wire 
+    .txcomwake          (txcomwake),       // input wire 
+    .rxelsfull          (rxelsfull),       // output wire
+    .rxelsempty         (rxelsempty),      // output wire
+    .txdata             (txdata),          // input [31:0] wire 
+    .txcharisk          (txcharisk),       // input [3:0] wire 
+    .rxdata             (rxdata),          // output[31:0] wire 
+    .rxcharisk          (rxcharisk),       // output[3:0] wire 
+    .rxdisperr          (rxdisperr),       // output[3:0] wire 
+    .rxnotintable       (rxnotintable)     // output[3:0] wire 
 );
+
+
+
 /*
  * Interfaces
  */

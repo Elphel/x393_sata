@@ -316,7 +316,8 @@ module  ahci_fsm
 
     always @ (posedge mclk) begin
         if      (hba_rst)                                                    pgm_jump_addr <= (was_hba_rst || was_port_rst) ? (was_hba_rst? LABEL_HBA_RST:LABEL_PORT_RST) : LABEL_POR;
-        else if (async_pend_r[1])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
+//        else if (async_pend_r[1])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
+        else if (async_pend_r[0])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
         else if (fsm_transitions[0] && (!cond_met_w || !fsm_transitions[1])) pgm_jump_addr <= pgm_data[9:0];
         
         was_rst <= hba_rst;

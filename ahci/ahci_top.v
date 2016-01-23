@@ -21,10 +21,12 @@
 `timescale 1ns/1ps
 
 module  ahci_top#(
-    parameter PREFETCH_ALWAYS =   0,
-    parameter READ_REG_LATENCY =  2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
-    parameter READ_CT_LATENCY =   1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
-    parameter ADDRESS_BITS =     10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+    parameter PREFETCH_ALWAYS =       0,
+    parameter READ_REG_LATENCY =      2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter READ_CT_LATENCY =       1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter ADDRESS_BITS =         10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+    parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
+    parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
 )(
     input             aclk,    // clock - should be buffered
     input             arst,    // @aclk sync reset, active high
@@ -32,8 +34,8 @@ module  ahci_top#(
     input             mrst,    // reset in mclk clock domain (after SATA PLL is on)
     // async reset for SATA (mrst will be response to it)
     output            hba_arst,          // hba async reset (currently does ~ the same as port reset)
-    output            port_arst,         // port0 async reset by software
-    
+    output            port_arst,         // port0 async set by software (does not include arst)
+    output            port_arst_any,     // port0 async set by software and by arst
     input             hclk,    // AXI HP interface clock for 64-bit DMA (current - 150MHz
     input             hrst,    // reset in hclk clock domain
 // MAXIGP1   
@@ -594,7 +596,9 @@ module  ahci_top#(
 
 
     axi_ahci_regs #(
-        .ADDRESS_BITS(10)
+        .ADDRESS_BITS          (ADDRESS_BITS),
+        .HBA_RESET_BITS        (HBA_RESET_BITS),
+        .RESET_TO_FIRST_ACCESS (RESET_TO_FIRST_ACCESS)
     ) axi_ahci_regs_i (
         .aclk             (aclk),            // input
         .arst             (arst),            // input
@@ -632,6 +636,7 @@ module  ahci_top#(
         .soft_write_data  (soft_write_data), // output[31:0] 
         .soft_write_en    (soft_write_en),   // output
         .hba_arst         (hba_arst),        // output // does not include arst
+        .port_arst_any    (port_arst_any),   // async set by arst
         .port_arst        (port_arst),       // output // does not include arst
         .hba_clk          (mclk),            // input
         .hba_rst          (mrst),            // input   // deasserted when mclk is stable
