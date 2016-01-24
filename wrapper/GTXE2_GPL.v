@@ -1019,8 +1019,8 @@ reg     oob_in_process;
 always @ (posedge TXUSRCLK)
     oob_in_process <= reset | TXCOMFINISH ? 1'b0 : TXCOMINIT | TXCOMWAKE ? 1'b1 : oob_in_process;
 
-assign  TXP = ~line_idle ? serial_data : 1'bx;
-assign  TXN = ~line_idle ? ~serial_data : 1'bx;
+assign  TXP = ~line_idle ? serial_data : 1'bz;
+assign  TXN = ~line_idle ? ~serial_data : 1'bz;
 
 
 assign  line_idle_pcs = (TXELECIDLE | oob_in_process) & ~oob_active | reset;

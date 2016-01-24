@@ -63,11 +63,11 @@ module tb_ahci #(
     `endif // CVC
 `endif // IVERILOG
 
-reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
+reg [639:0] TESTBENCH_TITLE = 'bz; // to show human-readable state in the GTKWave
 reg  [31:0] TESTBENCH_DATA;
 reg  [11:0] TESTBENCH_ID;
 
-reg [639:0] DEVICE_TITLE = "RESET"; // to show human-readable state in the GTKWave
+reg [639:0] DEVICE_TITLE = 'bz; // to show human-readable state in the GTKWave
 reg  [31:0] DEVICE_DATA;
 reg  [11:0] Device_ID;
 
@@ -151,6 +151,7 @@ integer     NUM_WORDS_EXPECTED;
 //  integer     SCANLINE_CUR_Y;
 wire AXI_RD_EMPTY=NUM_WORDS_READ==NUM_WORDS_EXPECTED; //SuppressThisWarning VEditor : may be unused, just for simulation
 assign  SIMUL_AXI_EMPTY= ~rvalid && rready && (rid==LAST_ARID); //SuppressThisWarning VEditor : may be unused, just for simulation // use it to wait for?
+wire                          IRQ = dut.ps7_i.IRQF2P[0];
 
 wire [11:0]  #(AXI_TASK_HOLD) ARID_IN = ARID_IN_r;
 wire [31:0]  #(AXI_TASK_HOLD) ARADDR_IN = ARADDR_IN_r;
@@ -652,6 +653,11 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
         end
     endtask
 
+//localparam CLB_OFFS32 =        'h200; //  # In the second half of the register space (0x800..0xbff - 1KB)
+localparam HBA_OFFS32 =         0;
+localparam HBA_PORT0_OFFS32  = 'h40;
+localparam PXSIG_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h9; 
+localparam PXTFD_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h8; 
 
 initial begin //Host
     wait (!RST);
@@ -663,6 +669,14 @@ initial begin //Host
     end 
     axi_set_rd_lag(0);
     axi_set_b_lag(0);
+
+    maxigp1_writep       (PXSIG_OFFS32 << 2, 'h12345678); // 
+    maxigp1_writep       (PXTFD_OFFS32 << 2, 'h87654321); // 
+
+
+    maxigp1_print        (PXSIG_OFFS32 << 2);
+    maxigp1_print        (PXTFD_OFFS32 << 2);
+
     
     maxigp1_print        (PCI_Header__CAP__CAP__ADDR << 2);
     maxigp1_print        (GHC__PI__PI__ADDR << 2);
@@ -670,12 +684,25 @@ initial begin //Host
     maxigp1_print        (GHC__GHC__IE__ADDR << 2);
     maxigp1_writep       (GHC__GHC__IE__ADDR << 2, GHC__GHC__IE__MASK); // enable interrupts (global)
     maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
-    maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, ~0); // allow all interrupts
+//    maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, ~0); // allow all interrupts
+    maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // =='h1: allow DHRS only interrupts (D2HR received (signature)
     maxigp1_print        (GHC__GHC__IE__ADDR << 2);
     maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
     
+    maxigp1_print        (PXSIG_OFFS32 << 2);
+    maxigp1_print        (PXTFD_OFFS32 << 2);
+    
+    
+    TESTBENCH_TITLE = "Waiting D2H IRQ";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    wait (IRQ);
+    TESTBENCH_TITLE = "Got D2H IRQ";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    maxigp1_print        (PXSIG_OFFS32 << 2);
+    maxigp1_print        (PXTFD_OFFS32 << 2);
+    
 //    $finish;
-
+//HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
 integer status;

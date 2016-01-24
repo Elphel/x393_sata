@@ -142,6 +142,10 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {LBL:'P:RegFisAccept',      ACT: 'R_OK'},                # send R_OK
             {                           ACT: 'UPDATE_SIG'},          # update_sig
             {                           ACT: 'UPDATE_ERR_STS'},      # update_err_sts
+            {IF: 'FIS_I',               GOTO:'P:RegFisSetIS'},       # ** Not it docs - setting DHRS interrupt if "i" bit was set in D2HR FIS
+            {                           GOTO:'P:NotRunning'},
+# Not in documentation - do we need to issue DWRS interrupt if "i" bit is set? Adding such state
+            {LBL:'P:RegFisSetIS',       ACT: 'SIRQ_DHR'},            # sirq_DHR
             {                           GOTO:'P:NotRunning'},
             
 #            {IF: 'PCMD_FRE',            GOTO:'P:RegFisPostToMem'},  # pxcmd_fre hardware always copies signature FIS to 'memory' if expected

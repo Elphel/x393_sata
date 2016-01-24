@@ -466,7 +466,7 @@
     localparam HBA_PORT__PxIE__IPME__ADDR = 'h45;
     localparam HBA_PORT__PxIE__IPME__MASK = 'h800000;
     localparam HBA_PORT__PxIE__IPME__DFLT = 'h0;
-// RO: PhyRdy changed Enable
+// RW: PhyRdy changed Enable
     localparam HBA_PORT__PxIE__PRCE__ADDR = 'h45;
     localparam HBA_PORT__PxIE__PRCE__MASK = 'h400000;
     localparam HBA_PORT__PxIE__PRCE__DFLT = 'h0;
@@ -474,7 +474,7 @@
     localparam HBA_PORT__PxIE__DMPE__ADDR = 'h45;
     localparam HBA_PORT__PxIE__DMPE__MASK = 'h80;
     localparam HBA_PORT__PxIE__DMPE__DFLT = 'h0;
-// RO: Port Connect Change Interrupt Enable
+// RW: Port Connect Change Interrupt Enable
     localparam HBA_PORT__PxIE__PCE__ADDR = 'h45;
     localparam HBA_PORT__PxIE__PCE__MASK = 'h40;
     localparam HBA_PORT__PxIE__PCE__DFLT = 'h0;
@@ -482,7 +482,7 @@
     localparam HBA_PORT__PxIE__DPE__ADDR = 'h45;
     localparam HBA_PORT__PxIE__DPE__MASK = 'h20;
     localparam HBA_PORT__PxIE__DPE__DFLT = 'h0;
-// RO: Unknown FIS
+// RW: Unknown FIS
     localparam HBA_PORT__PxIE__UFE__ADDR = 'h45;
     localparam HBA_PORT__PxIE__UFE__MASK = 'h10;
     localparam HBA_PORT__PxIE__UFE__DFLT = 'h0;

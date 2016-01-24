@@ -266,12 +266,12 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              {            fS:25,        fT:RO, fC:0, fD:"Reserved"},
              {fN:"OFE",   fS:24,        fT:RW, fC:0, fD:"Overflow Enable"},
              {fN:"IPME",  fS:23,        fT:RW, fC:0, fD:"Incorrect Port Multiplier Enable"},
-             {fN:"PRCE",  fS:22,        fT:RO, fC:0, fD:"PhyRdy changed Enable"},  #Indirect clear
+             {fN:"PRCE",  fS:22,        fT:RW, fC:0, fD:"PhyRdy changed Enable"},  #Indirect clear
              {            fS: 8, fE:21, fT:RO, fC:0, fD:"Reserved"},
              {fN:"DMPE",  fS: 7,        fT:RO, fC:0, fD:"Device Mechanical Presence Interrupt Enable"}, #Indirect clear 
-             {fN:"PCE",   fS: 6,        fT:RO, fC:0, fD:"Port Connect Change Interrupt Enable"}, #Indirect clear 
+             {fN:"PCE",   fS: 6,        fT:RW, fC:0, fD:"Port Connect Change Interrupt Enable"}, #Indirect clear 
              {fN:"DPE",   fS: 5,        fT:RW, fC:0, fD:"Descriptor Processed Interrupt Enable"}, 
-             {fN:"UFE",   fS: 4,        fT:RO, fC:0, fD:"Unknown FIS"},  #Indirect clear
+             {fN:"UFE",   fS: 4,        fT:RW, fC:0, fD:"Unknown FIS"},  #Indirect clear
              {fN:"SDBE",  fS: 3,        fT:RW, fC:0, fD:"Device Bits Interrupt Enable"},
              {fN:"DSE",   fS: 2,        fT:RW, fC:0, fD:"DMA Setup FIS Interrupt Enable"},
              {fN:"PSE",   fS: 1,        fT:RW, fC:0, fD:"PIO Setup FIS Interrupt Enable"},

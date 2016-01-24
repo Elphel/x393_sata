@@ -120,7 +120,7 @@ module oob #(
 );
 
 `ifdef SIMULATION
-    reg [639:0] HOST_OOB_TITLE; // to show human-readable state in the GTKWave
+    reg [639:0] HOST_OOB_TITLE ='bz; // to show human-readable state in the GTKWave
 `endif
 
 

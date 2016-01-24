@@ -325,7 +325,8 @@ localparam DATA_TYPE_ERR =      3;
         if (store_sig[1])                     sig_r[31:8] <= hba_data_in[23:0];
         if (store_sig[3])                     sig_r[ 7:0] <= hba_data_in[ 7:0];
         
-        if (reg_d2h)                          tf_err_sts  <= hba_data_in[31:16]; // 15:0];
+        if      (hba_rst)                     tf_err_sts  <= 0;
+        else if (reg_d2h)                     tf_err_sts  <= hba_data_in[31:16]; // 15:0];
         //  Sets pPioErr[pPmpCur] to Error field of the FIS
         //  Updates PxTFD.STS.ERR with pPioErr[pPmpCur] ??
         else if (reg_ps[0])                   tf_err_sts  <= {hba_data_in[31:24],hba_data_in[23:16]};

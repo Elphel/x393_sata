@@ -43,7 +43,7 @@ module sata_device(
 );
 `include "includes/fis_types.vh"
 //`ifdef SIMULATION
-    reg [639:0] DEV_TITLE; // to show human-readable state in the GTKWave
+    reg [639:0] DEV_TITLE = 'bz; // to show human-readable state in the GTKWave
 //    reg  [31:0] DEV_DATA;
     integer DEV_DATA;
 //`endif
