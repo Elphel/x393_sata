@@ -67,6 +67,9 @@ reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GT
 reg  [31:0] TESTBENCH_DATA;
 reg  [11:0] TESTBENCH_ID;
 
+reg [639:0] DEVICE_TITLE = "RESET"; // to show human-readable state in the GTKWave
+reg  [31:0] DEVICE_DATA;
+reg  [11:0] Device_ID;
 
 initial #1 $display("HI THERE");
 initial
@@ -639,7 +642,7 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
     endtask
 
 
-initial begin
+initial begin //Host
     wait (!RST);
 //reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
     TESTBENCH_TITLE = "NO_RESET";
@@ -658,6 +661,22 @@ initial begin
 
 end
 
+integer status;
+initial begin //Device
+    dev.clear_transmit_pause(0);  
+//    dev.linkTransmitFIS(66, 5, 0, status);
+//    wait (dev.phy_ready);
+    dev.wait_ready(3);
+    DEVICE_TITLE = "NO_RESET";
+    $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+    dev.send_good_status (66,      // input integer id;
+                          5,       // input    [2:0] dev_specific_status_bits;
+                          1,       // input          irq;
+                          status); // output integer status;
+    DEVICE_TITLE = "Device sent D2H RS";
+    $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+                      
+end
   initial begin
 //       #30000;
      #50000;

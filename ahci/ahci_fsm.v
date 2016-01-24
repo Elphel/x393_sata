@@ -255,6 +255,7 @@ module  ahci_fsm
 //    reg                            jump_r; 
     reg                      [2:0] fsm_jump;
     wire                           fsm_next;
+    reg                            fsm_next_r;
     reg                            fsm_actions;     // processing actions
     reg                            fsm_act_busy;
     reg                      [1:0] fsm_transitions; // processing transitions
@@ -277,6 +278,7 @@ module  ahci_fsm
     reg                      [1:0] phy_ready_prev;    // previous state of phy_ready / speed
     reg                            phy_ready_chng_r;  // pulse when phy_ready changes
     wire                           phy_ready_chng_w = !hba_rst && !was_rst && (phy_ready != phy_ready_prev);
+    reg                            was_last_action_r; // delay last action if it was fsm_wait_act;
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
     assign update_all = fsm_jump[0];
@@ -334,11 +336,12 @@ module  ahci_fsm
         else if (fsm_jump[2])                               fsm_actions <= 1;
         else if (fsm_last_act_w && fsm_next)                fsm_actions <= 0;
         
+        if (fsm_actions && fsm_next)                        was_last_action_r <= fsm_last_act_w;
         
-        
-        if      (hba_rst || pre_jump_w)                     fsm_transitions <= 0;
-        else if (fsm_last_act_w && fsm_actions && fsm_next) fsm_transitions <= 1;
-        else                                                fsm_transitions <= {fsm_transitions[0],fsm_transitions[0]};
+        if      (hba_rst || pre_jump_w)                                fsm_transitions <= 0;
+        else if ((fsm_last_act_w && fsm_actions && fsm_next && !fsm_wait_act_w) ||
+                 (fsm_act_busy && fsm_act_done && was_last_action_r) ) fsm_transitions <= 1;
+        else                                                           fsm_transitions <= {fsm_transitions[0],fsm_transitions[0]};
         
         if (hba_rst) fsm_preload <= 0;
         else         fsm_preload <= |fsm_jump[1:0];

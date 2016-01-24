@@ -79,10 +79,10 @@ wire    [7:0]   rxdisperr;
 wire    [7:0]   rxdisperr_gtx;
 wire    [7:0]   rxnotintable;
 wire    [7:0]   rxnotintable_gtx;
-wire    [31:0]  rxdata_out;
-wire    [31:0]  txdata_in;
-wire    [3:0]   txcharisk_in;
-wire    [3:0]   rxcharisk_out;
+//wire    [31:0]  rxdata_out;
+//wire    [31:0]  txdata_in;
+//wire    [3:0]   txcharisk_in;
+//wire    [3:0]   rxcharisk_out;
                
 wire            rxcomwakedet;
 wire            rxcominitdet;
@@ -763,9 +763,9 @@ assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
 assign  txn_out         = txn;
 assign  txp_out         = txp;
-assign  ll_data_out     = rxdata_out;
-assign  ll_charisk_out  = rxcharisk_out;
-assign  txdata_in       = ll_data_in;
-assign  txcharisk_in    = ll_charisk_in;
+//assign  ll_data_out     = rxdata_out;
+//assign  ll_charisk_out  = rxcharisk_out;
+//assign  txdata_in       = ll_data_in;
+//assign  txcharisk_in    = ll_charisk_in;
 
 endmodule

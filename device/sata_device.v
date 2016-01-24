@@ -41,6 +41,7 @@ module sata_device(
     input   wire    EXTCLK_P,
     input   wire    EXTCLK_N
 );
+`include "includes/fis_types.vh"
 //`ifdef SIMULATION
     reg [639:0] DEV_TITLE; // to show human-readable state in the GTKWave
 //    reg  [31:0] DEV_DATA;
@@ -57,6 +58,8 @@ wire            dev_rst;
 
 reg     [31:0]  dev2phy_data    = 32'hB5B5957C; // SYNCP
 reg     [3:0]   dev2phy_isk     = 4'h1;
+
+reg     [2:0]   phy_ready_syncp_r;  // allow device to send 3 SYNCp before getting ready
 
 sata_phy_dev phy(
     // pll reset
@@ -127,6 +130,8 @@ reg [31:0] receive_wait_fifo;
 reg [31:0] receive_crc;
 integer    receive_id = 0;
 integer    receive_status = 0;
+
+
 
 /*
  * Monitor incoming primitives every clock cycle
@@ -288,7 +293,7 @@ function tranCheckFIS; //SuppressThisWarning VEditor: VDT bug - the function is 
     begin
 //        $display("[Device] TRANSPORT: Says the FIS is valid");
         DEV_TITLE = "Says the FIS is valid";
-        $display("[Device] TRANSPORT: %s @%t", DEV_TITLE, $time);
+        $display("[Device] TRANSPORT: %s @%t", DEV_TITLE, $time);   
         
         tranCheckFIS = 0; // always tell LL the FIS os OK
     end
@@ -634,9 +639,43 @@ endtask
 
 
 
-reg [31:0] transmit_data [2047:0];
+reg [31:0] transmit_data [2047:0];          // @SuppressThisWarning VEditor - Assigned in testbench
 reg [31:0] transmit_data_pause [2047:0];
-reg [31:0] transmit_crc; // never assigned
+reg [31:0] transmit_crc; // never assigned  // @SuppressThisWarning VEditor - Assigned in testbench
+task clear_transmit_pause; // @SuppressThisWarning VEditor - Used in testbench
+    input [31:0] pause_val;
+    integer i;
+    begin
+    for (i = 0; i < 2048; i = i + 1) begin
+        transmit_data_pause[i] = pause_val;
+    end
+    end
+endtask
+
+// Wait for device phy ready (full COMRESET/COMINIT sequence) and wait to send several SYNCp primitives so host knows it is done
+task wait_ready; // @SuppressThisWarning VEditor - Used in testbench
+    input integer num_syncp;
+    begin
+        wait (phy_ready);
+        repeat(num_syncp + 1) @(posedge clk);
+    end
+endtask
+    
+task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    input    [2:0] dev_specific_status_bits;
+    input          irq;
+    output integer status;
+    begin
+        transmit_data[0] = FIS_D2HR | (irq? 'h4000:0) | (dev_specific_status_bits << 20) | 'h1000000;
+        transmit_data[1] = 1;
+        transmit_data[2] = 0;
+        transmit_data[3] = 1;
+        transmit_data[4] = 0;
+        linkTransmitFIS(id, 5, 0, status);        
+//        linkTransmitFIS (
+    end
+endtask
 /*
  * Transmits data to a host. ~Link Transmit FSM
  * Correct execution, as it shall be w/o errors from a device side. (except timeouts and data consistency, see below)
@@ -661,7 +700,7 @@ reg [31:0] transmit_crc; // never assigned
  *          b) Scrambler messed up
  *          c) There is an error in the host
  */
-task linkTransmitFIS;
+task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
     input integer id;
     input integer size; // dwords count
     input integer transmit_custom_crc;
@@ -900,7 +939,7 @@ endtask
 
 // checks, if it is data coming from the host
 function [0:0] linkIsData;
-    input dummy;
+    input dummy; // @SuppressThisWarning VEditor - unused (is it for some simulator?)
     begin
         if (|phy2dev_charisk) 
             linkIsData = 1;
@@ -912,7 +951,7 @@ endfunction
 // obvious
 function [31:0] linkGetData;
 // TODO non-even word count
-    input dummy;
+    input dummy; // @SuppressThisWarning VEditor - unused (is it for some simulator?)
     begin
         linkGetData = phy2dev_data;
     end
@@ -922,7 +961,7 @@ endfunction
  * Return value is a string containing its name!
  */
 function [112:0] linkGetPrim;
-    input integer dummy;
+    input integer dummy; // @SuppressThisWarning VEditor - unused (is it for some simulator?)
     reg [112:0] type;
     begin
         if (~|phy2dev_charisk) begin
