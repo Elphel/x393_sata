@@ -151,7 +151,8 @@ module  axi_ahci_regs#(
     reg                    write_busy_r;
     wire                   write_start_burst;
 //    wire         nowrite;          // delay write in read-modify-write register accesses
-    wire                   write_busy_w = write_busy_r || write_start_burst;
+///    wire                   write_busy_w = write_busy_r || write_start_burst;
+    wire                   write_busy_w = write_busy_r || write_start_burst || bram_wen_r;
     reg             [31:0] bram_wdata_r;
     reg             [31:0] bram_rdata_r;
 //    reg                    bram_wen_d;
@@ -186,9 +187,14 @@ module  axi_ahci_regs#(
     reg             [2:0]  arst_r = ~0;          // previous state of arst
     reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
     wire                   any_access = bram_wen_r || bram_ren[0];
+    reg                    bram_ren0_r;
+    wire             [1:0] bram_ren_w = {bram_ren0_r, bram_ren[0] & ~write_busy_w}; // axibram_read does not mask bram_ren and bram_regen with dev_ready !
+    
     
 //    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
-    assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+//    assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+    assign bram_addr =     bram_ren_w[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+    
     assign hba_arst =      hba_rst_r;       // hba _reset (currently does ~ the same as port reset)
     assign port_arst =     port_rst_r;     // port _reset by software
     assign port_arst_any = port_arst_any_r;
@@ -197,13 +203,15 @@ module  axi_ahci_regs#(
     
     
     always @(posedge aclk) begin
+        bram_ren0_r <= bram_ren_w[0];
+       
         if      (arst)              write_busy_r <= 0;
         else if (write_start_burst) write_busy_r <= 1;
         else if (!pre_bram_wen)     write_busy_r <= 0;
 
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
-        if (bram_ren[1])            bram_rdata_r <= bram_rdata;
+        if (bram_ren_w[1])          bram_rdata_r <= bram_rdata;
         
         bram_wstb_r <= {4{bram_wen}} & bram_wstb;
         
@@ -392,22 +400,24 @@ sata_phy_rst_out will be released after the sata clock is stable
         .WRITE_MODE_B("NO_CHANGE")
         `include "includes/ahci_defaults.vh" 
     ) ahci_regs_i (
-        .clk_a        (aclk),                        // input
-        .addr_a       (bram_addr),                   // input[9:0] 
-        .en_a         (bram_ren[0] || write_busy_w), // input
-        .regen_a      (1'b0),                 // input
-//        .we_a         (write_busy_r && !nowrite),    // input
-        .we_a         (bram_wstb_r), //bram_wen_d),  // input[3:0]
+        .clk_a        (aclk),                                  // input
+        .addr_a       (bram_addr),                             // input[9:0] 
+///        .en_a         (bram_ren[0] || write_busy_w),           // input
+///        .en_a         (bram_ren[0] || bram_wen || bram_wen_r), // input
+        .en_a         (bram_ren_w[0] || bram_wen || bram_wen_r), // input
+        .regen_a      (1'b0),                                  // input
+//        .we_a         (write_busy_r && !nowrite),            // input
+        .we_a         (bram_wstb_r), //bram_wen_d),            // input[3:0]
 //        
-        .data_out_a   (bram_rdata),                  // output[31:0] 
-        .data_in_a    (ahci_regs_di),                // input[31:0] 
-        .clk_b        (hba_clk),                     // input
-        .addr_b       (hba_addr),                    // input[9:0] 
-        .en_b         (hba_we || hba_re[0]),         // input
-        .regen_b      (hba_re[1]),                   // input
-        .we_b         ({4{hba_we}}),                      // input
-        .data_out_b   (hba_dout),                    // output[31:0] 
-        .data_in_b    (hba_din)                      // input[31:0] 
+        .data_out_a   (bram_rdata),                            // output[31:0] 
+        .data_in_a    (ahci_regs_di),                          // input[31:0] 
+        .clk_b        (hba_clk),                               // input
+        .addr_b       (hba_addr),                              // input[9:0] 
+        .en_b         (hba_we || hba_re[0]),                   // input
+        .regen_b      (hba_re[1]),                             // input
+        .we_b         ({4{hba_we}}),                           // input
+        .data_out_b   (hba_dout),                              // output[31:0] 
+        .data_in_b    (hba_din)                                // input[31:0] 
     );
 
     ram_var_w_var_r #(

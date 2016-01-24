@@ -225,7 +225,9 @@ module  ahci_ctrl_stat #(
     reg                           sirq_changed;
     reg                           pxcmd_changed;
     reg                           ghc_is_changed;
-    wire                    [5:0] regs_changed={pxcmd_changed, serr_changed, ssts_changed, pxci_changed, sirq_changed,ghc_is_changed };
+//    wire                    [5:0] regs_changed={pxcmd_changed, serr_changed, ssts_changed, pxci_changed, sirq_changed,ghc_is_changed };
+    wire                    [5:0] regs_changed={pxci_changed, pxcmd_changed, serr_changed, ssts_changed, sirq_changed,ghc_is_changed };
+    
 //    wire                    [5:0] update;
     reg                     [5:1] updating;
     wire                    [5:0] update_first =  {6{update_all}} & 

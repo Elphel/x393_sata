@@ -178,20 +178,20 @@ module  ahci_sata_layers #(
 //assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
     assign phy_speed = phy_ready ? PHY_SPEED:0;
 
-    assign serr_DB = |ph2ll_err_out;
-    assign serr_DH = xmit_err;
+    assign serr_DB = phy_ready && (|ph2ll_err_out);
+    assign serr_DH = phy_ready && (xmit_err);
     
 // not yet assigned errors
-    assign serr_DT = 0;   // RWC: Transport state transition error
-    assign serr_DS = 0;   // RWC: Link sequence error
-    assign serr_DC = 0;   // RWC: CRC error in Link layer
-    assign serr_DB = 0;   // RWC: 10B to 8B decode error
-    assign serr_DI = 0;   // RWC: PHY Internal Error
-    assign serr_EP = 0;   // RWC: Protocol Error - a violation of SATA protocol detected
-    assign serr_EC = 0;   // RWC: Persistent Communication or Data Integrity Error
-    assign serr_ET = 0;   // RWC: Transient Data Integrity Error (error not recovered by the interface)
-    assign serr_EM = 0;   // RWC: Communication between the device and host was lost but re-established
-    assign serr_EI = 0;   // RWC: Recovered Data integrity Error
+    assign serr_DT = phy_ready && (0);   // RWC: Transport state transition error
+    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
+    assign serr_DC = phy_ready && (0);   // RWC: CRC error in Link layer
+    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
+    assign serr_DI = phy_ready && (0);   // RWC: PHY Internal Error
+    assign serr_EP = phy_ready && (0);   // RWC: Protocol Error - a violation of SATA protocol detected
+    assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
+    assign serr_ET = phy_ready && (0);   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+    assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
+    assign serr_EI = phy_ready && (0);   // RWC: Recovered Data integrity Error
     
     
     

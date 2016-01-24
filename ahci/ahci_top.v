@@ -202,8 +202,8 @@ module  ahci_top#(
     wire [ADDRESS_BITS-1:0] regs_raddr;
     wire             [31:0] regs_din_from_freceive;
     wire             [31:0] regs_dout;
-    wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we}} & regs_waddr) |
-                                        ({ADDRESS_BITS{regs_re[0]}} & regs_raddr) |
+    wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we_freceive}} & regs_waddr) |
+                                        ({ADDRESS_BITS{regs_re_ftransmit[0]}} & regs_raddr) |
 //                                        ({ADDRESS_BITS{regs_re_fsm[0] | regs_we_acs}} & regs_saddr);
                                         ({ADDRESS_BITS{regs_we_acs}} & regs_saddr);
                                         

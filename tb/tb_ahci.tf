@@ -622,9 +622,20 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
         input [31:0] address;
         input [31:0] data;
         begin
-          axi_write_single(address + MAXIGP1, data);
+            axi_write_single(address + MAXIGP1, data);
         end
     endtask
+
+    task maxigp1_writep; // address in bytes, not words
+        input [31:0] address;
+        input [31:0] data;
+        begin
+            axi_write_single(address + MAXIGP1, data);
+            $display ("%x <- %x @ %t",address + MAXIGP1, data,$time);
+        end
+    endtask
+
+
 
     task maxigp1_read;
     input [31:0] address;
@@ -653,9 +664,15 @@ initial begin //Host
     axi_set_rd_lag(0);
     axi_set_b_lag(0);
     
-    maxigp1_print(PCI_Header__CAP__CAP__ADDR);
-    maxigp1_print(GHC__PI__PI__ADDR);
-    maxigp1_print(HBA_PORT__PxCMD__ICC__ADDR);
+    maxigp1_print        (PCI_Header__CAP__CAP__ADDR << 2);
+    maxigp1_print        (GHC__PI__PI__ADDR << 2);
+    maxigp1_print        (HBA_PORT__PxCMD__ICC__ADDR << 2);
+    maxigp1_print        (GHC__GHC__IE__ADDR << 2);
+    maxigp1_writep       (GHC__GHC__IE__ADDR << 2, GHC__GHC__IE__MASK); // enable interrupts (global)
+    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
+    maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, ~0); // allow all interrupts
+    maxigp1_print        (GHC__GHC__IE__ADDR << 2);
+    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
     
 //    $finish;
 
