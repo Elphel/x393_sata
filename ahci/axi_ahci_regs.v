@@ -187,13 +187,8 @@ module  axi_ahci_regs#(
     reg             [2:0]  arst_r = ~0;          // previous state of arst
     reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
     wire                   any_access = bram_wen_r || bram_ren[0];
-//    reg                    bram_ren0_r;
-//    wire             [1:0] bram_ren_w = {bram_ren0_r, bram_ren[0] & ~write_busy_w}; // FIXED: axibram_read does not mask bram_ren and bram_regen with dev_ready !
-    
-    
-//    assign bram_addr = bram_ren[0] ? bram_raddr : (bram_wen ? bram_waddr : pre_awaddr);
+
     assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
-//    assign bram_addr =     bram_ren_w[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
     
     assign hba_arst =      hba_rst_r;       // hba _reset (currently does ~ the same as port reset)
     assign port_arst =     port_rst_r;     // port _reset by software
@@ -212,7 +207,7 @@ module  axi_ahci_regs#(
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
 ///        if (bram_ren_w[1])          bram_rdata_r <= bram_rdata;
-        if (bram_ren[1])          bram_rdata_r <= bram_rdata;
+        if (bram_ren[1])            bram_rdata_r <= bram_rdata;
         
         bram_wstb_r <= {4{bram_wen}} & bram_wstb;
         

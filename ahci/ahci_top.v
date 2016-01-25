@@ -202,16 +202,25 @@ module  ahci_top#(
     wire [ADDRESS_BITS-1:0] regs_raddr;
     wire             [31:0] regs_din_from_freceive;
     wire             [31:0] regs_dout;
+
+    reg                     en_port;
+    wire              [1:0] regs_re = en_port ?  regs_re_ftransmit : 2'b0; // [0] - re, [1] - regen
+    wire                    regs_we = en_port ? ( regs_we_freceive | regs_we_acs) : 1'b0;
+
+
     wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{regs_we_freceive}} & regs_waddr) |
                                         ({ADDRESS_BITS{regs_re_ftransmit[0]}} & regs_raddr) |
-//                                        ({ADDRESS_BITS{regs_re_fsm[0] | regs_we_acs}} & regs_saddr);
                                         ({ADDRESS_BITS{regs_we_acs}} & regs_saddr);
                                         
+
+/*
+    wire [ADDRESS_BITS-1:0] regs_addr = ({ADDRESS_BITS{en_port & regs_we_freceive}} & regs_waddr) |
+                                        ({ADDRESS_BITS{en_port & regs_re_ftransmit[0]}} & regs_raddr) |
+                                        ({ADDRESS_BITS{en_port & regs_we_acs}} & regs_saddr);
+*/                                        
     wire             [31:0] regs_din =  ({32{regs_we_freceive}} & regs_din_from_freceive) |
                                         ({32{regs_we_acs}} &      regs_din_from_acs);
 //    wire              [1:0] regs_re = regs_re_ftransmit | regs_re_fsm; // [0] - re, [1] - regen
-    wire              [1:0] regs_re = regs_re_ftransmit; // [0] - re, [1] - regen
-    wire                    regs_we = regs_we_freceive | regs_we_acs;
     
     
 //---------------------    
@@ -422,7 +431,25 @@ module  ahci_top#(
     
     wire                          pxci0_clear;       // PxCI clear
     wire                          pxci0;             // pxCI current value
-
+    
+    // Async FF
+    always @ (posedge mrst or posedge mclk) begin
+        if (mrst) en_port <= 0;
+        else      en_port <= 1;
+    end
+    
+/*
+    reg                     [1:0] port_en;           //disable port signals until initialized from the hardware (currently - PLL)
+    wire                          ports_rst = ~port_en[1];
+    always @ (posedge mclk) begin
+        if      (port_arst_any)       port_en[0] <= 0;
+        else if (mrst)                port_en[0] <= 1;
+        
+        if      (port_arst_any)       port_en[1] <= 0;
+        else if (!mrst && port_en[0]) port_en[1] <= 1;
+        
+    end
+*/    
 
 
     ahci_fsm// #(

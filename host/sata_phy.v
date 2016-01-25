@@ -214,14 +214,49 @@ end
 wire    usrpll_locked;
 
 // make tx/rxreset synchronous to gtrefclk - gather singals from different domains: async, aclk, usrclk2, gtrefclk
+localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
 reg rxreset_f;
 reg txreset_f;
 reg rxreset_f_r;
 reg txreset_f_r;
 reg rxreset_f_rr;
 reg txreset_f_rr;
-always @ (posedge gtrefclk)
-begin
+//reg pre_sata_reset_done;
+reg sata_areset;
+reg [2:0] sata_reset_done_r;
+reg [7:0]   rst_timer;
+//reg         rst_r = 1;
+assign  rst = !sata_reset_done_r;
+
+assign  sata_reset_done = sata_reset_done_r[1];
+
+
+// generate internal reset after a clock is established
+// !!!ATTENTION!!!
+// async rst block
+//localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
+/*
+always @ (posedge clk or posedge extrst)
+//    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
+    if      (extrst)                     rst_timer <= 0;
+    else if (~cplllock | ~usrpll_locked) rst_timer <= 0;
+    else if (!sata_reset_done)           rst_timer <= rst_timer + 1;
+//    else        rst_timer <= ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
+
+always @ (posedge clk or posedge extrst)
+    if      (extrst)       rst_r <= 1; 
+    else if (~|rst_timer)  rst_r <= 0;
+    else                   rst_r <= !sata_reset_done;
+//    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
+///assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
+*/
+always @ (posedge clk or  sata_areset) begin
+    if      (sata_areset)  sata_reset_done_r <= 0;
+    else                   sata_reset_done_r <= {sata_reset_done_r[1:0], 1'b1};
+end
+
+
+always @ (posedge gtrefclk) begin
 //    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
 //    txreset_f <= ~cplllock | cpllreset;
 
@@ -232,8 +267,13 @@ begin
     rxreset_f_r <= rxreset_f;
     txreset_f_rr <= txreset_f_r;
     rxreset_f_rr <= rxreset_f_r;
+    
+    if (!(cplllock  && usrpll_locked)) rst_timer <= RST_TIMER_LIMIT;
+    else if (|rst_timer)               rst_timer <= rst_timer - 1;
+    
+    sata_areset <= !(cplllock  &&  usrpll_locked && !(|rst_timer));
+    
 end
-
 assign  rxreset = rxreset_f_rr;
 assign  txreset = txreset_f_rr;
 assign  cpllreset = extrst;
@@ -247,6 +287,10 @@ always @ (posedge clk or posedge extrst)
 //    gtx_configured <= extrst ? 1'b0 : gtx_ready | gtx_configured;
     if (extrst) gtx_configured <= 0;
     else        gtx_configured <= gtx_ready | gtx_configured;
+
+
+
+
 
 
 // issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
@@ -275,26 +319,6 @@ always @ (posedge clk or posedge extrst)
     if (extrst) rxreset_oob_cnt <= 1; 
     else        rxreset_oob_cnt <= rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
 
-// generate internal reset after a clock is established
-// !!!ATTENTION!!!
-// async rst block
-reg [7:0]   rst_timer;
-reg         rst_r;
-localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
-always @ (posedge clk or posedge extrst)
-//    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
-    if (extrst) rst_timer <= 1;
-    else        rst_timer <= ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
-
-assign  rst = rst_r;
-always @ (posedge clk or posedge extrst)
-    if      (extrst)       rst_r <= 1; 
-    else if (~|rst_timer)  rst_r <= 0;
-    else                   rst_r <= !sata_reset_done;
-
-//    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
-
-assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
 
 /*
  * USRCLKs generation. USRCLK @ 150MHz, same as TXOUTCLK; USRCLK2 @ 75Mhz -> sata_clk === sclk

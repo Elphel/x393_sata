@@ -653,7 +653,7 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
         end
     endtask
 
-//localparam CLB_OFFS32 =        'h200; //  # In the second half of the register space (0x800..0xbff - 1KB)
+localparam CLB_OFFS32 =        'h200; //  # In the second half of the register space (0x800..0xbff - 1KB)
 localparam HBA_OFFS32 =         0;
 localparam HBA_PORT0_OFFS32  = 'h40;
 localparam PXSIG_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h9; 
@@ -670,12 +670,18 @@ initial begin //Host
     axi_set_rd_lag(0);
     axi_set_b_lag(0);
 
-    maxigp1_writep       (PXSIG_OFFS32 << 2, 'h12345678); // 
-    maxigp1_writep       (PXTFD_OFFS32 << 2, 'h87654321); // 
+    maxigp1_writep       (PXSIG_OFFS32   << 2, 'h12345678); // 
+    maxigp1_writep       (PXTFD_OFFS32   << 2, 'h87654321); // 
+    maxigp1_writep       (CLB_OFFS32     << 2, 'h12345678); // 
+    maxigp1_writep       ((CLB_OFFS32+1) << 2, 'h87654321); // 
 
 
-    maxigp1_print        (PXSIG_OFFS32 << 2);
-    maxigp1_print        (PXTFD_OFFS32 << 2);
+    maxigp1_print        (PXSIG_OFFS32 << 2); // OK to read wrong - it is RO with default 'hffffffff
+    maxigp1_print        (PXTFD_OFFS32 << 2); // OK to read wrong - it is RO with default 0
+    maxigp1_print        (CLB_OFFS32     << 2); // 
+    maxigp1_print        ((CLB_OFFS32+1) << 2); // 
+
+
 
     
     maxigp1_print        (PCI_Header__CAP__CAP__ADDR << 2);

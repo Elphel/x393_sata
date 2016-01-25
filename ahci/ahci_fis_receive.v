@@ -336,7 +336,8 @@ localparam DATA_TYPE_ERR =      3;
                                               tf_err_sts  <= tf_err_sts & {8'hff,clear_bsy_drq,3'h7,clear_bsy_drq,3'h7} | {8'h0,set_bsy,3'h0,clear_bsy_set_drq,3'h0};
         else if (set_sts_7f || set_sts_80)    tf_err_sts  <= {tf_err_sts[15:8],set_sts_80,{7{set_sts_7f}}} ;
         
-        reg_we <= reg_we_w || update_sig_r || update_err_sts_r || update_prdbc_r;
+        if (hba_rst) reg_we <= 0; 
+        else         reg_we <= reg_we_w || update_sig_r || update_err_sts_r || update_prdbc_r;
         
         if      (reg_we_w)                    reg_addr <=  reg_addr_r;
         else if (update_err_sts_r)            reg_addr <=  PXTFD_OFFS32;
