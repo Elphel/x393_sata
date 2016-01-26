@@ -321,7 +321,7 @@ module  ahci_dma (
     
     
         if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
-        else if (ct_done)    ct_maddr[31:4] <= ct_maddr[31:4] + 16;
+        else if (ct_done)    ct_maddr[31:4] <= ct_maddr[31:4] + 8; // 16;
         else if (wcount_set) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
         
         // overall sequencing makes sure that there will be no new requests until older served

@@ -151,7 +151,7 @@ module  ahci_ctrl_stat #(
     wire                          swr_HBA_PORT__PxSCTL = soft_write_en && (soft_write_addr == HBA_PORT__PxSCTL__SPD__ADDR);
 //    wire                          swr_HBA_PORT__PxSSTS = soft_write_en && (soft_write_addr == HBA_PORT__PxSSTS__SPD__ADDR);
     wire                          swr_HBA_PORT__PxSERR = soft_write_en && (soft_write_addr == HBA_PORT__PxSERR__DIAG__X__ADDR);
-    wire                          swr_HBA_PORT__PxCI =   soft_write_en && (soft_write_addr == HBA_PORT__PxCI__CI__DFLT);
+    wire                          swr_HBA_PORT__PxCI =   soft_write_en && (soft_write_addr == HBA_PORT__PxCI__CI__ADDR);
 
     reg                           hba_rst_r = 1;
     reg                           rst_por;

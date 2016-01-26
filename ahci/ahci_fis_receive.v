@@ -77,7 +77,7 @@ module  ahci_fis_receive#(
     // TODO: Add writing PRDBC here?
     output reg                    pPioXfer,      // state variable
     output                  [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
-                                                 // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
+                                                 // tfd_sts[7] - BSY, tfd_sts[3] - DRQ, tfd_sts[0] - ERR
     output                  [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
     output reg                    fis_i,         // value of "I" field in received regsD2H or SDB FIS or DMA Setup FIS
     output reg                    sdb_n,         // value of "N" field in received SDB FIS 
@@ -307,7 +307,8 @@ localparam DATA_TYPE_ERR =      3;
         
         get_fis_done <=  get_fis_busy_r && (too_long_err || fis_end_w);
         
-        if      (hba_rst || get_fis)          fis_first_vld <= 0;
+//        if      (hba_rst || get_fis)          fis_first_vld <= 0;
+        if      (hba_rst || fis_end_w)          fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
         else if (is_FIS_HEAD)                 fis_first_vld <= 1;
         
         if      (hba_rst || get_fis)          fis_ok <= 0;

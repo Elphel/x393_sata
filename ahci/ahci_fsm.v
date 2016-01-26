@@ -194,7 +194,7 @@ module  ahci_fsm
     input                         pxcmd_fre,     // control bit enables saving FIS to memory
     input                         pPioXfer,      // state variable
     input                   [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
-                                                 // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
+                                                 // tfd_sts[7] - BSY, tfd_sts[3] - DRQ, tfd_sts[0] - ERR
 ///    input                   [7:0] tfd_err,       // Current PxTFD error field (updated after regFIS and SDB)
     input                         fis_i,         // value of "I" field in received regsD2H or SDB FIS
 ///    input                         sdb_n,         // value of "N" field in received SDB FIS 
@@ -241,7 +241,7 @@ module  ahci_fsm
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
 `include "includes/fis_types.vh"        // @SuppressThisWarning VEditor : Some  localparams unused
     wire                           tfd_bsy =     tfd_sts[7];
-    wire                           tfd_drq =     tfd_sts[4];
+    wire                           tfd_drq =     tfd_sts[3];
     wire                           tfd_sts_err = tfd_sts[0];
     
     reg                     [ 9:0] pgm_waddr;

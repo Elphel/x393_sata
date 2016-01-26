@@ -221,12 +221,12 @@
     wire         [3:0] sctl_ipm;          // Interface power management transitions allowed
     wire         [3:0] sctl_spd;          // Interface maximal speed
     
-    reg          [2:0] hrst_r;
-    wire               hrst = hrst_r[2];
+    reg          [2:0] nhrst_r;
+    wire               hrst = !nhrst_r[2];
     
     always @ (posedge hclk or posedge arst) begin
-        if (arst) hrst_r <= 0;
-        else      hrst_r <= (hrst_r << 1) | 1;
+        if (arst) nhrst_r <= 0;
+        else      nhrst_r <= (nhrst_r << 1) | 1;
     end
 
     

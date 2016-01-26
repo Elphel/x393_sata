@@ -343,6 +343,7 @@ sata_device dev(
 
 // axi_hp simulation signals
   wire HCLK;
+  wire HRST;
   wire [31:0] afi_sim_rd_address;    // output[31:0] 
   wire [ 5:0] afi_sim_rid;           // output[5:0]  SuppressThisWarning VEditor - not used - just view
 //  reg         afi_sim_rd_valid;      // input
@@ -355,26 +356,29 @@ sata_device dev(
   wire  [ 1:0] afi_sim_rd_resp;       // input[1:0] 
 //  reg  [ 1:0] afi_sim_rd_resp;       // input[1:0] 
 
-  wire [31:0] afi_sim_wr_address;    // output[31:0] SuppressThisWarning VEditor - not used - just view
+  wire [31:0] afi_sim_wr_address;    // output[31:0]
   wire [ 5:0] afi_sim_wid;           // output[5:0]  SuppressThisWarning VEditor - not used - just view
   wire        afi_sim_wr_valid;      // output
   wire        afi_sim_wr_ready;      // input
 //  reg         afi_sim_wr_ready;      // input
-  wire [63:0] afi_sim_wr_data;       // output[63:0] SuppressThisWarning VEditor - not used - just view
-  wire [ 7:0] afi_sim_wr_stb;        // output[7:0]  SuppressThisWarning VEditor - not used - just view
+  wire [63:0] afi_sim_wr_data;       // output[63:0]
+  wire [ 7:0] afi_sim_wr_stb;        // output[7:0]
   wire [ 3:0] afi_sim_bresp_latency; // input[3:0] 
 //  reg  [ 3:0] afi_sim_bresp_latency; // input[3:0] 
   wire [ 2:0] afi_sim_wr_cap;        // output[2:0]  SuppressThisWarning VEditor - not used - just view
   wire [ 3:0] afi_sim_wr_qos;        // output[3:0]  SuppressThisWarning VEditor - not used - just view
 
   assign HCLK = dut.ps7_i.SAXIHP3ACLK; // shortcut name
+  assign HRST = dut.sata_top.hrst;  // shortcut name
+/*
+//  assign HCLK = dut.ps7_i.SAXIHP3ACLK; // shortcut name
 // afi loopback
   assign #1 afi_sim_rd_data=  afi_sim_rd_ready?{2'h0,afi_sim_rd_address[31:3],1'h1,  2'h0,afi_sim_rd_address[31:3],1'h0}:64'bx;
   assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
   assign #1 afi_sim_rd_resp = afi_sim_rd_ready?2'b0:2'bx;
   assign #1 afi_sim_wr_ready = afi_sim_wr_valid;
   assign #1 afi_sim_bresp_latency=4'h5; 
-
+*/
 // axi_hp register access
   // PS memory mapped registers to read/write over a separate simulation bus running at HCLK, no waits
   reg  [31:0] PS_REG_ADDR;
@@ -411,7 +415,7 @@ sata_device dev(
 simul_axi_hp_rd #(
         .HP_PORT(3)
     ) simul_axi_hp_rd_i (
-        .rst            (RST),                            // input
+        .rst            (HRST), // RST),                            // input
         .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
         .aresetn        (),                               // output
         .araddr         (dut.ps7_i.SAXIHP3ARADDR[31:0]),  // input[31:0] 
@@ -452,7 +456,7 @@ simul_axi_hp_rd #(
 simul_axi_hp_wr #(
         .HP_PORT(3)
     ) simul_axi_hp_wr_i (
-        .rst            (RST), // input
+        .rst            (HRST), // RST), // input
         .aclk           (dut.ps7_i.SAXIHP3ACLK),          // input
         .aresetn        (),                               // output
         .awaddr         (dut.ps7_i.SAXIHP3AWADDR),        // input[31:0] 
@@ -617,6 +621,7 @@ always #(CLKIN_PERIOD/2) CLK = ~CLK;
 
 // Simulation 
 `include "includes/ahci_localparams.vh" // SuppressThisWarning VEditor - many unused defines
+`include "includes/fis_types.vh"       // SuppressThisWarning VEditor - some unused defines
 localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ahci_localparams.vh offsets)
 
     task maxigp1_write_single; // address in bytes, not words
@@ -646,10 +651,11 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
     endtask
 
     task maxigp1_print;
-    input [31:0] address;
+        input [31:0] address;
+        input [319:0] msg;
         begin
             read_and_wait (address + MAXIGP1);
-            $display ("%x -> %x @ %t",address + MAXIGP1, registered_rdata,$time);
+            $display ("%x -> %x (%s)@ %t",address + MAXIGP1, registered_rdata,msg,$time);
         end
     endtask
 
@@ -657,8 +663,71 @@ localparam CLB_OFFS32 =        'h200; //  # In the second half of the register s
 localparam HBA_OFFS32 =         0;
 localparam HBA_PORT0_OFFS32  = 'h40;
 localparam PXSIG_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h9; 
-localparam PXTFD_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h8; 
+localparam PXTFD_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h8;
 
+localparam SYS_MEM_START = 32'h3fffc000; // 16384 bytes (4096 DWORDs of teh system memory for R/W over AXI_HP) 
+localparam SYS_MEM_SIZE =  16384; // bytes - size of system memory 
+// realtive to the system memory area
+localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the system memory
+localparam IDENTIFY_BUF =  32'h3d00; // 512 bytes for a command table in the system memory
+localparam PRD_OFFSET = 'h80;        // start of PRD table - 128-th byte in command table
+localparam ATA_IDFY = 'hec; // Identify command
+
+    reg  [31:0] sysmem[0:4095]; 
+
+    // connect system memory ty AXI_NP RD and WR channels
+//  assign HCLK = dut.ps7_i.SAXIHP3ACLK; // shortcut name
+// afi loopback
+    assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
+    assign #1 afi_sim_rd_resp = afi_sim_rd_ready?2'b0:2'bx;
+    assign #1 afi_sim_wr_ready = afi_sim_wr_valid;
+    assign #1 afi_sim_bresp_latency=4'h5; 
+//  assign #1 afi_sim_rd_data=  afi_sim_rd_ready?{2'h0,afi_sim_rd_address[31:3],1'h1,  2'h0,afi_sim_rd_address[31:3],1'h0}:64'bx;
+    wire MEM_SEL = (afi_sim_rd_address[31:3] >= (SYS_MEM_START >> 3)) && (afi_sim_rd_address[31:3] < ((SYS_MEM_START + SYS_MEM_SIZE) >> 3));
+    wire [31:2] sysmem_dworda_rd = {(afi_sim_rd_address[31:3] - (SYS_MEM_START >> 3)),1'b0};
+    assign #1 afi_sim_rd_data=  afi_sim_rd_ready?(MEM_SEL? {sysmem[sysmem_dworda_rd[31:2]+1], sysmem[sysmem_dworda_rd[31:2]]} :64'bx):64'bz;
+    wire [31:2] sysmem_dworda_wr = {(afi_sim_wr_address[31:3] - (SYS_MEM_START >> 3)),1'b0};
+    wire [31:0] sysmem_di_low =  ({{8{afi_sim_wr_stb[3]}},{8{afi_sim_wr_stb[2]}},{8{afi_sim_wr_stb[1]}},{8{afi_sim_wr_stb[0]}}} &
+                                (sysmem[sysmem_dworda_wr[31:2]] ^ afi_sim_wr_data[31:0])) ^ sysmem[sysmem_dworda_wr[31:2]];
+    
+    wire [31:0] sysmem_di_high = ({{8{afi_sim_wr_stb[7]}},{8{afi_sim_wr_stb[6]}},{8{afi_sim_wr_stb[5]}},{8{afi_sim_wr_stb[4]}}} &
+                                (sysmem[sysmem_dworda_wr[31:2]+1] ^ afi_sim_wr_data[63:32])) ^ sysmem[sysmem_dworda_wr[31:2]+1];
+    always @ (posedge HCLK) begin
+        if (|afi_sim_wr_stb[3:0]) sysmem[sysmem_dworda_wr[31:2]    ] <= sysmem_di_low;
+        if (|afi_sim_wr_stb[7:4]) sysmem[sysmem_dworda_wr[31:2] + 1] <= sysmem_di_high;
+    end
+    
+    
+    task setup_pio_read_identify_command;
+        input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+        integer i;
+        begin
+            // clear system memory for command
+            for (i = 0; i < 63; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            // fill ATA command 
+            sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
+                                               ('h80 << 8) |      // set C = 1
+                                               (ATA_IDFY << 16) | // Command = 0xEC (IDFY)
+                                              ( 0 << 24);        // features = 0 ?
+            // All other 4 DWORDs are 0 for this command
+            // Set PRDT (single item) TODO: later check multiple small ones
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF;
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 31) | 511; // 512 bytes in this PRDT
+            // Setup command header
+            maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
+                                                         (0 <<  5) | // 'A' Not ATAPI
+                                                         (0 <<  6) | // 'W' Not write to device
+                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  8) | // 'R' Not a Reset
+                                                         (0 <<  9) | // 'B' Not a BIST
+                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+                                                         (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            // Set Command Issued
+            maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
+            // relax and enjoy
+        end
+    endtask
 initial begin //Host
     wait (!RST);
 //reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
@@ -676,27 +745,27 @@ initial begin //Host
     maxigp1_writep       ((CLB_OFFS32+1) << 2, 'h87654321); // 
 
 
-    maxigp1_print        (PXSIG_OFFS32 << 2); // OK to read wrong - it is RO with default 'hffffffff
-    maxigp1_print        (PXTFD_OFFS32 << 2); // OK to read wrong - it is RO with default 0
-    maxigp1_print        (CLB_OFFS32     << 2); // 
-    maxigp1_print        ((CLB_OFFS32+1) << 2); // 
+    maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32"); // OK to read wrong - it is RO with default 'hffffffff
+    maxigp1_print        (PXTFD_OFFS32 << 2,"PXTFD_OFFS32"); // OK to read wrong - it is RO with default 0
+    maxigp1_print        (CLB_OFFS32     << 2,"CLB_OFFS32"); // 
+    maxigp1_print        ((CLB_OFFS32+1) << 2,"CLB_OFFS32+1"); // 
 
 
 
     
-    maxigp1_print        (PCI_Header__CAP__CAP__ADDR << 2);
-    maxigp1_print        (GHC__PI__PI__ADDR << 2);
-    maxigp1_print        (HBA_PORT__PxCMD__ICC__ADDR << 2);
-    maxigp1_print        (GHC__GHC__IE__ADDR << 2);
+    maxigp1_print        (PCI_Header__CAP__CAP__ADDR << 2,"PCI_Header__CAP__CAP__ADDR");
+    maxigp1_print        (GHC__PI__PI__ADDR << 2,"GHC__PI__PI__ADDR");
+    maxigp1_print        (HBA_PORT__PxCMD__ICC__ADDR << 2,"HBA_PORT__PxCMD__ICC__ADDR");
+    maxigp1_print        (GHC__GHC__IE__ADDR << 2,"GHC__GHC__IE__ADDR");
     maxigp1_writep       (GHC__GHC__IE__ADDR << 2, GHC__GHC__IE__MASK); // enable interrupts (global)
-    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
+    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2,"HBA_PORT__PxIE__CPDE__ADDR");
 //    maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, ~0); // allow all interrupts
     maxigp1_writep       (HBA_PORT__PxIE__CPDE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // =='h1: allow DHRS only interrupts (D2HR received (signature)
-    maxigp1_print        (GHC__GHC__IE__ADDR << 2);
-    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2);
+    maxigp1_print        (GHC__GHC__IE__ADDR << 2,"GHC__GHC__IE__ADDR");
+    maxigp1_print        (HBA_PORT__PxIE__CPDE__ADDR << 2,"HBA_PORT__PxIE__CPDE__ADDR");
     
-    maxigp1_print        (PXSIG_OFFS32 << 2);
-    maxigp1_print        (PXTFD_OFFS32 << 2);
+    maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32");
+    maxigp1_print        (PXTFD_OFFS32 << 2,"PXTFD_OFFS32");
     
     
     TESTBENCH_TITLE = "Waiting D2H IRQ";
@@ -704,9 +773,28 @@ initial begin //Host
     wait (IRQ);
     TESTBENCH_TITLE = "Got D2H IRQ";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
-    maxigp1_print        (PXSIG_OFFS32 << 2);
-    maxigp1_print        (PXTFD_OFFS32 << 2);
+    maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Should be 1 (port 0)
+    maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear that interrupt
+    maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Now it should be 0
     
+    maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,"HBA_PORT__PxIS__DHRS__ADDR"); // It should be 400041 - DHR inerrupt (and others)
+    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear that interrupt
+    maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,"HBA_PORT__PxIS__DHRS__ADDR"); // Now it should be 0400040 (DHR cleared)
+//HBA_PORT__PxIS__DHRS__ADDR    
+
+    maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32");
+    maxigp1_print        (PXTFD_OFFS32 << 2,"PXTFD_OFFS32");
+    maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR,"HBA_PORT__PxSERR__DIAG__X__ADDR");
+    maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, some RO bits already set 
+    maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK |HBA_PORT__PxCMD__ST__MASK); // Enable FR and ST 
+    maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");
+    
+    maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
+    
+    setup_pio_read_identify_command(1); // prdt interrupt for entry 0
+    maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
 //    $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end

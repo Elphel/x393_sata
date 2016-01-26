@@ -129,7 +129,8 @@ module  ahci_fis_transmit #(
     reg [READ_REG_LATENCY:0] reg_re_r;
     wire                     reg_re_w; // combined conditions to read register memory
 ///    wire                     reg_stb =     reg_re_r[READ_REG_LATENCY];
-    wire                     pre_reg_stb = reg_re_r[READ_REG_LATENCY-1];
+///    wire                     reg_stb =     reg_re_r[READ_REG_LATENCY-1];
+    wire                     pre_reg_stb = reg_re_r[READ_REG_LATENCY-1] && !reg_re_r[READ_REG_LATENCY]; // only first, to make running 1
     reg                [3:0] fetch_chead_r; 
     reg                [3:0] fetch_chead_stb_r;
     wire                     chead_done_w = fetch_chead_stb_r[2]; // done fetching command header
@@ -177,7 +178,8 @@ module  ahci_fis_transmit #(
     assign ch_p =     ch_p_r;
     assign ch_w =     ch_w_r;
     assign ch_a =     ch_a_r;
-    assign ch_cfl =   cfis_acmd_left_r;
+//    assign ch_cfl =   cfis_acmd_left_r;
+    assign ch_cfl =   ch_cmd_len_r;
     assign reg_re_w = fetch_cmd || chead_bsy_re;
     assign dma_ctba_ld = fetch_chead_stb_r[2];
     assign dma_start =   fetch_chead_stb_r[3]; // next cycle after dma_ctba_ld 
@@ -210,13 +212,11 @@ module  ahci_fis_transmit #(
         // Read 3 DWORDs from the command header
         
         if (hba_rst)                       fetch_chead_r <= 0; // running 1 
-        else if (fetch_cmd)                fetch_chead_r <= 1;
-        else                               fetch_chead_r <= fetch_chead_r << 1;
+        else                               fetch_chead_r <= {fetch_chead_r[2:0], fetch_cmd};
         
         if      (hba_rst)                  fetch_chead_stb_r <= 0;
-        else if (pre_reg_stb && chead_bsy) fetch_chead_stb_r <= 1;
-        else                               fetch_chead_stb_r <= fetch_chead_stb_r << 1;
-        
+        else                               fetch_chead_stb_r <= {fetch_chead_stb_r[2:0], pre_reg_stb && chead_bsy};        
+
         if      (hba_rst)                  chead_bsy <= 0;
         else if (fetch_cmd)                chead_bsy <= 1;
         else if (chead_done_w)             chead_bsy <= 0;
@@ -226,8 +226,7 @@ module  ahci_fis_transmit #(
         else if (fetch_chead_r[1])         chead_bsy_re <= 0; // read 3 dwords
         
         if      (hba_rst)                  reg_re_r <= 0; // [0] -> reg_re output
-        else if (reg_re_w)                 reg_re_r <= 1;
-        else                               reg_re_r <= reg_re_r << 1;
+        else                               reg_re_r <= {reg_re[1:0], reg_re_w};
         
         if      (fetch_cmd)                reg_addr <= CLB_OFFS32;   // there will be more conditions
         else if (reg_re_r[0])              reg_addr <= reg_addr + 1;

@@ -307,7 +307,7 @@ module  ahci_top#(
     
     // fsm <- state variables that are maintained inside 'ahc_fis_receive'
     wire              [7:0] tfd_sts;       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
-                                           // tfd_sts[7] - BSY, tfd_sts[4] - DRQ, tfd_sts[0] - ERR
+                                           // tfd_sts[7] - BSY, tfd_sts[3] - DRQ, tfd_sts[0] - ERR
 //    wire              [7:0] tfd_err;       // Current PxTFD error field (updated after regFIS and SDB)
     wire                    fis_i;         // value of "I" field in received regsD2H or SDB FIS
 ///    wire                    sdb_n;         // value of "N" field in received SDB FIS 
