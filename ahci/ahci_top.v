@@ -23,7 +23,8 @@
 module  ahci_top#(
     parameter PREFETCH_ALWAYS =       0,
     parameter READ_REG_LATENCY =      2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
-    parameter READ_CT_LATENCY =       1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
+//    parameter READ_CT_LATENCY =       1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter READ_CT_LATENCY =       2, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =         10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
     parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
     parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software

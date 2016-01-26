@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Tue Jan 26 02:29:04 2016
+[*] Tue Jan 26 07:42:26 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160125190408414.fst"
-[dumpfile_mtime] "Tue Jan 26 02:05:07 2016"
-[dumpfile_size] 6202198
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160126002016009.fst"
+[dumpfile_mtime] "Tue Jan 26 07:20:39 2016"
+[dumpfile_size] 3075666
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 0
+[timestart] 20289400
 [size] 1823 1180
-[pos] 1951 0
-*-23.114683 19004242 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] 1994 0
+*-15.994723 20457430 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.dev.
 [treeopen] tb_ahci.dev.phy.
@@ -17,6 +17,7 @@
 [treeopen] tb_ahci.dut.axi_hp_clk_i.
 [treeopen] tb_ahci.dut.sata_top.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.
@@ -31,9 +32,9 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_write_i.
 [treeopen] tb_ahci.simul_axi_hp_rd_i.
 [sst_width] 420
-[signals_width] 254
+[signals_width] 330
 [sst_expanded] 1
-[sst_vpaned_height] 625
+[sst_vpaned_height] 618
 @820
 tb_ahci.TESTBENCH_TITLE[639:0]
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.HOST_OOB_TITLE[639:0]
@@ -795,7 +796,9 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
 (1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+@29
 (2)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_jump[2:0]
+@28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_pre_act_w
 @1001200
 -group_end
@@ -1031,6 +1034,27 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_ready
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_w
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_stb
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.acfis_xmit_end
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_addr[4:0]
+@800028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re[1:0]
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_data[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.cfis_acmd_left_r[4:0]
+@1001200
+-group_end
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.fis_data_valid
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.write_or_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_valid
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_type[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_data[31:0]
 @1001200
 -group_end
 -group_end
@@ -1040,10 +1064,38 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.acfis_xmit_end
 -ahci_sata_layers
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_ready
-@23
+@22
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_fill[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_fifo_wr
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_fifo_rd
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_type[1:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_mask[1:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_data[31:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_h2d_mask_in[1:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_h2d_data_in[31:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_type_out[1:0]
+@c00200
+-fifo_h2d_control
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.clk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.wr
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.rd
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.mem_wa[8:0]
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.mem_re
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.mem_regen
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.fill_ram[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.ramo_full
+tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.rreg_full
 @200
 -
+@1401200
+-fifo_h2d_control
 @1000200
 -ahci_sata_layers
 @800200
@@ -1082,11 +1134,14 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.raddr_data_pend
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_addr[31:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rdata[63:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.int_data_addr[3:0]
 @800028
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
 (1)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_afi_re
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rready
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.is_ct_addr
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ctba_r[31:7]
@@ -1100,6 +1155,9 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ct_data[31:0]
 -group_end
 @200
 -
+@22
+tb_ahci.sysmem_dworda_rd[31:2]
+tb_ahci.afi_sim_rd_data[63:0]
 @800200
 -top
 @28
@@ -1228,10 +1286,37 @@ tb_ahci.simul_axi_hp_rd_i.was_data_fifo_write
 @200
 -
 @28
+tb_ahci.simul_axi_hp_rd_i.sim_rd_valid
+tb_ahci.simul_axi_hp_rd_i.sim_rd_ready
+@22
+tb_ahci.simul_axi_hp_rd_i.sim_rd_data[63:0]
+@200
+-
+@28
+tb_ahci.simul_axi_hp_rd_i.aclk
+@22
+tb_ahci.simul_axi_hp_rd_i.rcount[7:0]
+tb_ahci.simul_axi_hp_rd_i.rdata[63:0]
+@28
+tb_ahci.simul_axi_hp_rd_i.rready
+tb_ahci.simul_axi_hp_rd_i.rvalid
 tb_ahci.MEM_SEL
 @22
 tb_ahci.sysmem_dworda_rd[31:2]
+@800200
+-rdata_fifo
+@28
+tb_ahci.simul_axi_hp_rd_i.rdata_i.wem
+@22
+tb_ahci.simul_axi_hp_rd_i.rdata_i.fill[7:0]
+tb_ahci.simul_axi_hp_rd_i.rdata_i.fifo_fill[7:0]
+@28
+tb_ahci.simul_axi_hp_rd_i.rdata_i.ram_nempty
+tb_ahci.simul_axi_hp_rd_i.rdata_i.out_full
+@200
+-
 @1000200
+-rdata_fifo
 -simul_axi_hp_rd
 -top
 @200

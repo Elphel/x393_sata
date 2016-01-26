@@ -23,7 +23,8 @@
 module  ahci_fis_transmit #(
     parameter PREFETCH_ALWAYS =   0,
     parameter READ_REG_LATENCY =  2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
-    parameter READ_CT_LATENCY =   1, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
+//    parameter READ_CT_LATENCY =   1, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
+    parameter READ_CT_LATENCY =   2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =     10 // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
 
 )(
@@ -281,8 +282,9 @@ module  ahci_fis_transmit #(
        
        if      (cfis_xmit)   ct_addr <= 0;
        else if (atapi_xmit)  ct_addr <= 'h10; // start of ATAPI area
-       else if (cfis_acmd_left_r[0]) ct_addr <= ct_addr + 1;
-
+//       else if (cfis_acmd_left_r[0]) ct_addr <= ct_addr + 1;
+       else if (ct_re_r[0])  ct_addr <= ct_addr + 1;
+//
        // first/last dword in FIS
        if (!acfis_xmit_busy_r) fis_dw_first <= 1;
        else if (ct_stb)        fis_dw_first <= 0;

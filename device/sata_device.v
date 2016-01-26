@@ -501,7 +501,7 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Got data = %h", receive_data[cnt]);
                 DEV_TITLE = "Got data";
                 DEV_DATA =  receive_data[cnt];
-                $display("[Device] LINK:      %s = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
                 
                 pause = pause + receive_data_pause[cnt];
                 crc = calculateCRC(crc, receive_data[cnt]); // running crc. shall be 0 

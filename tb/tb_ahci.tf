@@ -720,7 +720,8 @@ localparam ATA_IDFY = 'hec; // Identify command
                                                          (1 <<  7) | // 'P' Prefetchable = 1
                                                          (0 <<  8) | // 'R' Not a Reset
                                                          (0 <<  9) | // 'B' Not a BIST
-                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+//                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             // Set Command Issued
