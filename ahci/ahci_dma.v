@@ -200,6 +200,7 @@ module  ahci_dma (
 
     wire           done_dev_wr; // finished PRD mem -> device
     wire           done_dev_rd; // finished PRD device -> mem
+    wire           prd_done_hclk = done_dev_wr || done_dev_rd;
     wire           done_flush;  // done flushing last partial dword
     wire           cmd_done_hclk;
     wire           ct_done_mclk;
@@ -209,7 +210,7 @@ module  ahci_dma (
     reg            data_next_burst;
     
 //    wire           raddr_prd_rq = (|prds_left) && (ct_done || prd_done);
-    wire           raddr_prd_rq = (|prds_left) && (first_prd_fetch || prd_done);
+    wire           raddr_prd_rq = (|prds_left) && (first_prd_fetch || prd_done_hclk);
     
     reg            raddr_prd_pend;
             
@@ -244,7 +245,7 @@ module  ahci_dma (
     
       
 //    assign prd_done = done_dev_wr || done_dev_rd;
-    assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || done_flush || done_dev_rd;
+    assign cmd_done_hclk = ((ct_busy_r==2'b10) && (prdtl_mclk == 0)) || ((done_flush || done_dev_rd) && last_prd);
     assign ct_done = (ct_busy_r == 2'b10);
     assign first_prd_fetch = ct_over_prd_enabled == 2'b01;
     assign axi_set_raddr_w = axi_set_raddr_ready && (raddr_ct_pend || raddr_prd_pend || raddr_data_pend);    
@@ -291,7 +292,9 @@ module  ahci_dma (
         if (ct_re[1]) ct_data <=      ct_data_reg;
         
         if (ctba_ld) ctba_r <=        ctba[31:7];
+        
         if (cmd_start) prdtl_mclk <=  prdtl;
+        
         if (cmd_start) dev_wr_mclk <= dev_wr;
         
         if      (mrst)      cmd_busy <= 0;
@@ -443,14 +446,17 @@ module  ahci_dma (
         // calculate afi_wlast - it is (qw_datawr_burst == 0), just use register qw_datawr_last
         
         if      (prd_wr)     qw_datawr_last <= qwcount[21:3] == 0;
-        else if (afi_wvalid) qw_datawr_last <= qw_datawr_burst == 1;        
+///     else if (afi_wvalid) qw_datawr_last <= qw_datawr_burst == 1;        
+        else if (afi_wvalid) qw_datawr_last <= (qw_datawr_burst == 1) || (qw_datawr_last && !(|qw_datawr_left[21:3])); // last case - n*16 + 1 (last burst single)       
         
         if      (prd_wr)                                                      qw_datawr_burst <= (|qwcount[21:7])? 4'hf: qwcount[6:3];
-        else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
+///     else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
+///     else if (afi_wvalid &&                   (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
+        else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 1)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
         else if (afi_wvalid)                                                  qw_datawr_burst <= qw_datawr_burst - 1;
         
         if      (prd_wr)                       qw_datawr_left[21:3] <= qwcount[21:3];
-        else if (afi_wvalid && qw_datawr_last) qw_datawr_left[21:7] <= qw_datawr_left[21:7] - 1;
+        else if (afi_wvalid && qw_datawr_last) qw_datawr_left[21:7] <= qw_datawr_left[21:7] - 1; // can go negative - OK?
         
         // Count AXI IDs
         if      (hrst)             ct_id <= 0;
@@ -559,8 +565,8 @@ module  ahci_dma (
         .rst       (hrst),            // input
         .src_clk   (hclk),            // input
         .dst_clk   (mclk),            // input
-        .in_pulse  (cmd_done_hclk),            // input
-        .out_pulse (cmd_done),       // output
+        .in_pulse  (cmd_done_hclk),   // input
+        .out_pulse (cmd_done),        // output
         .busy()                       // output
     );
 
@@ -581,7 +587,7 @@ module  ahci_dma (
         .rst       (hrst),            // input
         .src_clk   (hclk),            // input
         .dst_clk   (mclk),            // input
-        .in_pulse  (done_dev_wr || done_dev_rd),         // input
+        .in_pulse  (prd_done_hclk),   // input
         .out_pulse (prd_done),        // output
         .busy()                       // output
     );

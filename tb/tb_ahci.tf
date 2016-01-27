@@ -692,7 +692,7 @@ localparam ATA_IDFY = 'hec; // Identify command
     
     wire [31:0] sysmem_di_high = ({{8{~afi_sim_wr_stb[7]}},{8{~afi_sim_wr_stb[6]}},{8{~afi_sim_wr_stb[5]}},{8{~afi_sim_wr_stb[4]}}} &
                                 (sysmem[sysmem_dworda_wr[31:2]+1] ^ afi_sim_wr_data[63:32])) ^ afi_sim_wr_data[63:32];
-    always @ (posedge HCLK) begin
+    always @ (posedge HCLK) if (afi_sim_wr_ready && afi_sim_wr_valid) begin
         if (|afi_sim_wr_stb[3:0]) sysmem[sysmem_dworda_wr[31:2]    ] <= sysmem_di_low;
         if (|afi_sim_wr_stb[7:4]) sysmem[sysmem_dworda_wr[31:2] + 1] <= sysmem_di_high;
     end
@@ -716,7 +716,7 @@ localparam ATA_IDFY = 'hec; // Identify command
     endtask
     
     
-    task setup_pio_read_identify_command;
+    task setup_pio_read_identify_command_simple;
         input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
         integer i;
         begin
@@ -729,7 +729,7 @@ localparam ATA_IDFY = 'hec; // Identify command
                                               ( 0 << 24);        // features = 0 ?
             // All other 4 DWORDs are 0 for this command
             // Set PRDT (single item) TODO: later check multiple small ones
-            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF + 2; // shift by 2 bytes
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF;
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 31) | 511; // 512 bytes in this PRDT
             // Setup command header
             maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
@@ -747,6 +747,89 @@ localparam ATA_IDFY = 'hec; // Identify command
             // relax and enjoy
         end
     endtask
+
+    task setup_pio_read_identify_command_shifted;
+        input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+        integer i;
+        begin
+            // clear system memory for command
+            for (i = 0; i < 64; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            // fill ATA command 
+            sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
+                                               ('h80 << 8) |      // set C = 1
+                                               (ATA_IDFY << 16) | // Command = 0xEC (IDFY)
+                                              ( 0 << 24);        // features = 0 ?
+            // All other 4 DWORDs are 0 for this command
+            // Set PRDT (single item) TODO: later check multiple small ones
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF + 2; // shift by 2 bytes
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 32) | 511; // 512 bytes in this PRDT
+            // Setup command header
+            maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
+                                                         (0 <<  5) | // 'A' Not ATAPI
+                                                         (0 <<  6) | // 'W' Not write to device
+                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  8) | // 'R' Not a Reset
+                                                         (0 <<  9) | // 'B' Not a BIST
+//                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
+                                                         (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            // Set Command Issued
+            maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
+            // relax and enjoy
+        end
+    endtask
+
+    task setup_pio_read_identify_command_multi4;
+        input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+        input integer nw1; // first segment lengtth (in words)
+        input integer nw2; // second segment lengtth (in words)
+        input integer nw3; // third segment lengtth (in words)
+        
+        integer nw4;
+        integer i;
+        
+        begin
+            nw4 = 256 - nw1 - nw2 - nw3; // total 512 bytes, 256 words
+            // clear system memory for command
+            for (i = 0; i < 64; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            // fill ATA command 
+            sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
+                                               ('h80 << 8) |      // set C = 1
+                                               (ATA_IDFY << 16) | // Command = 0xEC (IDFY)
+                                              ( 0 << 24);        // features = 0 ?
+            // All other 4 DWORDs are 0 for this command
+            // Set PRDT (four items)
+            // PRDT #1
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  3] = (prd_int[0] << 31) | (2 * nw1 - 1); // 2 * nw1 bytes
+            // PRDT #2
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  4] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  7] = (prd_int[0] << 31) | (2 * nw2 - 1); // 2 * nw2 bytes
+            // PRDT #3
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  8] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 11] = (prd_int[0] << 31) | (2 * nw3 - 1); // 2 * nw3 bytes
+            // PRDT #4
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 12] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2) + (2 * nw3);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 15] = (prd_int[0] << 31) | (2 * nw4 - 1); // 2 * nw4 bytes
+            
+            // Setup command header
+            maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
+                                                         (0 <<  5) | // 'A' Not ATAPI
+                                                         (0 <<  6) | // 'W' Not write to device
+                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  8) | // 'R' Not a Reset
+                                                         (0 <<  9) | // 'B' Not a BIST
+//                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
+                                                         (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            // Set Command Issued
+            maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
+            // relax and enjoy
+        end
+    endtask
+
 initial begin //Host
     wait (!RST);
 //reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
@@ -812,7 +895,9 @@ initial begin //Host
     
     maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
     
-    setup_pio_read_identify_command(1); // prdt interrupt for entry 0
+    setup_pio_read_identify_command_simple(1); // prdt interrupt for entry 0
+//    setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
+//    setup_pio_read_identify_command_multi4(1,27,71,83); // prdt interrupt for entry 0
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
     
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
@@ -823,7 +908,8 @@ initial begin //Host
 
     maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
     
-    sysmem_print ('h1e81,'h180);
+//    sysmem_print ('h1e81,'h180); // for shifted
+    sysmem_print ('h1e80,'h180);
     
     $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
