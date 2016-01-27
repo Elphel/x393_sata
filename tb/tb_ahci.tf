@@ -687,15 +687,33 @@ localparam ATA_IDFY = 'hec; // Identify command
     wire [31:2] sysmem_dworda_rd = {(afi_sim_rd_address[31:3] - (SYS_MEM_START >> 3)),1'b0};
     assign #1 afi_sim_rd_data=  afi_sim_rd_ready?(MEM_SEL? {sysmem[sysmem_dworda_rd[31:2]+1], sysmem[sysmem_dworda_rd[31:2]]} :64'bx):64'bz;
     wire [31:2] sysmem_dworda_wr = {(afi_sim_wr_address[31:3] - (SYS_MEM_START >> 3)),1'b0};
-    wire [31:0] sysmem_di_low =  ({{8{afi_sim_wr_stb[3]}},{8{afi_sim_wr_stb[2]}},{8{afi_sim_wr_stb[1]}},{8{afi_sim_wr_stb[0]}}} &
-                                (sysmem[sysmem_dworda_wr[31:2]] ^ afi_sim_wr_data[31:0])) ^ sysmem[sysmem_dworda_wr[31:2]];
+    wire [31:0] sysmem_di_low =  ({{8{~afi_sim_wr_stb[3]}},{8{~afi_sim_wr_stb[2]}},{8{~afi_sim_wr_stb[1]}},{8{~afi_sim_wr_stb[0]}}} &
+                                (sysmem[sysmem_dworda_wr[31:2]] ^ afi_sim_wr_data[31:0])) ^ afi_sim_wr_data[31:0];
     
-    wire [31:0] sysmem_di_high = ({{8{afi_sim_wr_stb[7]}},{8{afi_sim_wr_stb[6]}},{8{afi_sim_wr_stb[5]}},{8{afi_sim_wr_stb[4]}}} &
-                                (sysmem[sysmem_dworda_wr[31:2]+1] ^ afi_sim_wr_data[63:32])) ^ sysmem[sysmem_dworda_wr[31:2]+1];
+    wire [31:0] sysmem_di_high = ({{8{~afi_sim_wr_stb[7]}},{8{~afi_sim_wr_stb[6]}},{8{~afi_sim_wr_stb[5]}},{8{~afi_sim_wr_stb[4]}}} &
+                                (sysmem[sysmem_dworda_wr[31:2]+1] ^ afi_sim_wr_data[63:32])) ^ afi_sim_wr_data[63:32];
     always @ (posedge HCLK) begin
         if (|afi_sim_wr_stb[3:0]) sysmem[sysmem_dworda_wr[31:2]    ] <= sysmem_di_low;
         if (|afi_sim_wr_stb[7:4]) sysmem[sysmem_dworda_wr[31:2] + 1] <= sysmem_di_high;
     end
+    
+    task sysmem_print;
+        input integer start_w;  // start word
+        input integer len_w;    // number of words
+        integer i,j;
+        reg [15:0] data[0:7];
+        reg [31:0] d;
+        begin
+            for (i = 0; i < len_w; i = i + 8) begin
+                for (j = 0; j < 8; j = j+1) begin
+                    d = sysmem[(start_w + i + j) >> 1];
+//                    $display ("%h: %h", (start_w + i ) >> 1, d);
+                    data[j] = ((start_w + i + j) & 1) ? d[31:16] : d [15:0]; 
+                end
+                $display("%h: %h %h %h %h %h %h %h %h ",start_w + i, data[0],  data[1], data[2], data[3], data[4], data[5], data[6], data[7]);
+            end 
+        end
+    endtask
     
     
     task setup_pio_read_identify_command;
@@ -703,7 +721,7 @@ localparam ATA_IDFY = 'hec; // Identify command
         integer i;
         begin
             // clear system memory for command
-            for (i = 0; i < 63; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            for (i = 0; i < 64; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
             // fill ATA command 
             sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
                                                ('h80 << 8) |      // set C = 1
@@ -711,7 +729,7 @@ localparam ATA_IDFY = 'hec; // Identify command
                                               ( 0 << 24);        // features = 0 ?
             // All other 4 DWORDs are 0 for this command
             // Set PRDT (single item) TODO: later check multiple small ones
-            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF;
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF + 2; // shift by 2 bytes
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 31) | 511; // 512 bytes in this PRDT
             // Setup command header
             maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
@@ -796,7 +814,18 @@ initial begin //Host
     
     setup_pio_read_identify_command(1); // prdt interrupt for entry 0
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
-//    $finish;
+    
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
+    wait (IRQ);
+    TESTBENCH_TITLE = "Got Identify";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+
+    maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
+    
+    sysmem_print ('h1e81,'h180);
+    
+    $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
