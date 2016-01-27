@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Wed Jan 27 20:13:54 2016
+[*] Wed Jan 27 20:37:20 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160127131132886.fst"
-[dumpfile_mtime] "Wed Jan 27 20:12:01 2016"
-[dumpfile_size] 3824547
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160127133150634.fst"
+[dumpfile_mtime] "Wed Jan 27 20:32:21 2016"
+[dumpfile_size] 3824683
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 24704000
-[size] 1823 1180
+[timestart] 22094000
+[size] 1823 1173
 [pos] 1994 0
-*-16.995279 25103334 23903334 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-19.117058 23716667 23903334 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.dev.phy.
 [treeopen] tb_ahci.dut.

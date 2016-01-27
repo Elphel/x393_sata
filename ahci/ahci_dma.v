@@ -447,7 +447,7 @@ module  ahci_dma (
         
         if      (prd_wr)     qw_datawr_last <= qwcount[21:3] == 0;
 ///     else if (afi_wvalid) qw_datawr_last <= qw_datawr_burst == 1;        
-        else if (afi_wvalid) qw_datawr_last <= (qw_datawr_burst == 1) || (qw_datawr_last && !(|qw_datawr_left[21:3])); // last case - n*16 + 1 (last burst single)       
+        else if (afi_wvalid) qw_datawr_last <= (qw_datawr_burst == 1) || (qw_datawr_last && (qw_datawr_left[21:3] == 16)); // last case - n*16 + 1 (last burst single)       
         
         if      (prd_wr)                                                      qw_datawr_burst <= (|qwcount[21:7])? 4'hf: qwcount[6:3];
 ///     else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf

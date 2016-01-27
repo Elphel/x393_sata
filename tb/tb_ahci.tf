@@ -895,9 +895,11 @@ initial begin //Host
     
     maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
     
-    setup_pio_read_identify_command_simple(1); // prdt interrupt for entry 0
-//    setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
-//    setup_pio_read_identify_command_multi4(1,27,71,83); // prdt interrupt for entry 0
+//  setup_pio_read_identify_command_simple(1); // prdt interrupt for entry 0
+//  setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
+/// setup_pio_read_identify_command_multi4(1,27,71,83); // prdt interrupt for entry 0
+/// setup_pio_read_identify_command_multi4(1,27,64,83); // prdt interrupt for entry 0
+    setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
     
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
