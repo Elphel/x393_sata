@@ -80,14 +80,15 @@ module  ahci_dma_wr_fifo#(
     reg                  [63:16] fifo_do_prev; // only 48 bits are needed
     reg  [(1<<ADDRESS_BITS)-1:0] fifo_full;  // set in write clock domain
     reg  [(1<<ADDRESS_BITS)-1:0] fifo_nempty;// set in read clock domain
-    wire                         fifo_wr = (din_avail && din_rdy) || (waddr[0] && flush_mclk); // flush may add extra write of junk
+    wire                         fifo_wr = en_fifo_wr && ((din_avail && din_rdy) || (waddr[0] && flush_mclk)); // flush may add extra write of junk
 //    wire                         fifo_rd;
-    wire [(1<<ADDRESS_BITS)-1:0] fifo_full2 = {fifo_full[0],fifo_full[ADDRESS_NUM-1:1]};
+    wire [(1<<ADDRESS_BITS)-1:0] fifo_full2 = {~fifo_full[0],fifo_full[ADDRESS_NUM-1:1]};
     reg                          hrst_mclk;
     reg                          fifo_dav;  // @hclk
-    reg                          fifo_dav2; // @hclk
+    reg                          fifo_dav2; // @hclk - ??? at least two are available?
     reg                          fifo_half_mclk; // Half Fifo is empty, OK to write
-    wire                  [63:0] fifo_do =       {fifo1_ram [raddr[ADDRESS_BITS:1]], fifo0_ram [raddr[ADDRESS_BITS:1]]};
+/// wire                  [63:0] fifo_do =       {fifo1_ram [raddr[ADDRESS_BITS:1]], fifo0_ram [raddr[ADDRESS_BITS:1]]};
+    wire                  [63:0] fifo_do =       {fifo1_ram [raddr[ADDRESS_BITS-1:0]], fifo0_ram [raddr[ADDRESS_BITS-1:0]]};
     wire                         dout_we_w;
     reg                    [1:0] dout_we_r;
     
@@ -125,7 +126,8 @@ module  ahci_dma_wr_fifo#(
 
     wire                         fifo_out_ready = en_fifo_rd && (!need_fifo || (fifo_dav && (fifo_dav2 || !fifo_rd_r)));
     
-    assign flush_hclk = is_last_prd && !flushing && !nfp[1] && last_qword && waddr[0]; // waddr[0] - other clock domain, but OK here,
+///    assign flush_hclk = is_last_prd && !flushing && !nfp[1] && last_qword && waddr[0]; // waddr[0] - other clock domain, but OK here,
+    assign flush_hclk = busy && is_last_prd && !flushing && !nfp[1] && last_qword && waddr[0]; // waddr[0] - other clock domain, but OK here,
     // it was last 1->0 before previous FIFO read. flush_hclk will only be generated for odd number of dwords
     
     assign din_rdy = en_fifo_wr && fifo_half_mclk;
@@ -146,17 +148,20 @@ module  ahci_dma_wr_fifo#(
         
         
         if (hrst || init)               raddr <= 0;
-        else if (fifo_rd)               raddr <= raddr + 1;
+        else if (fifo_rd)               raddr <= raddr + 1; // increment for 64-bit words
         
         //    reg       [ADDRESS_BITS : 0] raddr; // 1 extra bit       
         
 
         if      (hrst || init)        fifo_nempty <= {{(ADDRESS_NUM>>1){1'b0}},{(ADDRESS_NUM>>1){1'b1}}};// 8'b00001111
-        else if (fifo_rd && raddr[0]) fifo_nempty <= {fifo_nempty[ADDRESS_NUM-2:0],raddr[ADDRESS_BITS] ^ raddr[ADDRESS_BITS-1]};
+///        else if (fifo_rd && raddr[0]) fifo_nempty <= {fifo_nempty[ADDRESS_NUM-2:0],raddr[ADDRESS_BITS] ^ raddr[ADDRESS_BITS-1]};
+        else if (fifo_rd)             fifo_nempty <= {fifo_nempty[ADDRESS_NUM-2:0],~raddr[ADDRESS_BITS] ^ raddr[ADDRESS_BITS-1]};
 
         
-        fifo_dav <=  !init && en_fifo_rd && (fifo_full [raddr[ADDRESS_BITS:1]] ^ raddr[ADDRESS_BITS]);
-        fifo_dav2 <= !init && en_fifo_rd && (fifo_full2[raddr[ADDRESS_BITS:1]]);
+///     fifo_dav <=  !init && en_fifo_rd && (fifo_full [raddr[ADDRESS_BITS:1]] ^ raddr[ADDRESS_BITS]);
+        fifo_dav <=  !init && en_fifo_rd && (fifo_full [raddr[ADDRESS_BITS-1:0]] ^ raddr[ADDRESS_BITS]);
+///     fifo_dav2 <= !init && en_fifo_rd && (fifo_full2[raddr[ADDRESS_BITS:1]]); //?^ raddr[ADDRESS_BITS]); // FIXME
+        fifo_dav2 <= !init && en_fifo_rd && (fifo_full2[raddr[ADDRESS_BITS-1:0]] ^ raddr[ADDRESS_BITS]); //?^ raddr[ADDRESS_BITS]); // FIXME
 
         if (fifo_rd) fifo_do_prev[63:16] <= fifo_do[63:16];
         
@@ -261,14 +266,16 @@ module  ahci_dma_wr_fifo#(
         else if (fifo_wr)              waddr <= waddr + 1; 
         
         if (hrst_mclk || init_mclk)    fifo_full <= 0;
-        else if (fifo_wr) fifo_full <= {fifo_full[ADDRESS_NUM-2:0], waddr[ADDRESS_BITS+1]};
+///     else if (fifo_wr) fifo_full <= {fifo_full[ADDRESS_NUM-2:0], waddr[ADDRESS_BITS+1]};
+        else if (fifo_wr && waddr[0])  fifo_full <= {fifo_full[ADDRESS_NUM-2:0], ~waddr[ADDRESS_BITS+1]};
         
-        fifo_half_mclk <= fifo_nempty [waddr[ADDRESS_BITS:1]] ^ waddr[ADDRESS_BITS+1];
+        fifo_half_mclk <= en_fifo_wr && fifo_nempty [waddr[ADDRESS_BITS:1]] ^ waddr[ADDRESS_BITS+1];
         
         if (fifo_wr && !waddr[0]) fifo0_ram[waddr[ADDRESS_BITS:1]] <= din;
         if (fifo_wr &&  waddr[0]) fifo1_ram[waddr[ADDRESS_BITS:1]] <= din;
         
-        fifo_nempty_mclk <= (fifo_full [raddr[ADDRESS_BITS:1]] ^ raddr[ADDRESS_BITS]); // only valid after read is stopped
+///     fifo_nempty_mclk <= (fifo_full [raddr[ADDRESS_BITS:1]] ^ raddr[ADDRESS_BITS]); // only valid after read is stopped
+        fifo_nempty_mclk <= (fifo_full [raddr[ADDRESS_BITS-1:0]] ^ raddr[ADDRESS_BITS]); // only valid after read is stopped
         
     end
 

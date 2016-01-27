@@ -192,7 +192,7 @@ localparam DATA_TYPE_ERR =      3;
     reg                 update_sig_r;
 //    reg                 update_pio_r;
     reg                 update_prdbc_r;
-    reg                 get_fis_busy_r;
+    reg           [1:0] get_fis_busy_r;
     
     
     reg           [7:0] pio_es_r;        // value of PIO E_Status
@@ -207,9 +207,9 @@ localparam DATA_TYPE_ERR =      3;
     reg                 fis_first_flushing_r;
     
     // Forward data to DMA (dev->mem) engine
-    assign              dma_in_valid =       dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
+    assign              dma_in_valid =       dma_in && dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
     // Will also try to skip to the end of too long FIS
-    assign              dma_skipping_extra = (fis_extra_r || too_long_err) && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready ;
+    assign              dma_skipping_extra = dma_in && (fis_extra_r || too_long_err) && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready ;
 
     assign              dma_in_stop =        dma_in && data_in_ready && (hba_data_in_type != DATA_TYPE_DMA); // ||
     
@@ -225,7 +225,7 @@ localparam DATA_TYPE_ERR =      3;
     assign tfd_err = tf_err_sts[15:8];
     
     assign xfer_cntr = xfer_cntr_r[31:2];
-    assign get_fis_busy = get_fis_busy_r;
+    assign get_fis_busy = get_fis_busy_r[0];
 //    assign data_in_dwords = data_out_dwords_r;
     assign data_in_dwords = data_in_dwords_r;
     
@@ -293,7 +293,7 @@ localparam DATA_TYPE_ERR =      3;
         else if (get_fis)                     fis_rec_run <= 1;
         else if (is_fis_end && data_in_ready) fis_rec_run <= 0;
         
-        if      (hba_rst)                     dwords_over <= 0;
+        if      (hba_rst ||get_fis)           dwords_over <= 0;
         else if (wreg_we_r && !(|fis_dcount)) dwords_over <= 1;
         
         if (hba_rst) wreg_we_r <= 0;
@@ -301,14 +301,17 @@ localparam DATA_TYPE_ERR =      3;
 
         fis_end_r <= {fis_end_r[0], fis_end_w};
         
-        if      (hba_rst)                     get_fis_busy_r <= 0;
-        else if (get_fis)                     get_fis_busy_r <= 1;
-        else if (too_long_err || fis_end_w)   get_fis_busy_r <= 0;
+        if      (hba_rst)                     get_fis_busy_r[0] <= 0;
+        else if (get_fis)                     get_fis_busy_r[0] <= 1;
+        else if (too_long_err || fis_end_w)   get_fis_busy_r[0] <= 0;
+
+        get_fis_busy_r[1] <=get_fis_busy_r[0];
         
-        get_fis_done <=  get_fis_busy_r && (too_long_err || fis_end_w);
+        get_fis_done <=  get_fis_busy_r[0] && (too_long_err || fis_end_w);
         
-//        if      (hba_rst || get_fis)          fis_first_vld <= 0;
-        if      (hba_rst || fis_end_w)          fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
+///     if      (hba_rst || get_fis)          fis_first_vld <= 0;
+///     if      (hba_rst || fis_end_w)        fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
+        if      (hba_rst || (|get_fis_busy_r))fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
         else if (is_FIS_HEAD)                 fis_first_vld <= 1;
         
         if      (hba_rst || get_fis)          fis_ok <= 0;
@@ -385,8 +388,8 @@ localparam DATA_TYPE_ERR =      3;
         // Maybe it is not needed if the fsm will send this pulse?
 //        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);
 
-        if (hba_rst || get_fis_busy_r) fis_first_invalid_r <= 0;
-        else                           fis_first_invalid_r <= is_FIS_NOT_HEAD;
+        if (hba_rst || (|get_fis_busy_r)) fis_first_invalid_r <= 0;
+        else                              fis_first_invalid_r <= is_FIS_NOT_HEAD;
         
         if (!fis_first_invalid_r)      fis_first_flushing_r <= 0;
         else if (fis_first_flush)      fis_first_flushing_r <= 1;

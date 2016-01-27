@@ -720,17 +720,44 @@ always @ (posedge clk)
 `endif
 
 `ifdef SIMULATION
-always @ (posedge clk)
-begin
+integer sim_cnt;
+always @ (posedge clk) begin
+    if (incom_start) begin
+        HOST_LINK_TITLE = "Incoming start";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
     if (data_val_out) begin
-//        $display("[Host] LINK:        From device - received data = %h @%t", data_out, $time);
         HOST_LINK_TITLE = "From device - received data";
         HOST_LINK_DATA =  data_out;
-        $display("[Host] LINK:        %s = %h @%t", HOST_LINK_TITLE, HOST_LINK_DATA, $time);
-//`endif
-        
+        $display("[Host] LINK:        %s = %h (#%d)@%t", HOST_LINK_TITLE, HOST_LINK_DATA, sim_cnt, $time);
+        sim_cnt = sim_cnt + 1;
     end
-
+    if (incom_done) begin
+        HOST_LINK_TITLE = "Incoming end";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
+    if (incom_invalidate) begin
+        HOST_LINK_TITLE = "Incoming invalidate";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
+    if (incom_sync_escape) begin
+        HOST_LINK_TITLE = "Incoming sync_escape";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
+    if (incom_ack_good) begin
+        HOST_LINK_TITLE = "Incoming ack_good";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
+    if (incom_ack_bad) begin
+        HOST_LINK_TITLE = "Incoming ack_bad";
+        $display("[Host] LINK:        %s @%t", HOST_LINK_TITLE, $time);
+        sim_cnt = 0;
+    end
 //    if (inc_is_data) begin
 //        $display("[Host] LINK:        From device - received raw data = %h", phy_data_in);
 //    end

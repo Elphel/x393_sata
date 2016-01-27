@@ -661,6 +661,7 @@ task wait_ready; // @SuppressThisWarning VEditor - Used in testbench
     end
 endtask
     
+
 task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
     input integer id;
     input    [2:0] dev_specific_status_bits;
@@ -673,9 +674,55 @@ task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
         transmit_data[3] = 1;
         transmit_data[4] = 0;
         linkTransmitFIS(id, 5, 0, status);        
-//        linkTransmitFIS (
     end
 endtask
+
+task send_pio_setup; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    input          d2h; // 'D' bit: 1 - Data will be D2H, 0 - H2D
+    input          irq; // Set I bit
+    input    [7:0] xmit_status;
+    input    [7:0] xmit_error;
+    input    [7:0] xmit_e_status;
+    input   [15:0] xfer_count;
+    input   [ 7:0] dev;    
+    input   [23:0] lba_low;  // LBA_low dword
+    input   [23:0] lba_high; // LBA high dword 
+    input   [15:0] count; // 
+    output integer status;
+    begin
+        transmit_data[0] = FIS_PIOS |
+                           (d2h? 'h2000:0) |
+                           (irq? 'h4000:0) |
+                           (xmit_status << 16) |
+                           (xmit_error << 24);
+        transmit_data[1] = {dev, lba_low};
+        transmit_data[2] = {8'b0,lba_high};
+        transmit_data[3] = {xmit_e_status, 8'b0,count};
+        transmit_data[4] = {16'b0, xfer_count};
+        linkTransmitFIS(id, 5, 0, status);        
+    end
+endtask
+
+
+task send_identify_data; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    output integer status;
+    reg   [15:0] identify_data[0:255]; // SuppressThisWarning VEditor : assigned in $readmem() system task
+    integer i;
+    begin
+        $readmemh("input_data/identify.dat",identify_data);
+        transmit_data[0] = FIS_DATA;
+        for (i=0;i<128;i=i+1) begin
+            transmit_data[i+1] = {identify_data[2 * i+1], identify_data[2 * i]};
+        end
+        linkTransmitFIS(id, 129, 0, status);        
+    end
+endtask
+
+
+
+
 /*
  * Transmits data to a host. ~Link Transmit FSM
  * Correct execution, as it shall be w/o errors from a device side. (except timeouts and data consistency, see below)
@@ -774,7 +821,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
 //            $display("[Device] LINK:      Sent data = %h", transmit_data[cnt]);
             DEV_TITLE = "Sent data";
             DEV_DATA =  transmit_data[cnt];
-            $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
+            $display("[Device] LINK:      %s = %h (#%d) @%t", DEV_TITLE, DEV_DATA, cnt, $time);
             @ (posedge clk)
                 rprim = linkGetPrim(0);
             if (rprim == "SYNC") begin

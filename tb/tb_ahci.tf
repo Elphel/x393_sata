@@ -800,6 +800,13 @@ initial begin //Host
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
+function func_is_dev_identify;
+    input [31:0] dw;
+    begin
+        func_is_dev_identify = ((dw & 'hff) == FIS_H2DR ) && (((dw >> 16) & 'hff) == ATA_IDFY);
+    end
+endfunction
+
 integer status;
 initial begin //Device
     dev.clear_transmit_pause(0);  
@@ -812,8 +819,39 @@ initial begin //Device
                           5,       // input    [2:0] dev_specific_status_bits;
                           1,       // input          irq;
                           status); // output integer status;
-    DEVICE_TITLE = "Device sent D2H RS";
+    DEVICE_TITLE = "Device sent D2H FIS";
     $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+    
+    // Wait for host requests 'identify'
+    @(dev.receive_id);
+    if (func_is_dev_identify(dev.receive_data[0])) begin
+        DEVICE_TITLE = "Got Identify";
+        $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+        $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+        dev.send_pio_setup   (67,      // input integer id;
+                               1,      // input          d2h; // 'D' bit: 1 - Data will be D2H, 0 - H2D
+                               1,      // input          irq; // Set I bit
+                               'h30,   // input    [7:0] xmit_status; // something different to check host
+                               0,      // input    [7:0] xmit_error;
+                               'h60,   // input    [7:0] xmit_e_status;
+                               512,    // input   [15:0] xfer_count; Identify block size
+                               0,      // input   [ 7:0] dev;    
+                               0,      // input   [23:0] lba_low;  // LBA_low dword
+                               0,      // input   [23:0] lba_high; // LBA high dword 
+                               0,      // input   [15:0] count; // 
+                               status); // output integer status;
+        DEVICE_TITLE = "Device sent PIOS FIS";
+        $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+        dev.send_identify_data(68,      // input integer id;
+                               status); // output integer status;
+        DEVICE_TITLE = "Device sent Data FIS (Identify)";
+        $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+    end else begin
+        DEVICE_TITLE = "Expected Identify, got else";
+        $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+        $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+    end
+    
                       
 end
   initial begin

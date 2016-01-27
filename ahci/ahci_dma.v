@@ -204,7 +204,7 @@ module  ahci_dma (
     wire           cmd_done_hclk;
     wire           ct_done_mclk;
     reg      [3:0] afi_alen;
-    wire           afi_wcount_many = !afi_wcount[7] && !(afi_wcount[6:4]);
+    wire           afi_wcount_many = !afi_wcount[7] && !(&afi_wcount[6:4]);
     
     reg            data_next_burst;
     
@@ -310,8 +310,10 @@ module  ahci_dma (
 
     end
        
-        
-        
+//        afi_rd_ctl <= { afi_rd_ctl[0],(ct_busy_r[0] || prd_rd_busy) && ((|afi_rcount[7:SAFE_RD_BITS]) || (afi_rvalid && !(|afi_rd_ctl)))};
+    wire debug_01 = ct_busy_r[0] || prd_rd_busy ;      
+    wire debug_02 =|afi_rcount[7:SAFE_RD_BITS];
+    wire debug_03 = (afi_rvalid && !(|afi_rd_ctl));       
     always @ (posedge hclk) begin
         prd_start_hclk_r <= prd_start_hclk;
         
@@ -379,7 +381,7 @@ module  ahci_dma (
 
         if (afi_rd_ctl[0] && is_prd_addr && (int_data_addr[0])) data_irq <=     afi_rdata[63];
 
-        if (afi_rd_ctl[0] && is_prd_addr && (int_data_addr[0])) wcount[21:1] <= afi_rdata[37:17];
+        if (afi_rd_ctl[0] && is_prd_addr && (int_data_addr[0])) wcount[21:1] <= afi_rdata[53:33];
 
         wcount_set <= afi_rd_ctl[0] && is_prd_addr && (int_data_addr[0]);
 
@@ -405,10 +407,10 @@ module  ahci_dma (
         ct_over_prd_enabled[1] <= ct_over_prd_enabled[0];  // detecting 0->1 transition
         
         // generate busy for PRD table entry read
-        if      (hrst)        prd_rd_busy <= 0;
-        else if (prd_rd_busy) prd_rd_busy <= 1;
-        else if (wcount_set)  prd_rd_busy <= 0;
-        
+        if      (hrst)                                prd_rd_busy <= 0;
+//        else if (prd_rd_busy) prd_rd_busy <= 1;
+        else if (raddr_prd_rq && axi_set_raddr_ready) prd_rd_busy <= 1;
+        else if (wcount_set)                          prd_rd_busy <= 0;
         
         if (cmd_start_hclk) dev_wr_hclk <= dev_wr_mclk; // 1: memory -> device, 0: device -> memory
         
