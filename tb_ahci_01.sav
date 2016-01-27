@@ -1,17 +1,16 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Wed Jan 27 00:58:43 2016
+[*] Wed Jan 27 03:45:46 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160126175635551.fst"
-[dumpfile_mtime] "Wed Jan 27 00:57:30 2016"
-[dumpfile_size] 6579639
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160126201651026.fst"
+[dumpfile_mtime] "Wed Jan 27 03:17:46 2016"
+[dumpfile_size] 6562795
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 0
+[timestart] 19020700
 [size] 1823 1180
 [pos] 1994 0
-*-23.000113 25083634 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.938510 19216667 19123334 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
-[treeopen] tb_ahci.dev.
 [treeopen] tb_ahci.dev.phy.
 [treeopen] tb_ahci.dut.
 [treeopen] tb_ahci.dut.axi_hp_clk_i.
@@ -32,8 +31,11 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_write_i.
 [treeopen] tb_ahci.simul_axi_hp_rd_i.
-[sst_width] 253
-[signals_width] 330
+[treeopen] tb_ahci.simul_axi_hp_wr_i.
+[treeopen] tb_ahci.simul_axi_hp_wr_i.waddr_i.
+[treeopen] tb_ahci.simul_axi_hp_wr_i.wdata_i.
+[sst_width] 275
+[signals_width] 256
 [sst_expanded] 1
 [sst_vpaned_height] 618
 @820
@@ -1147,6 +1149,124 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.rreg_full
 -fifo_h2d_control
 -ahci_sata_layers
 @800200
+-simul_axi_hp_wr
+@28
+tb_ahci.simul_axi_hp_wr_i.rst
+tb_ahci.simul_axi_hp_wr_i.wvalid
+@22
+tb_ahci.simul_axi_hp_wr_i.wcount[7:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.wready
+tb_ahci.dut.afi3_wready
+tb_ahci.simul_axi_hp_wr_i.fifo_wd_rd
+tb_ahci.simul_axi_hp_wr_i.write_in_progress_w
+tb_ahci.simul_axi_hp_wr_i.last_confirmed_write
+tb_ahci.simul_axi_hp_wr_i.wlast_out
+tb_ahci.simul_axi_hp_wr_i.fifo_wd_rd
+@22
+tb_ahci.simul_axi_hp_wr_i.write_left[3:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.write_in_progress
+tb_ahci.simul_axi_hp_wr_i.w_nempty
+tb_ahci.simul_axi_hp_wr_i.sim_wr_ready
+tb_ahci.simul_axi_hp_wr_i.sim_wr_valid
+tb_ahci.simul_axi_hp_wr_i.enough_data
+tb_ahci.simul_axi_hp_wr_i.aw_nempty
+tb_ahci.simul_axi_hp_wr_i.start_write_burst_w
+@22
+tb_ahci.simul_axi_hp_wr_i.write_left[3:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.start_write_burst_w
+@22
+tb_ahci.simul_axi_hp_wr_i.awlen[3:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.awready
+tb_ahci.simul_axi_hp_wr_i.awvalid
+@22
+tb_ahci.simul_axi_hp_wr_i.awlen_out[3:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.fifo_wd_rd
+@800200
+-fifo_waddr
+@28
+tb_ahci.simul_axi_hp_wr_i.waddr_i.we
+@c00022
+tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+@28
+(0)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(1)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(2)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(3)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(4)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(5)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(6)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(7)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(8)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(9)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(10)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(11)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(12)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(13)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(14)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(15)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(16)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(17)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(18)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(19)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(20)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(21)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(22)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(23)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(24)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(25)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(26)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(27)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(28)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(29)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(30)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(31)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(32)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(33)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(34)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(35)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(36)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(37)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(38)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(39)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(40)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(41)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(42)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(43)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(44)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(45)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(46)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(47)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(48)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+(49)tb_ahci.simul_axi_hp_wr_i.waddr_i.data_in[49:0]
+@1401200
+-group_end
+@28
+tb_ahci.simul_axi_hp_wr_i.waddr_i.re
+@22
+tb_ahci.simul_axi_hp_wr_i.waddr_i.fifo_fill[5:0]
+tb_ahci.simul_axi_hp_wr_i.waddr_i.fill[5:0]
+@1000200
+-fifo_waddr
+@800200
+-fifo_wdata
+@28
+tb_ahci.simul_axi_hp_wr_i.wdata_i.we
+@22
+tb_ahci.simul_axi_hp_wr_i.wdata_i.data_in[78:0]
+@28
+tb_ahci.simul_axi_hp_wr_i.wdata_i.re
+@22
+tb_ahci.simul_axi_hp_wr_i.wdata_i.fifo_fill[7:0]
+tb_ahci.simul_axi_hp_wr_i.wdata_i.fill[7:0]
+@1000200
+-fifo_wdata
+-simul_axi_hp_wr
+@800200
 -ahci_dma
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.hrst
@@ -1157,8 +1277,108 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.prd_start
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.cmd_busy
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.prd_rd_busy
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.cmd_abort
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wdata[63:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wid[5:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wvalid
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wlast
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wcount[7:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_awready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_awvalid
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_awaddr[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_addr[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_raddr_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.raddr_data_pend
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.waddr_data_pend
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.waddr_data_rq
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_ready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_next_burst
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.addr_data_rq_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.addr_data_rq_r
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_addr_data_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.wcount_set
+@800028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_rd_ctl[1:0]
+@1001200
+-group_end
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.is_prd_addr
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.int_data_addr[3:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_len[3:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qw_datawr_left[21:3]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qw_datawr_last
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qw_datawr_burst[3:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wacount[5:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_ready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_w
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_waddr_ready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.waddr_data_pend
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.waddr_data_rq
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.addr_data_rq_r
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.addr_data_rq_w
+@c00022
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(2)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(3)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(4)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(5)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(6)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(7)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(8)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(9)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(10)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(11)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(12)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(13)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(14)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(15)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(16)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(17)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(18)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(19)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(20)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+(21)tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
+@1401200
+-group_end
+@29
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_next_burst
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_alen[3:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_len[3:0]
+@800200
+-sim_d2h
 @200
 -
+@22
+tb_ahci.sysmem_dworda_wr[31:2]
+tb_ahci.sysmem_di_low[31:0]
+tb_ahci.sysmem_di_high[31:0]
+tb_ahci.afi_sim_wr_address[31:0]
+tb_ahci.afi_sim_wr_stb[7:0]
+tb_ahci.afi_sim_wr_data[63:0]
+@28
+tb_ahci.afi_sim_wr_ready
+tb_ahci.afi_sim_wr_valid
+@1000200
+-sim_d2h
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.sys_in[31:0]
 @28

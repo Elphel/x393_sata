@@ -680,7 +680,7 @@ localparam ATA_IDFY = 'hec; // Identify command
 // afi loopback
     assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
     assign #1 afi_sim_rd_resp = afi_sim_rd_ready?2'b0:2'bx;
-    assign #1 afi_sim_wr_ready = afi_sim_wr_valid;
+    assign #1 afi_sim_wr_ready = 1; // afi_sim_wr_valid;
     assign #1 afi_sim_bresp_latency=4'h5; 
 //  assign #1 afi_sim_rd_data=  afi_sim_rd_ready?{2'h0,afi_sim_rd_address[31:3],1'h1,  2'h0,afi_sim_rd_address[31:3],1'h0}:64'bx;
     wire MEM_SEL = (afi_sim_rd_address[31:3] >= (SYS_MEM_START >> 3)) && (afi_sim_rd_address[31:3] < ((SYS_MEM_START + SYS_MEM_SIZE) >> 3));

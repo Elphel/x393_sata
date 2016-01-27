@@ -92,7 +92,7 @@ module  ahci_top#(
     // write data
     output     [63:0] afi_wdata,
     output            afi_wvalid,
-    input             afi_wready,  // @SuppressThisWarning VEditor unused - used FIF0 level
+    input             afi_wready,  // @ SuppressThisWarning VEditor unused - used FIF0 level
     output     [ 5:0] afi_wid,
     output            afi_wlast,
     output     [ 7:0] afi_wstrb,

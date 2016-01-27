@@ -177,7 +177,7 @@ module  ahci_dma (
     reg            data_irq; // interrupt at the end of this PRD
     reg     [21:1] wcount;  // Word count
     reg            wcount_set; 
-    reg     [21:1] qwcount; // only [21:3] are used
+    reg     [22:1] qwcount; // only [21:3] are used ([22] - carry from subtraction )
     
     reg     [21:3] qw_datawr_left;
     reg     [ 3:0] qw_datawr_burst;
@@ -215,13 +215,21 @@ module  ahci_dma (
             
     wire           raddr_ct_rq = cmd_start_hclk;
     reg            raddr_ct_pend;
-     
+
+/*
     wire           addr_data_rq = (wcount_set || data_next_burst);
      
     wire           waddr_data_rq =  !dev_wr_hclk && addr_data_rq;
-    reg            waddr_data_pend;
-    
     wire           raddr_data_rq =   dev_wr_hclk && addr_data_rq;
+
+*/     
+    wire           addr_data_rq_w = (wcount_set || data_next_burst);
+    reg            addr_data_rq_r;
+     
+    wire           waddr_data_rq =  !dev_wr_hclk && addr_data_rq_r;
+    wire           raddr_data_rq =   dev_wr_hclk && addr_data_rq_r;
+
+    reg            waddr_data_pend;
     reg            raddr_data_pend;
     // count different types of AXI ID separately - just for debugging
     reg      [3:0] ct_id;
@@ -240,7 +248,8 @@ module  ahci_dma (
     assign ct_done = (ct_busy_r == 2'b10);
     assign first_prd_fetch = ct_over_prd_enabled == 2'b01;
     assign axi_set_raddr_w = axi_set_raddr_ready && (raddr_ct_pend || raddr_prd_pend || raddr_data_pend);    
-    assign axi_set_waddr_w = axi_set_raddr_ready && raddr_data_pend;    
+/// assign axi_set_waddr_w = axi_set_raddr_ready && raddr_data_pend;    
+    assign axi_set_waddr_w = axi_set_waddr_ready && waddr_data_pend;    
     assign axi_set_addr_data_w = (axi_set_raddr_ready && raddr_data_pend) || (axi_set_waddr_ready && waddr_data_pend);
     
     
@@ -313,8 +322,13 @@ module  ahci_dma (
 //        afi_rd_ctl <= { afi_rd_ctl[0],(ct_busy_r[0] || prd_rd_busy) && ((|afi_rcount[7:SAFE_RD_BITS]) || (afi_rvalid && !(|afi_rd_ctl)))};
     wire debug_01 = ct_busy_r[0] || prd_rd_busy ;      
     wire debug_02 =|afi_rcount[7:SAFE_RD_BITS];
-    wire debug_03 = (afi_rvalid && !(|afi_rd_ctl));       
+    wire debug_03 = (afi_rvalid && !(|afi_rd_ctl));
+    
+    wire [21:1] wcount_plus_data_addr = wcount[21:1] + data_addr[2:1];
+    
     always @ (posedge hclk) begin
+        addr_data_rq_r <= addr_data_rq_w;
+        
         prd_start_hclk_r <= prd_start_hclk;
         
         if      (hrst || cmd_abort_hclk) prd_enabled <= 0;
@@ -366,14 +380,21 @@ module  ahci_dma (
         if (hrst) axi_set_waddr_r <= 0;
         else      axi_set_waddr_r <= axi_set_waddr_w;
         
-        if (addr_data_rq) data_len <= ((|qwcount[21:7]) || (&qwcount[6:3]))? 4'hf: qwcount[6:3];       // early calculate
+///     if (addr_data_rq)   data_len <= ((|qwcount[21:7]) || (&qwcount[6:3]))? 4'hf: qwcount[6:3];       // early calculate
+        if (addr_data_rq_r) data_len <= ((|qwcount[21:7]) || (&qwcount[6:3]))? 4'hf: qwcount[6:3];       // early calculate
 
+///     if      (wcount_set)          qwcount[21:1] <= wcount[21:1] + data_addr[2:1]; //minus 1
+///     else if (axi_set_addr_data_w) qwcount[21:7] <= qwcount[21:7] - 1; // may get negative
 
-        if      (wcount_set)          qwcount[21:1] <= wcount[21:1] + data_addr[2:1]; //minus 1
-        else if (axi_set_addr_data_w) qwcount[21:7] <= qwcount[21:7] - 1; // may get negative
+        if      (wcount_set)          qwcount[22:1] <= {1'b0,wcount_plus_data_addr[21:1]}; // wcount[21:1] + data_addr[2:1]; //minus 1
+        else if (axi_set_addr_data_w) qwcount[22:7] <= qwcount[22:7] - 1; // may get negative
         
-        data_next_burst <= axi_set_addr_data_w && ((|qwcount[21:7]) || (&qwcount[6:3])); // same time as afi_awvalid || afi_arvalid
+//wcount_plus_data_addr        
         
+///     data_next_burst <= axi_set_addr_data_w && ((|qwcount[21:7]) || (&qwcount[6:3])); // same time as afi_awvalid || afi_arvalid
+///        data_next_burst <= !qwcount[22] && axi_set_addr_data_w && ((|qwcount[21:7]) || (&qwcount[6:3])); // same time as afi_awvalid || afi_arvalid
+        data_next_burst <= !qwcount[22] && axi_set_addr_data_w && (|qwcount[21:7]); // same time as afi_awvalid || afi_arvalid
+
 // Get PRD data
         // store data address from PRD, increment when needed
         if (afi_rd_ctl[0] && is_prd_addr && (!int_data_addr[0])) data_addr[31:1] <= afi_rdata[31:1];
