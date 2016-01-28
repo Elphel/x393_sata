@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Module: action_decoder
- * Date:2016-01-25  
+ * Date:2016-01-27  
  * Author: auto-generated file, see ahci_fsm_sequence.py
  * Description: Decode sequencer code to 1-hot actions
  *******************************************************************************/
@@ -39,7 +39,8 @@ module action_decoder (
     output reg   SET_STS_7F,
     output reg   SET_STS_80,
     output reg   XFER_CNTR_CLEAR,
-    output reg   DECR_DWC,
+    output reg   DECR_DWCR,
+    output reg   DECR_DWCW,
     output reg   FIS_FIRST_FLUSH,
     output reg   CLEAR_CMD_TO_ISSUE,
     output reg   DMA_ABORT,
@@ -90,26 +91,27 @@ module action_decoder (
         SET_STS_7F <=         enable && data[ 9] && data[ 2];
         SET_STS_80 <=         enable && data[10] && data[ 2];
         XFER_CNTR_CLEAR <=    enable && data[ 4] && data[ 3];
-        DECR_DWC <=           enable && data[ 5] && data[ 3];
-        FIS_FIRST_FLUSH <=    enable && data[ 6] && data[ 3];
-        CLEAR_CMD_TO_ISSUE <= enable && data[ 7] && data[ 3];
-        DMA_ABORT <=          enable && data[ 8] && data[ 3];
-        DMA_PRD_IRQ_CLEAR <=  enable && data[ 9] && data[ 3];
-        XMIT_COMRESET <=      enable && data[10] && data[ 3];
-        SEND_SYNC_ESC <=      enable && data[ 5] && data[ 4];
-        SET_OFFLINE <=        enable && data[ 6] && data[ 4];
-        R_OK <=               enable && data[ 7] && data[ 4];
-        R_ERR <=              enable && data[ 8] && data[ 4];
-        FETCH_CMD <=          enable && data[ 9] && data[ 4];
-        ATAPI_XMIT <=         enable && data[10] && data[ 4];
-        CFIS_XMIT <=          enable && data[ 6] && data[ 5];
-        DX_XMIT <=            enable && data[ 7] && data[ 5];
-        GET_DATA_FIS <=       enable && data[ 8] && data[ 5];
-        GET_DSFIS <=          enable && data[ 9] && data[ 5];
-        GET_IGNORE <=         enable && data[10] && data[ 5];
-        GET_PSFIS <=          enable && data[ 7] && data[ 6];
-        GET_RFIS <=           enable && data[ 8] && data[ 6];
-        GET_SDBFIS <=         enable && data[ 9] && data[ 6];
-        GET_UFIS <=           enable && data[10] && data[ 6];
+        DECR_DWCR <=          enable && data[ 5] && data[ 3];
+        DECR_DWCW <=          enable && data[ 6] && data[ 3];
+        FIS_FIRST_FLUSH <=    enable && data[ 7] && data[ 3];
+        CLEAR_CMD_TO_ISSUE <= enable && data[ 8] && data[ 3];
+        DMA_ABORT <=          enable && data[ 9] && data[ 3];
+        DMA_PRD_IRQ_CLEAR <=  enable && data[10] && data[ 3];
+        XMIT_COMRESET <=      enable && data[ 5] && data[ 4];
+        SEND_SYNC_ESC <=      enable && data[ 6] && data[ 4];
+        SET_OFFLINE <=        enable && data[ 7] && data[ 4];
+        R_OK <=               enable && data[ 8] && data[ 4];
+        R_ERR <=              enable && data[ 9] && data[ 4];
+        FETCH_CMD <=          enable && data[10] && data[ 4];
+        ATAPI_XMIT <=         enable && data[ 6] && data[ 5];
+        CFIS_XMIT <=          enable && data[ 7] && data[ 5];
+        DX_XMIT <=            enable && data[ 8] && data[ 5];
+        GET_DATA_FIS <=       enable && data[ 9] && data[ 5];
+        GET_DSFIS <=          enable && data[10] && data[ 5];
+        GET_IGNORE <=         enable && data[ 7] && data[ 6];
+        GET_PSFIS <=          enable && data[ 8] && data[ 6];
+        GET_RFIS <=           enable && data[ 9] && data[ 6];
+        GET_SDBFIS <=         enable && data[10] && data[ 6];
+        GET_UFIS <=           enable && data[ 8] && data[ 7];
     end
 endmodule

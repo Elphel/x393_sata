@@ -69,7 +69,8 @@ module  ahci_fis_receive#(
     input                         set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
 
     input                         clear_xfer_cntr, // clear pXferCntr (is it needed as a separate input)?
-    input                         decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
+    input                         decr_dwcr,     // decrement DMA Xfer counter after read (in this module) // need pulse to 'update_prdbc' to write to registers
+    input                         decr_dwcw,     // decrement DMA Xfer counter after write (from decr_DXC_dw)// need pulse to 'update_prdbc' to write to registers
     input                  [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
     
     input                         pcmd_fre,      // control bit enables saving FIS to memory (will be ignored for signature)
@@ -89,7 +90,7 @@ module  ahci_fis_receive#(
     output reg                    sactive0,      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     output                 [31:2] xfer_cntr,     // transfer counter in words for both DMA (31 bit) and PIO (lower 15 bits), updated after decr_dwc
-    output reg                    xfer_cntr_zero,// valid next cycle
+    output                        xfer_cntr_zero,// valid next cycle
     output                 [11:0] data_in_dwords, // number of data dwords received (valid with 'done')
     // FSM will send this pulse
 //    output reg                    data_in_words_apply, // apply data_in_words
@@ -147,7 +148,7 @@ localparam DATA_TYPE_OK =       2;
 localparam DATA_TYPE_ERR =      3;
 
 
-
+    reg                 xfer_cntr_zero_r;
     wire                dma_in_start;
     wire                dma_in_stop;
     wire                dma_skipping_extra; // skipping extra FIS data not needed for DMA
@@ -166,6 +167,7 @@ localparam DATA_TYPE_ERR =      3;
      
     reg                 fis_rec_run; // running received FIS
     reg                 is_data_fis;
+    reg                 is_ignore;
     
     wire                is_FIS_HEAD =     data_in_ready && (hba_data_in_type == DATA_TYPE_FIS_HEAD);
     wire                is_FIS_NOT_HEAD = data_in_ready && (hba_data_in_type != DATA_TYPE_FIS_HEAD);
@@ -206,7 +208,9 @@ localparam DATA_TYPE_ERR =      3;
     reg                 fis_first_invalid_r;
     reg                 fis_first_flushing_r;
     
-    // Forward data to DMA (dev->mem) engine
+    assign xfer_cntr_zero = xfer_cntr_zero_r;
+    
+    // Forward data to DMA (dev->mem) engine 
     assign              dma_in_valid =       dma_in && dma_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready && !too_long_err;
     // Will also try to skip to the end of too long FIS
     assign              dma_skipping_extra = dma_in && (fis_extra_r || too_long_err) && (hba_data_in_type == DATA_TYPE_DMA) && data_in_ready ;
@@ -277,7 +281,8 @@ localparam DATA_TYPE_ERR =      3;
            reg_ds <=      get_dsfis ? 1 : 0;
            reg_ps <=      get_psfis ? 1 : 0;
            reg_d2h <=     get_rfis ?  1 : 0;    
-           reg_sdb <=     get_rfis ?  1 : 0;    
+           reg_sdb <=     get_rfis ?  1 : 0;
+           is_ignore <=   get_ignore ? 1 : 0;  
         end else if (wreg_we_r && !dwords_over) begin
            fis_dcount <= fis_dcount - 1;               // update even if not writing to registers
            if (fis_save) reg_addr_r <= reg_addr_r + 1; // update only when writing to registers
@@ -293,11 +298,13 @@ localparam DATA_TYPE_ERR =      3;
         else if (get_fis)                     fis_rec_run <= 1;
         else if (is_fis_end && data_in_ready) fis_rec_run <= 0;
         
-        if      (hba_rst ||get_fis)           dwords_over <= 0;
-        else if (wreg_we_r && !(|fis_dcount)) dwords_over <= 1;
+        if      (hba_rst ||get_fis)                           dwords_over <= 0;
+        else if (wreg_we_r && !(|fis_dcount))                 dwords_over <= 1;
+///        else if (wreg_we_r && (!(|fis_dcount) || is_fis_end)) dwords_over <= 1;
         
         if (hba_rst) wreg_we_r <= 0;
-        else         wreg_we_r <= fis_rec_run && data_in_ready && !is_fis_end && !dwords_over && (|fis_dcount || !wreg_we_r);
+        else         wreg_we_r <= fis_rec_run && data_in_ready && !is_fis_end && !dwords_over && (|fis_dcount || !wreg_we_r) &&
+                                  (!is_ignore || !wreg_we_r); // Ignore - unknown length, ned to look for is_fis_end with latency
 
         fis_end_r <= {fis_end_r[0], fis_end_w};
         
@@ -363,13 +370,15 @@ localparam DATA_TYPE_ERR =      3;
         if (reg_sdb[1])                       sactive0 <=        hba_data_in[0];
         
         if (hba_rst || reg_sdb[0] || clear_xfer_cntr) xfer_cntr_r[31:2] <= 0;
-        else if (reg_ps[4] || reg_ds[5])           xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0, hba_data_in[15:2]} + hba_data_in[1]; // round up
-        else if (decr_dwc)                         xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - {18'b0, decr_DXC_dw[11:0]};
+        else if (reg_ps[4] || reg_ds[5])                        xfer_cntr_r[31:2] <= {reg_ds[5]?hba_data_in[31:16]:16'b0,
+                                                                                      hba_data_in[15:2]} + hba_data_in[1]; // round up
+        else if ((decr_dwcw || decr_dwcr) && !xfer_cntr_zero_r) xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - 
+                                                                                     {18'b0, decr_dwcr? data_in_dwords: decr_DXC_dw[11:0]};
         
         if (hba_rst || reg_sdb[0] || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
-        else if (decr_dwc)                                    prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_DXC_dw[11:0]};
+        else if (decr_dwcw || decr_dwcr)                      prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_dwcr? data_in_dwords: decr_DXC_dw[11:0]};
         
-        xfer_cntr_zero <=                     xfer_cntr_r[31:2] == 0;
+        xfer_cntr_zero_r <=                     xfer_cntr_r[31:2] == 0;
         
         update_err_sts_r <= update_pio || update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
 //        update_pio_r <=  update_pio;

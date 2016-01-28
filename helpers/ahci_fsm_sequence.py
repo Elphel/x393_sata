@@ -49,7 +49,7 @@ actions = ['NOP',
     'PFSM_STARTED', 'PCMD_CR_CLEAR', 'PCMD_CR_SET', 'PXCI0_CLEAR', 'PXSSTS_DET_1', 'SSTS_DET_OFFLINE', 'SCTL_DET_CLEAR',
     # FIS RECEIVE
     'SET_UPDATE_SIG', 'UPDATE_SIG', 'UPDATE_ERR_STS', 'UPDATE_PIO', 'UPDATE_PRDBC', 'CLEAR_BSY_DRQ',
-    'CLEAR_BSY_SET_DRQ', 'SET_BSY', 'SET_STS_7F', 'SET_STS_80', 'XFER_CNTR_CLEAR', 'DECR_DWC', 'FIS_FIRST_FLUSH',
+    'CLEAR_BSY_SET_DRQ', 'SET_BSY', 'SET_STS_7F', 'SET_STS_80', 'XFER_CNTR_CLEAR', 'DECR_DWCR', 'DECR_DWCW', 'FIS_FIRST_FLUSH',
     # FIS_TRANSMIT
     'CLEAR_CMD_TO_ISSUE',
     # DMA
@@ -336,7 +336,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {IF: 'TX_ERR',              GOTO:'ERR:Fatal'},           # 1. dx_err[1] (reset by new command)
             {                           GOTO:'DX:UpdateByteCount'},  # 3. (#2 - skipped PxFBS.EN==1)
             
-            {LBL:'DX:UpdateByteCount',  ACT: 'DECR_DWC'},            # decr_dwc - decrement remaining DWORDS count, increment transferred
+            {LBL:'DX:UpdateByteCount',  ACT: 'DECR_DWCW'},           # decr_dwc - decrement remaining DWORDS count, increment transferred
             {                           ACT: 'UPDATE_PRDBC'},        # update_prdbc
             {IF: 'DMA_PRD_IRQ_PEND',    GOTO:'DX:PrdSetIntr'},       # 1. dma_prd_irq_pend
             {IF: 'PIOX',                GOTO:'PIO:Update'},          # 2. pPioXfer
@@ -359,7 +359,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'DR:UpdateByteCount'},  # 2. fis_ok implied
             
             {LBL:'DR:UpdateByteCount',  ACT: 'R_OK'},                # send_R_OK to device
-            {                           ACT: 'DECR_DWC'},            # decr_dwc - decrement remaining DWORDS count, increment transferred
+            {                           ACT: 'DECR_DWCR'},  # decr_dwc - decrement remaining DWORDS count, increment transferred
             {                           ACT: 'UPDATE_PRDBC'},        # update_prdbc
             {IF: 'DMA_PRD_IRQ_PEND',    GOTO:'DX:PrdSetIntr'},       # 1. dma_prd_irq_pend
             {IF: 'PIOX',                GOTO:'PIO:Update'},          # 2. pPioXfer (#1 ->DX:PrdSetIS is handled by hardware)

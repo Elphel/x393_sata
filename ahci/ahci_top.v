@@ -252,11 +252,13 @@ module  ahci_top#(
 ///    wire                    dma_prd_done; // output (finished next prd)
     wire                    dma_prd_irq_clear; // reset pending prd_irq
     wire                    dma_prd_irq_pend;  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
-///    wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
+    wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
     wire                    dma_cmd_done; // output (last PRD is over)
     wire             [31:0] dma_dout;    // output[31:0] 
     wire                    dma_dav; // output
     wire                    dma_re;      // input
+    wire                    last_h2d_data;// when active and no new data for 2 clocks - that was the last one
+    
     wire                    dma_in_ready; // output
     wire                    dma_we;      // input
     wire                    dma_extra_din;    // all DRDs are transferred to memory, but FIFO has some data. Valid when transfer is stopped
@@ -289,7 +291,8 @@ module  ahci_top#(
     wire                    frcv_set_bsy;       // set PxTFD.STS.BSY, update
     wire                    frcv_set_sts_7f;    // set PxTFD.STS = 0x7f, update
     wire                    frcv_set_sts_80;    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
-    wire                    frcv_decr_dwc;      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
+    wire                    frcv_decr_dwcr;      // decrement DMA Xfer counter after read // need pulse to 'update_prdbc' to write to registers
+    wire                    frcv_decr_dwcw;      // decrement DMA Xfer counter after write // need pulse to 'update_prdbc' to write to registers
     wire                    frcv_clear_xfer_cntr; // Clear pXferCntr to 0
     
     // fsm <-
@@ -543,7 +546,7 @@ module  ahci_top#(
         .dma_prd_irq_clear        (dma_prd_irq_clear),  // output
         .dma_prd_irq_pend         (dma_prd_irq_pend),   // input
         
-///        .dma_cmd_busy             (dma_cmd_busy),       // input
+        .dma_cmd_busy             (dma_cmd_busy),       // input
 ///        .dma_cmd_done             (dma_cmd_done),       // input
         .dma_cmd_abort            (dma_cmd_abort_fsm),  // output
         
@@ -582,7 +585,8 @@ module  ahci_top#(
         .set_sts_7f      (frcv_set_sts_7f),    // output
         .set_sts_80      (frcv_set_sts_80),    // output
         .clear_xfer_cntr (frcv_clear_xfer_cntr), //output Clear pXferCntr
-        .decr_dwc        (frcv_decr_dwc),      // output increment pXferCntr after transmit by data transmitted)
+        .decr_dwcr       (frcv_decr_dwcr),     // output increment pXferCntr after transmit by data transmitted)
+        .decr_dwcw       (frcv_decr_dwcw),     // output increment pXferCntr after transmit by data transmitted)
 //      .decr_DXC_dw     (data_out_dwords),    // output[11:2] **** Probably not needed
         .pxcmd_fre       (pcmd_fre), // input
         
@@ -799,11 +803,12 @@ module  ahci_top#(
         .prd_irq_clear         (dma_prd_irq_clear),// input
         .prd_irq_pend          (dma_prd_irq_pend), // output reg
         
-        .cmd_busy              (), // dma_cmd_busy),  // output reg 
+        .cmd_busy              (dma_cmd_busy), // dma_cmd_busy),  // output reg Some data to transmit!
         .cmd_done              (dma_cmd_done),  // output
         .sys_out               (dma_dout),      // output[31:0] 
         .sys_dav               (dma_dav),       // output
         .sys_re                (dma_re),        // input
+        .last_h2d_data         (last_h2d_data), // output
         .sys_in                (d2h_data),      // input[31:0] 
         .sys_nfull             (dma_in_ready),  // output
         .sys_we                (dma_we),        // input
@@ -897,7 +902,8 @@ module  ahci_top#(
         .set_sts_7f        (frcv_set_sts_7f),        // input
         .set_sts_80        (frcv_set_sts_80),        // input
         .clear_xfer_cntr (frcv_clear_xfer_cntr),     // input Clear pXferCntr
-        .decr_dwc          (frcv_decr_dwc),          // input
+        .decr_dwcr         (frcv_decr_dwcr),         // input
+        .decr_dwcw         (frcv_decr_dwcw),         // input
         .decr_DXC_dw       (data_out_dwords),        // input[11:2]
         .pcmd_fre          (pcmd_fre),               // input
          
@@ -967,6 +973,7 @@ module  ahci_top#(
         .reg_re            (regs_re_ftransmit),    // output[1:0]
         .reg_rdata         (regs_dout),            // input[31:0] 
         .xfer_cntr         (xfer_cntr[31:2]),      // input[31:2] 
+        .xfer_cntr_zero    (xfer_cntr_zero),       // input 
         .dma_ctba_ld       (ctba_ld),              // output
         .dma_start         (dma_cmd_start),        // output
         .dma_dev_wr        (dev_wr),               // output
@@ -979,6 +986,7 @@ module  ahci_top#(
         .dma_out           (dma_dout),             // input[31:0] 
         .dma_dav           (dma_dav),              // input
         .dma_re            (dma_re),               // output
+        .last_h2d_data     (last_h2d_data),        // input
         .todev_data        (h2d_data),             // output[31:0] reg 
         .todev_type        (h2d_type),             // output[1:0] reg 
         .todev_valid       (h2d_valid),            // output

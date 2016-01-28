@@ -672,6 +672,7 @@ localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the sys
 localparam IDENTIFY_BUF =  32'h3d00; // 512 bytes for a command table in the system memory
 localparam PRD_OFFSET = 'h80;        // start of PRD table - 128-th byte in command table
 localparam ATA_IDFY = 'hec; // Identify command
+localparam ATA_WDMA = 'hca; // Identify command
 
     reg  [31:0] sysmem[0:4095]; 
 
@@ -829,15 +830,70 @@ localparam ATA_IDFY = 'hec; // Identify command
             // relax and enjoy
         end
     endtask
+    
+    task setup_dma_write_identify_command_multi4; // Write DMA, use data received during read identify
+        input integer lba;
+        input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+        input integer nw1; // first segment lengtth (in words)
+        input integer nw2; // second segment lengtth (in words)
+        input integer nw3; // third segment lengtth (in words)
+        
+        integer nw4;
+        integer i;
+        
+        begin
+            nw4 = 256 - nw1 - nw2 - nw3; // total 512 bytes, 256 words
+            // clear system memory for command
+            for (i = 0; i < 64; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            // fill ATA command 
+            sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
+                                               ('h80 << 8) |      // set C = 1
+                                               (ATA_WDMA << 16) | // Command = 0xEC (IDFY)
+                                              ( 0 << 24);         // features = 0 ?
+            sysmem[(COMMAND_TABLE >> 2) + 1] = lba & 'hffffff;    // 24 LSBs of LBA (48-bit require different ATA command)
+            sysmem[(COMMAND_TABLE >> 2) + 3] = 1;                 // 1 logical sector (0 means 256)
+            // All other DWORDs are 0 for this command
+            // Set PRDT (four items)
+            // PRDT #1
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  3] = (prd_int[0] << 31) | (2 * nw1 - 1); // 2 * nw1 bytes
+            // PRDT #2
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  4] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  7] = (prd_int[0] << 31) | (2 * nw2 - 1); // 2 * nw2 bytes
+            // PRDT #3
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  8] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 11] = (prd_int[0] << 31) | (2 * nw3 - 1); // 2 * nw3 bytes
+            // PRDT #4
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 12] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2) + (2 * nw3);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 15] = (prd_int[0] << 31) | (2 * nw4 - 1); // 2 * nw4 bytes
+            
+            // Setup command header
+            maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
+                                                         (0 <<  5) | // 'A' Not ATAPI
+                                                         (1 <<  6) | // 'W' Is write to device
+                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  8) | // 'R' Not a Reset
+                                                         (0 <<  9) | // 'B' Not a BIST
+//                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
+                                                         (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            // Set Command Issued
+            maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
+            // relax and enjoy
+        end
+    endtask
+    
+    
+    
+    
 
 initial begin //Host
     wait (!RST);
 //reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
     TESTBENCH_TITLE = "NO_RESET";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
-    repeat (10) begin
-        @ (posedge CLK);
-    end 
+    repeat (10) @ (posedge CLK);
     axi_set_rd_lag(0);
     axi_set_b_lag(0);
 
@@ -907,13 +963,19 @@ initial begin //Host
     wait (IRQ);
     TESTBENCH_TITLE = "Got Identify";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
-
     maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
+    maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
     
 //    sysmem_print ('h1e81,'h180); // for shifted
     sysmem_print ('h1e80,'h180);
     
-    $finish;
+    setup_dma_write_identify_command_multi4(1,'h123456, 27,71,83); // LBA = 'h123456
+    TESTBENCH_TITLE = "Set DMA Write command for device";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    
+    repeat (50)  @(posedge CLK);
+//    $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
@@ -921,6 +983,13 @@ function func_is_dev_identify;
     input [31:0] dw;
     begin
         func_is_dev_identify = ((dw & 'hff) == FIS_H2DR ) && (((dw >> 16) & 'hff) == ATA_IDFY);
+    end
+endfunction
+
+function func_is_dev_dma_write;
+    input [31:0] dw;
+    begin
+        func_is_dev_dma_write = ((dw & 'hff) == FIS_H2DR ) && (((dw >> 16) & 'hff) == ATA_WDMA);
     end
 endfunction
 
@@ -940,37 +1009,45 @@ initial begin //Device
     $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
     
     // Wait for host requests 'identify'
-    @(dev.receive_id);
-    if (func_is_dev_identify(dev.receive_data[0])) begin
-        DEVICE_TITLE = "Got Identify";
-        $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
-        $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
-        dev.send_pio_setup   (67,      // input integer id;
-                               1,      // input          d2h; // 'D' bit: 1 - Data will be D2H, 0 - H2D
-                               1,      // input          irq; // Set I bit
-                               'h30,   // input    [7:0] xmit_status; // something different to check host
-                               0,      // input    [7:0] xmit_error;
-                               'h60,   // input    [7:0] xmit_e_status;
-                               512,    // input   [15:0] xfer_count; Identify block size
-                               0,      // input   [ 7:0] dev;    
-                               0,      // input   [23:0] lba_low;  // LBA_low dword
-                               0,      // input   [23:0] lba_high; // LBA high dword 
-                               0,      // input   [15:0] count; // 
-                               status); // output integer status;
-        DEVICE_TITLE = "Device sent PIOS FIS";
-        $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
-        dev.send_identify_data(68,      // input integer id;
-                               status); // output integer status;
-        DEVICE_TITLE = "Device sent Data FIS (Identify)";
-        $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
-    end else begin
-        DEVICE_TITLE = "Expected Identify, got else";
-        $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
-        $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+    forever @(dev.receive_id) begin
+        if (func_is_dev_identify(dev.receive_data[0])) begin
+            DEVICE_TITLE = "Got Identify";
+            $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+            $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+            dev.send_pio_setup   (67,      // input integer id;
+                                   1,      // input          d2h; // 'D' bit: 1 - Data will be D2H, 0 - H2D
+                                   1,      // input          irq; // Set I bit
+                                   'h30,   // input    [7:0] xmit_status; // something different to check host
+                                   0,      // input    [7:0] xmit_error;
+                                   'h60,   // input    [7:0] xmit_e_status;
+                                   512,    // input   [15:0] xfer_count; Identify block size
+                                   0,      // input   [ 7:0] dev;    
+                                   0,      // input   [23:0] lba_low;  // LBA_low dword
+                                   0,      // input   [23:0] lba_high; // LBA high dword 
+                                   0,      // input   [15:0] count; // 
+                                   status); // output integer status;
+            DEVICE_TITLE = "Device sent PIOS FIS";
+            $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+            dev.send_identify_data(68,      // input integer id;
+                                   status); // output integer status;
+            DEVICE_TITLE = "Device sent Data FIS (Identify)";
+            $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+        end else if (func_is_dev_dma_write(dev.receive_data[0])) begin
+            DEVICE_TITLE = "Got DMA Write";
+            $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+            $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+
+            dev.send_dma_activate (69,      // input integer id;
+                                   status); // output integer status;
+            
+        end else begin
+            DEVICE_TITLE = "Expected Identify or DMA Write, got else";
+            $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+            $display("[Dev-TB]:       %h @%t", dev.receive_data[0], $time);
+        end
     end
-    
-                      
 end
+
   initial begin
 //       #30000;
      #50000;

@@ -141,9 +141,9 @@ module  ahci_fsm
 ///   input                         dma_prd_done, // output (finished next prd)
     output                        dma_prd_irq_clear, // reset pending prd_irq
     input                         dma_prd_irq_pend,  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
-///    input                         dma_cmd_busy, // output reg (DMA engine is processing PRDs)
-///    input                         dma_cmd_done, // output (last PRD is over)
-    output                        dma_cmd_abort,   // try to abort a command
+    input                         dma_cmd_busy,      // output reg (DMA engine is processing PRDs)
+///    input                         dma_cmd_done,   // output (last PRD is over)
+    output                        dma_cmd_abort,     // try to abort a command
     
     
     // Communication with ahci_fis_receive (some are unused)
@@ -189,7 +189,8 @@ module  ahci_fsm
     output                        set_sts_80,    // set PxTFD.STS = 0x80 (may be combined with set_sts_7f), update
     output                        clear_xfer_cntr, // clear pXferCntr (is it needed as a separate input)?
     
-    output                        decr_dwc,      // decrement DMA Xfer counter // need pulse to 'update_prdbc' to write to registers
+    output                        decr_dwcr,     // decrement DMA Xfer counter after read // need pulse to 'update_prdbc' to write to registers
+    output                        decr_dwcw,     // decrement DMA Xfer counter after write // need pulse to 'update_prdbc' to write to registers
 //    output                 [11:0] decr_DXC_dw,   // decrement value (in DWORDs)
     input                         pxcmd_fre,     // control bit enables saving FIS to memory
     input                         pPioXfer,      // state variable
@@ -422,7 +423,8 @@ module  ahci_fsm
         .SET_STS_7F         (set_sts_7f),        // output reg 
         .SET_STS_80         (set_sts_80),        // output reg 
         .XFER_CNTR_CLEAR    (clear_xfer_cntr),   // output reg 
-        .DECR_DWC           (decr_dwc),          // output reg 
+        .DECR_DWCR          (decr_dwcr),         // output reg 
+        .DECR_DWCW          (decr_dwcw),         // output reg 
         .FIS_FIRST_FLUSH    (fis_first_flush),   // output reg
     // FIS_TRANSMIT
         .CLEAR_CMD_TO_ISSUE (clearCmdToIssue),   // output reg
@@ -492,8 +494,8 @@ module  ahci_fsm
         .PIO_I                 (pio_i),                                   // input
         .NPD                   (!pio_d),                                  // input pio_d = 0 , "ch_a == 1" is not needed
         .PIOX                  (pPioXfer),                                // input
-        .XFER0                 (xfer_cntr_zero),                          // input  xfer_cntr_zero
-        .PIOX_XFER0            (pPioXfer && xfer_cntr_zero),              // input pPioXfer && xfer_cntr_zero
+        .XFER0                 (xfer_cntr_zero && !dma_cmd_busy),         // input  xfer_cntr_zero
+        .PIOX_XFER0            (pPioXfer && xfer_cntr_zero &&!dma_cmd_busy), // input pPioXfer && xfer_cntr_zero
     // FIS_TRANSMIT
         .CTBAA_CTBAP           (ch_a && ch_p),                            // input
         .CTBAP                 (ch_p),                                    // input

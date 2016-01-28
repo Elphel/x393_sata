@@ -704,6 +704,17 @@ task send_pio_setup; // @SuppressThisWarning VEditor - Used in testbench
     end
 endtask
 
+task send_dma_activate; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    output integer status;
+    begin
+        transmit_data[0] = FIS_DMAA;
+        linkTransmitFIS(id, 1, 0, status);        
+    end
+endtask
+
+
+
 
 task send_identify_data; // @SuppressThisWarning VEditor - Used in testbench
     input integer id;

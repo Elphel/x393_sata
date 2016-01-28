@@ -59,7 +59,8 @@ module  ahci_dma_rd_fifo#(
     // mclk domain
     output         [31:0] dout,
     output                dout_vld,
-    input                 dout_re
+    input                 dout_re,
+    output                last_data // pulse @mclk (input done for the last prd - slow send out FIS, no data for 2 clocks - that was the last
 );
     localparam ADDRESS_NUM = (1<<ADDRESS_BITS); // 8 for ADDRESS_BITS==3
     reg   [ADDRESS_BITS : 0] waddr; // 1 extra bit       
@@ -99,7 +100,6 @@ module  ahci_dma_rd_fifo#(
     reg                [3:0] last_mask;
     reg                      flush_r;
     wire                     done_flush_mclk;
-    
     
     assign din_re =  busy && fifo_half_hclk && din_av_safe_r;
     assign fifo_wr = en_fifo_wr && fifo_half_hclk && (din_av_safe_r || !busy);
@@ -179,11 +179,22 @@ module  ahci_dma_rd_fifo#(
     pulse_cross_clock #(
         .EXTRA_DLY(0)
     ) done_flush_i (
+        .rst       (mrst),                               // input
+        .src_clk   (mclk),                               // input
+        .dst_clk   (hclk),                               // input
+        .in_pulse  (flush_r && din_re && (qwcntr == 0)), // input
+        .out_pulse (done_flush),                         // output
+        .busy()                                          // output
+    );
+
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) last_data_i (
         .rst       (mrst),            // input
         .src_clk   (mclk),            // input
         .dst_clk   (hclk),            // input
         .in_pulse  (done_flush_mclk), // input
-        .out_pulse (done_flush),      // output
+        .out_pulse (last_data),       // output
         .busy()                       // output
     );
     

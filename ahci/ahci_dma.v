@@ -76,6 +76,8 @@ module  ahci_dma (
     output                        sys_dav,      // at least one dword is ready to be read
 //    output                        sys_dav_many, // several DWORDs are in the FIFO (TODO: decide how many)
     input                         sys_re,       // sys_out data read, advance internal FIFO
+    output                        last_h2d_data,// when active and no new data for 2 clocks - that was the last one
+    
     // Data HBA -> System memory  interface @ mclk
     input                  [31:0] sys_in,       // HBA -> system memory
     output                        sys_nfull,    // internal FIFO has room for more data (will decide - how big reserved space to keep)
@@ -494,7 +496,8 @@ module  ahci_dma (
         .done_flush   (done_flush),                  // output     // @ hclk
         .dout         (sys_out),                     // output[31:0] 
         .dout_vld     (sys_dav),                     // output
-        .dout_re      (sys_re)                       // input
+        .dout_re      (sys_re),                      // input
+        .last_data    (last_h2d_data)                // output
     );
     
     ahci_dma_wr_fifo #( // device to memory

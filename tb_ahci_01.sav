@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Wed Jan 27 20:37:20 2016
+[*] Thu Jan 28 08:34:30 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160127133150634.fst"
-[dumpfile_mtime] "Wed Jan 27 20:32:21 2016"
-[dumpfile_size] 3824683
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160128011041668.fst"
+[dumpfile_mtime] "Thu Jan 28 08:11:37 2016"
+[dumpfile_size] 6645501
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 22094000
-[size] 1823 1173
+[timestart] 16640000
+[size] 1823 1180
 [pos] 1994 0
-*-19.117058 23716667 23903334 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-22.068264 26843458 28869922 29536522 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.dev.phy.
 [treeopen] tb_ahci.dut.
@@ -752,7 +752,7 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.any_access
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.set_port_rst
 @1401200
 -axi_ahci_regs
-@c00200
+@800200
 -ahci_fsm
 @c00022
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
@@ -973,10 +973,16 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
-@1401200
+@1000200
 -ahci_fsm
 @c00200
 -ahci_fis_receive
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.xfer_cntr[31:2]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.xfer_cntr_zero
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.decr_DXC_dw[11:0]
 @200
 -
 @28
@@ -1004,7 +1010,6 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.wreg_we_r
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dwords_over
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_rec_run
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_in_ready
-tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.is_fis_end
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_w
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.data_in_ready
 @800028
@@ -1014,17 +1019,39 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_r[1:0]
 (1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_r[1:0]
 @1001200
 -group_end
-@28
-tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_ready
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_type[1:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in[31:0]
 @28
-tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_valid
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_skipping_extra
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_first_flushing_r
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_in_valid
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_in
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_in_valid
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_first_flushing_r
+@c00028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_r[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_r[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_r[1:0]
+@1401200
+-group_end
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.is_fis_end
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_ready
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_valid
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_rec_run
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.wreg_we_r
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dwords_over
+@800022
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
+(3)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
+@1001200
+-group_end
 @1401200
 -ahci_fis_receive
 @c00200
@@ -1106,6 +1133,9 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_valid
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_type[1:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.todev_data[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.dwords_sent[11:0]
+@200
+-
 @1001200
 -group_end
 -group_end
@@ -1269,6 +1299,8 @@ tb_ahci.simul_axi_hp_wr_i.wdata_i.fill[7:0]
 -simul_axi_hp_wr
 @800200
 -ahci_dma
+@29
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.cmd_busy
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.hrst
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.mrst
@@ -1538,6 +1570,10 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qw_datawr_left[21:3]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.afi_wvalid
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qw_datawr_burst[3:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.mclk
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ct_done
+tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ct_done_mclk
 @c00200
 -dma_d2h_fifo
 @28
@@ -1647,7 +1683,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_wr_fifo_i.fifo_rd_r
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_wr_fifo_i.raddr[3:0]
 @1401200
 -dma_d2h_fifo
-@800200
+@c00200
 -sim_d2h
 @200
 -
@@ -1661,7 +1697,7 @@ tb_ahci.afi_sim_wr_data[63:0]
 @28
 tb_ahci.afi_sim_wr_ready
 tb_ahci.afi_sim_wr_valid
-@1000200
+@1401200
 -sim_d2h
 @c00200
 -ahci_fis_receive
