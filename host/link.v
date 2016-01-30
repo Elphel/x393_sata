@@ -35,7 +35,8 @@
 //`include "crc.v"
 module link #(
     // 4 = dword. 4-bytes aligned data transfers TODO 2 = word - easy, 8 = qword - difficult
-    parameter DATA_BYTE_WIDTH = 4
+    parameter DATA_BYTE_WIDTH = 4,
+    parameter ALIGNES_PERIOD =  252 // period of sending ALIGNp pairs
 )
 (
     // TODO insert watchdogs
@@ -119,6 +120,7 @@ module link #(
     reg [639:0] HOST_LINK_TITLE; // to show human-readable state in the GTKWave
     reg  [31:0] HOST_LINK_DATA;
 `endif
+
 // latching data-primitives stream from phy
 reg     [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in_r;
 reg     [DATA_BYTE_WIDTH   - 1:0] phy_isk_in_r; // charisk
@@ -188,9 +190,13 @@ end
 
 
 reg                      data_txing; // if there are still some data to transmit and the transaction wasn't cancelled
-always @ (posedge clk)
-    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
-
+always @ (posedge clk) begin
+///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
+    if (rst ||
+         (data_last_in && data_strobe_out)  ||
+         (dword_val && rcvd_dword[CODE_DMATP])) data_txing <= 0;
+    else if (frame_req)                         data_txing <= 1;    
+end    
 // fsm
 // states and transitions are taken from the doc, "Link Layer State Machine" chapter
 // power mode states are not implemented. TODO insert them as an additional branch of fsm
@@ -293,25 +299,40 @@ assign state_idle = ~state_sync_esc
                   & ~state_rcvr_goodend
                   & ~state_rcvr_badend;
 
-
 // got an escaping primitive = request to cancel the transmission
-wire    alignes_pair;   // pauses every state go give a chance to insert 2 align primitives on a line at least every 256 dwords due to spec
-wire    alignes_pair_0; // time for 1st align primitive
-wire    alignes_pair_1; // time for 2nd align primitive
-reg     [8:0] alignes_timer;
-
-assign  alignes_pair_0 = alignes_timer == 9'd252;
-assign  alignes_pair_1 = alignes_timer == 9'd253;
-assign  alignes_pair   = alignes_pair_0 | alignes_pair_1;
-always @ (posedge clk)
-    alignes_timer <= rst | alignes_pair_1 | state_reset ? 9'h0 : alignes_timer + 1'b1;
-
-
 wire    got_escape;
 assign  got_escape = dword_val & rcvd_dword[CODE_SYNCP];
 
 // escaping is done
 assign  sync_escape_ack = state_sync_esc;
+
+
+wire    alignes_pair;   // pauses every state go give a chance to insert 2 align primitives on a line at least every 256 dwords due to spec
+//wire    alignes_pair_0; // time for 1st align primitive
+//wire    alignes_pair_1; // time for 2nd align primitive
+reg     [8:0] alignes_timer;
+
+///assign  alignes_pair_0 = alignes_timer == 9'd252;
+///assign  alignes_pair_1 = alignes_timer == 9'd253;
+///assign  alignes_pair_0 = alignes_timer == 9'd254;
+///assign  alignes_pair_1 = alignes_timer == 9'd255;
+///always @ (posedge clk)
+///    alignes_timer <= rst | alignes_pair_1 | state_reset ? 9'h0 : alignes_timer + 1'b1;
+
+
+
+//select_prim[CODE_ALIGNP]
+//ALIGNES_PERIOD
+reg    alignes_pair_0; // time for 1st align primitive
+reg    alignes_pair_1; // time for 2nd align primitive
+
+always @ (posedge clk) begin
+    if (rst || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
+    else                                 alignes_timer <= alignes_timer -1;
+    alignes_pair_0 <= alignes_timer == 0;
+    alignes_pair_1 <= alignes_pair_0;
+end
+assign  alignes_pair   = alignes_pair_0 | alignes_pair_1;
 
 
 // Whole transitions table, literally from doc pages 311-328

@@ -966,16 +966,26 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
+    wait (~IRQ);
     
 //    sysmem_print ('h1e81,'h180); // for shifted
-    sysmem_print ('h1e80,'h180);
+    sysmem_print ('h1e80,'h180); // Compact dump of "system memory" in hex word format
+
+    // Prepare for D2H register FIS with interrupt bit set (expected to be sent after all data will be written to the device)
+    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear DHR (D2H register FIS with "I" bit) interrupt
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow only D2H Register interrupts
+    maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts for port 0 (the only one)
+    wait (~IRQ);
     
     setup_dma_write_identify_command_multi4(1,'h123456, 27,71,83); // LBA = 'h123456
     TESTBENCH_TITLE = "Set DMA Write command for device";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     
+    wait (IRQ);
+    TESTBENCH_TITLE = "DMA transfer to device completed";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     repeat (50)  @(posedge CLK);
-//    $finish;
+    $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
@@ -993,6 +1003,13 @@ function func_is_dev_dma_write;
     end
 endfunction
 
+function func_is_h2d_data;
+    input [31:0] dw;
+    begin
+        func_is_h2d_data = (dw & 'hff) == FIS_DATA ;
+    end
+endfunction
+
 integer status;
 initial begin //Device
     dev.clear_transmit_pause(0);  
@@ -1003,7 +1020,7 @@ initial begin //Device
     $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
     dev.send_good_status (66,      // input integer id;
                           5,       // input    [2:0] dev_specific_status_bits;
-                          1,       // input          irq;
+                          1,       // IRQ
                           status); // output integer status;
     DEVICE_TITLE = "Device sent D2H FIS";
     $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
@@ -1039,6 +1056,21 @@ initial begin //Device
 
             dev.send_dma_activate (69,      // input integer id;
                                    status); // output integer status;
+
+        end else if (func_is_h2d_data(dev.receive_data[0])) begin
+            DEVICE_TITLE = "Got H2D data";
+            $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
+            $display("[Dev-TB]:       %hh payload DWORDs got (%d bytes) @%t", dev.received_size, dev.received_size << 2, $time);
+            // Assuming device got what it needed, otherwise send DMA Activate again
+            dev.send_D2HR(70,
+               1, // irq,
+               8'h0,                                // status
+               0,                                   // error
+               0,                                   // device
+               0,                                   // lba_low
+               0,                                   // lba_high
+               0,                                   // count
+               status);                             // output: result status
             
         end else begin
             DEVICE_TITLE = "Expected Identify or DMA Write, got else";

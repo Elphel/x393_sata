@@ -120,9 +120,10 @@ module  ahci_sata_layers #(
     reg          [1:0] d2h_type_in;
     reg                fis_over_r;  // push 1 more DWORD (ignore) + type (ERR/OK) when received FIS is done/error         
     
-    wire ll_frame_req_w;       // pre ll_frame_req
+//    wire ll_frame_req_w;       // pre ll_frame_req
     reg  ll_frame_req;         // -> link // request for a new frame transition
-    wire ll_frame_busy;        // link -> // a little bit of overkill with the cound of response signals, think of throwing out 1 of them // LL tells back if it cant handle the request for now
+    wire ll_frame_ackn;        // acknowledge for ll_frame_req
+//    wire ll_frame_busy;        // link -> // a little bit of overkill with the cound of response signals, think of throwing out 1 of them // LL tells back if it cant handle the request for now
 //    wire ll_frame_ack;         // link -> // LL tells if the request is transmitting not used
 //    wire ll_frame_rej;         // link -> // or if it was cancelled because of simultanious incoming transmission
 //    wire ll_frame_done_good;   // link -> // TL tell if the outcoming transaction is done and how it was done
@@ -173,7 +174,7 @@ module  ahci_sata_layers #(
     assign h2d_ready = !h2d_fill[FIFO_ADDR_WIDTH] && !(&h2d_fill[FIFO_ADDR_WIDTH:3]);
     assign ll_d2h_almost_full   = d2h_fill[FIFO_ADDR_WIDTH] || &d2h_fill[FIFO_ADDR_WIDTH-1:6]; // 63 dwords (maybe use :5?) - time to tell device to stop 
     
-    assign ll_frame_req_w = !ll_frame_busy && h2d_pending && (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) || (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT]));
+//    assign ll_frame_req_w = !ll_frame_busy && h2d_pending && (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) || (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT]));
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
 //assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
     assign phy_speed = phy_ready ? PHY_SPEED:0;
@@ -185,7 +186,7 @@ module  ahci_sata_layers #(
     assign serr_DT = phy_ready && (0);   // RWC: Transport state transition error
     assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
     assign serr_DC = phy_ready && (0);   // RWC: CRC error in Link layer
-    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
+//    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
     assign serr_DI = phy_ready && (0);   // RWC: PHY Internal Error
     assign serr_EP = phy_ready && (0);   // RWC: Protocol Error - a violation of SATA protocol detected
     assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
@@ -216,8 +217,8 @@ module  ahci_sata_layers #(
         .data_last_out    (),                      // ll_d2h_last),        // output wire not used
         
         .frame_req        (ll_frame_req),          // input wire  // request for a new frame transmission
-        .frame_busy       (ll_frame_busy),         // output wire // a little bit of overkill with the cound of response signals, think of throwing out 1 of them // LL tells back if it cant handle the request for now
-        .frame_ack        (),                      // ll_frame_ack), // output wire // LL tells if the request is transmitting
+        .frame_busy       (), // ll_frame_busy),   // output wire // a little bit of overkill with the cound of response signals, think of throwing out 1 of them // LL tells back if it cant handle the request for now
+        .frame_ack        (ll_frame_ackn),         // ll_frame_ack), // output wire // LL tells if the request is transmitting
         .frame_rej        (x_rdy_collision),       // output wire // or if it was cancelled because of simultanious incoming transmission
         .frame_done_good  (xmit_ok),               // output wire // TL tell if the outcoming transaction is done and how it was done
         .frame_done_bad   (xmit_err),              // output wire 
@@ -259,8 +260,12 @@ module  ahci_sata_layers #(
         if      (rst || ll_frame_req)                            h2d_pending <= 0;
         else if ((h2d_type == H2D_TYPE_FIS_HEAD) && h2d_fifo_wr) h2d_pending <= 1;
         
-        if (rst) ll_frame_req <= 0;
-        else     ll_frame_req <= ll_frame_req_w;
+        if (rst)                                                        ll_frame_req <= 0;
+//        else     ll_frame_req <= ll_frame_req_w;
+        else if (h2d_pending &&
+                  (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) ||
+                   (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT])))  ll_frame_req <= 1;
+        else if (ll_frame_ackn)                                         ll_frame_req <= 0;          
         
         
     end

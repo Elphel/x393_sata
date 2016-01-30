@@ -126,10 +126,12 @@ integer suppress_receive = 0;
 
 reg [31:0] receive_data [2047:0];
 reg [31:0] receive_data_pause [2047:0];
+integer    received_size; // number of data FIS payload dwords received (minus head and CRC)
 reg [31:0] receive_wait_fifo;
 reg [31:0] receive_crc;
 integer    receive_id = 0;
 integer    receive_status = 0;
+
 
 
 
@@ -358,6 +360,7 @@ task linkMonitorFIS;
             if (~phy_ready) begin
                 DEV_TITLE = "Unexpected line disconnect #1";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             if (rprim != "XRDY") begin
@@ -365,6 +368,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Reception terminated by the host #1";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             @ (posedge clk)
@@ -375,6 +379,7 @@ task linkMonitorFIS;
 //            $display("[Device] LINK:      Unexpected line disconnect");
             DEV_TITLE = "Unexpected line disconnect #2";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
         if (rprim != "XRDY") begin
@@ -382,6 +387,7 @@ task linkMonitorFIS;
             DEV_TITLE = "Reception terminated by the host #2";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            #100;
             $finish;
         end
         linkSendPrim("RRDY");
@@ -396,14 +402,35 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #3";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
-            if (rprim != "XRDY") begin
+            if (rprim == "ALIGN") begin // ALIGNp in pairs can be inserted anywhere (TODO: check they are paired?)
 //                $display("[Device] LINK:      Reception terminated by the host, reception id = %d", id);
-                DEV_TITLE = "Reception terminated by the host #3";
+                DEV_TITLE = "Got ALIGNp";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
-                $finish;
+                @ (posedge clk)
+                    rprim = linkGetPrim(0);
+                if (rprim != "ALIGN") begin // ALIGNp in pairs can be inserted anywhere (TODO: check they are paired?)
+                    DEV_TITLE = "Was expecting another ALIGNp";
+                    DEV_DATA =  id;
+                    $display("[Device] LINK:      %s, reception id = %d got primitive = %s @%t", DEV_TITLE, DEV_DATA, rprim, $time);
+                    #100;
+                    $finish;
+                end else begin
+                    DEV_TITLE = "Got second ALIGNp";
+                    DEV_DATA =  id;
+                    $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                end
+            end
+            
+            if ((rprim != "XRDY") && (rprim != "ALIGN")) begin // ALIGNp in pairs can be inserted anywhere (TODO: check they are paired?)
+                DEV_TITLE = "Reception terminated by the host #3";
+                DEV_DATA =  id;
+                $display("[Device] LINK:      %s, reception id = %d, rprim = %s @%t", DEV_TITLE, DEV_DATA, rprim, $time);
+//                #100;
+//                $finish;
             end
             @ (posedge clk)
                 rprim = linkGetPrim(0);
@@ -413,6 +440,7 @@ task linkMonitorFIS;
 //            $display("[Device] LINK:      Unexpected line disconnect");
             DEV_TITLE = "Unexpected line disconnect #4";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
 //        $display("[Device] LINK:      Detected Start of FIS");
@@ -427,6 +455,7 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #5";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             if (rprim == "SYNC") begin
@@ -434,6 +463,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Reception terminated by the host #4";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if (rprim == "SCRAP") begin
@@ -441,13 +471,13 @@ task linkMonitorFIS;
                 DEV_TITLE = "Bad primitives from the host #1";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if (rprim == "EOF") begin
 //                $display("[Device] LINK:      Detected End of FIS");
                 DEV_TITLE = "Detected End of FIS";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
-                
                 rcv_stop = 1;
             end
             else
@@ -499,6 +529,7 @@ task linkMonitorFIS;
                         DEV_TITLE = "Wrong data dwords count received";
                         DEV_DATA =  id;
                         $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                        #100;
                         $finish;
                     end
                     if (cnt >= dmat_index) begin
@@ -527,13 +558,14 @@ task linkMonitorFIS;
 //            $display("[Device] LINK:      Incorrect number of received words");
             DEV_TITLE = "Incorrect number of received words";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
 //        $display("[Device] LINK:      Running CRC after all data was received = %h", crc);
         DEV_TITLE = "Running CRC after all data was received";
         DEV_DATA =  crc;
         $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
-        
+        received_size = cnt - 2; // data payload size in DWORDs
 //        if (crc != 32'h88c21025) begin // running disparity when data crc matches actual received crc
         if (!crc_match) begin // running disparity when data crc matches actual received crc
 //            $display("[Device] LINK:      Running CRC check failed");
@@ -552,7 +584,7 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #6";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
-                
+                #100;
                 $finish;
             end
             if (rprim == "SYNC") begin
@@ -560,7 +592,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Reception terminated by the host #5";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
-                
+                #100;
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -568,6 +600,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Bad primitives from the host #2";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             @ (posedge clk)
@@ -577,6 +610,7 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #7";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             if (rprim == "SYNC") begin
@@ -584,6 +618,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Reception terminated by the host #6";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -591,6 +626,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Bad primitives from the host #3";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if (tranCheckFIS(cnt - 1)) begin
@@ -618,6 +654,7 @@ task linkMonitorFIS;
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #8";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -625,6 +662,7 @@ task linkMonitorFIS;
                 DEV_TITLE = "Bad primitives from the host #4";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             @ (posedge clk)
@@ -673,7 +711,7 @@ task wait_ready; // @SuppressThisWarning VEditor - Used in testbench
     end
 endtask
     
-
+/*
 task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
     input integer id;
     input    [2:0] dev_specific_status_bits;
@@ -688,6 +726,54 @@ task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
         linkTransmitFIS(id, 5, 0, status);        
     end
 endtask
+*/
+task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    input    [2:0] dev_specific_status_bits;
+    input          irq;
+    output integer status;
+    begin
+        send_D2HR(id,
+                  irq,
+                  {1'b0,dev_specific_status_bits,4'b0}, // status
+                   1,                                   // error
+                   0,                                   // device
+                   0,                                   // lba_low
+                   0,                                   // lba_high
+                   0,                                   // count
+                   status);                             // output: result status
+                   
+        transmit_data[0] = FIS_D2HR | (irq? 'h4000:0) | (dev_specific_status_bits << 20) | 'h1000000;
+        transmit_data[1] = 1;
+        transmit_data[2] = 0;
+        transmit_data[3] = 1;
+        transmit_data[4] = 0;
+        linkTransmitFIS(id, 5, 0, status);        
+    end
+endtask
+
+task send_D2HR; // @SuppressThisWarning VEditor - Used in testbench
+    input integer  id;
+    input          irq;
+    input    [7:0] sts;
+    input    [7:0] error;
+    input    [7:0] device;
+    input   [23:0] lba_low;
+    input   [23:0] lba_high;
+    input   [15:0] count;
+    output integer status;
+    begin
+        transmit_data[0] = FIS_D2HR | (irq? 'h4000:0) | (sts << 16) | (error << 24);
+        transmit_data[1] = {device,lba_low};
+        transmit_data[2] = {8'b0,  lba_high};
+        transmit_data[3] = {16'b0,count};
+        transmit_data[4] = 0;
+        linkTransmitFIS(id, 5, 0, status);        
+    end
+endtask
+
+
+
 
 task send_pio_setup; // @SuppressThisWarning VEditor - Used in testbench
     input integer id;
@@ -800,6 +886,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
 //                $display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #9";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             @ (posedge clk)
@@ -816,6 +903,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
 //            $display("[Device] LINK:      Unexpected line disconnect");
             DEV_TITLE = "Unexpected line disconnect #10";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
         if (rprim == "SYNC") begin
@@ -823,6 +911,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Transmission terminated by the host #1";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            #100;
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -830,6 +919,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Bad primitives from the host #5";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+            #100;
             $finish;
         end
     // L_SendData + L_RcvrHold + L_SendHold
@@ -852,6 +942,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Transmission terminated by the host #2";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -859,6 +950,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Bad primitives from the host #6";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             else
@@ -867,6 +959,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Transmission terminated by the hostvia DMAT";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             else
@@ -908,6 +1001,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
 //            $display("[Device] LINK:      Unexpected line disconnect");
             DEV_TITLE = "Unexpected line disconnect #11";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
         if (rprim == "SYNC") begin
@@ -915,6 +1009,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Transmission terminated by the host #3";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            #100;
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -922,6 +1017,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Bad primitives from the host #7";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+            #100;
             $finish;
         end
     // L_SendEOF
@@ -935,6 +1031,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
 //            $display("[Device] LINK:      Unexpected line disconnect");
             DEV_TITLE = "Unexpected line disconnect #12";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+            #100;
             $finish;
         end
         if (rprim == "SYNC") begin
@@ -942,6 +1039,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Transmission terminated by the host #4";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+            #100;
             $finish;
         end
         if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -949,6 +1047,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
             DEV_TITLE = "Bad primitives from the host #8";
             DEV_DATA =  id;
             $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+            #100;
             $finish;
         end
     // L_Wait
@@ -964,6 +1063,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 //$display("[Device] LINK:      Unexpected line disconnect");
                 DEV_TITLE = "Unexpected line disconnect #13";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                #100;
                 $finish;
             end
             if (rprim == "SYNC") begin
@@ -971,6 +1071,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Transmission terminated by the host #5";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if ((rprim == "SCRAP") || (rprim == "DATA")) begin
@@ -978,6 +1079,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Bad primitives from the host #9";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
+                #100;
                 $finish;
             end
             if (rprim == "ERR") begin

@@ -250,7 +250,7 @@ always @ (posedge clk or posedge extrst)
 //    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
 ///assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
 */
-always @ (posedge clk or  sata_areset) begin
+always @ (posedge clk or  posedge sata_areset) begin
     if      (sata_areset)  sata_reset_done_r <= 0;
     else                   sata_reset_done_r <= {sata_reset_done_r[1:0], 1'b1};
 end
