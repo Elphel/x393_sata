@@ -546,6 +546,7 @@ always @ (posedge clk)
 // incoming data is data
 wire    inc_is_data;
 assign  inc_is_data = dword_val & rcvd_dword[CODE_DATA] & (state_rcvr_data | state_rcvr_rhold);
+//wire    inc_is_crc = dword_val & rcvd_dword[CODE_CRC] & (state_rcvr_data | state_rcvr_rhold);
 /*
  * Scrambler can work both as a scrambler and a descramler, because data stream could be
  * one direction at a time
@@ -553,7 +554,7 @@ assign  inc_is_data = dword_val & rcvd_dword[CODE_DATA] & (state_rcvr_data | sta
 scrambler scrambler(
     .rst        (select_prim[CODE_SOFP] | dword_val & rcvd_dword[CODE_SOFP]),
     .clk        (clk),
-    .val_in     (select_prim[CODE_DATA] | inc_is_data),
+    .val_in     (select_prim[CODE_DATA] | inc_is_data | select_prim[CODE_CRC]),
     .data_in    (crc_dword & {DATA_BYTE_WIDTH*8{select_prim[CODE_CRC]}} | 
                  data_in & {DATA_BYTE_WIDTH*8{select_prim[CODE_DATA]}} | 
                  phy_data_in_r & {DATA_BYTE_WIDTH*8{inc_is_data}}),

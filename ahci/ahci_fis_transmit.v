@@ -92,7 +92,7 @@ module  ahci_fis_transmit #(
     input                  [31:0] dma_out,      // 32-bit data from the DMA module, HBA -> device port
     input                         dma_dav,      // at least one dword is ready to be read from DMA module
     output                        dma_re,       // read dword from DMA module to the output register
-    input                         last_h2d_data,// single pulse, after it watch for FIS end (no data for 2 clocks)
+    input                         last_h2d_data,// last dword in dma_out
     
     // Data System memory or FIS -> device
     output reg             [31:0] todev_data,     // 32-bit data from the system memory to HBA (dma data)
@@ -114,6 +114,7 @@ module  ahci_fis_transmit #(
                                                                                          // for fis_data_valid - longer latency
 //    wire                fis_out_w =  !dma_en_r && fis_data_valid && todev_ready;
     wire                dma_re_w =    dma_en_r && dma_dav && todev_ready;
+///    wire                dma_re_w =    dma_en_r && dma_dav && todev_ready && (!todev_full_r || !watch_prd_end_w);
 
     reg               [15:0] ch_prdtl_r;
     reg                      ch_c_r;
@@ -158,7 +159,7 @@ module  ahci_fis_transmit #(
     
     reg               [11:0] dx_dwords_left;
     reg                      dx_fis_pend_r; // waiting to send first DWORD of the  H2D data transfer
-    wire                     dx_dma_last_w; // sending last adat word
+    wire                     dx_dma_last_w; // sending last data word
     reg                      dx_busy_r;
     reg               [ 2:0] dx_err_r;
     reg                      xmit_ok_r;
@@ -168,16 +169,19 @@ module  ahci_fis_transmit #(
     wire                     done_w = xmit_ok_r || ((|dx_err_r) && dx_busy_r) || dma_start; // done on last transmit or error
     
     reg                      fetch_cmd_busy_r;
-    reg                      xfer_cntr_not_set;
+    
+    // now ahci_dma watches for the last data DWORD and generates last_h2d_data, so transmission will end if either of xfer counter or DMA data (defined by total prd size)
+    // if xfer_cntr wazs 0, it will never be decremented and never equal to 1, will not generate last)
+//    reg                      xfer_cntr_is_set; 
+//    reg                      watch_prd_end;
+//    wire                     masked_last_h2d_data = xfer_cntr_not_set && last_h2d_data; // otherwise use xfer counter to find FIS end
+//    wire                     watch_prd_end_w =  masked_last_h2d_data || watch_prd_end; // Maybe not needed - just use watch_prd_end
 
-    reg                      watch_prd_end;
-    wire                     masked_last_h2d_data = xfer_cntr_not_set && last_h2d_data; // otherwise use xfer counter to find FIS end
-    wire                     watch_prd_end_w =  masked_last_h2d_data || watch_prd_end; // Maybe not needed - just use watch_prd_end
 //    reg                [1:0] was_dma_re;  // previous values of dma_re
-    reg                [2:0] was_dma_ndav; // inverted/masked previous values of dma_dav 
-    wire                     send_last_w = was_dma_ndav[2];
-//    assign todev_valid = todev_full_r;
-    assign todev_valid = todev_full_r && (!watch_prd_end_w || dma_dav || send_last_w);
+//    reg                [2:0] was_dma_ndav; // inverted/masked previous values of dma_dav 
+//    wire                     send_last_w = was_dma_ndav[2];
+    assign todev_valid = todev_full_r;
+//    assign todev_valid = todev_full_r && (!watch_prd_end_w || dma_dav || send_last_w);
     assign dma_re =   dma_re_w;
     assign reg_re =   reg_re_r[1:0]; 
     
@@ -196,20 +200,25 @@ module  ahci_fis_transmit #(
     assign pCmdToIssue = pCmdToIssue_r;
 //    assign dmaCntrZero = dmaCntrZero_r;
     assign ct_re =       ct_re_r[1:0];
-    assign fis_data_valid = ct_stb; // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
+///    assign fis_data_valid = ct_stb; // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
+    // What else to wait for when
+    assign fis_data_valid = ct_stb || (!dma_ct_busy && dx_fis_pend_r); // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
+    
     assign ct_re_w = todev_ready && ((cfis_acmd_left_r[4:1] != 0) || (cfis_acmd_left_r[0] && !ct_re_r[0]));  // Later add more sources
     assign fis_dw_last = (cfis_acmd_left_out_r == 1);
     assign fis_data_type = {fis_dw_last, (write_or_w && dx_fis_pend_r) | (fis_dw_first && ct_stb)};
     
     assign fis_data_out = ({32{dx_fis_pend_r}} & DATA_FIS) | ({32{ct_stb}} & ct_data) ;
-    assign dx_dma_last_w = dma_en_r && dma_re_w && (dx_dwords_left[11:0] == 1);
+    assign dx_dma_last_w = dma_en_r && dma_re_w && ((dx_dwords_left[11:0] == 1) || last_h2d_data);
 
     assign dx_err = dx_err_r;
     assign dma_dev_wr = ch_w_r;
-/// assign  write_or_w = (dma_en_r?(dma_dav && todev_ready && ()):fis_data_valid); // do not fill the buffer if FIFO is not ready for DMA,
-    assign  write_or_w = (dma_en_r?(dma_dav && todev_ready && (!todev_full_r || watch_prd_end_w)):fis_data_valid); // do not fill the buffer if FIFO is not ready for DMA,
-// When watching for FIS end, do not fill/use output register in the same cycle    
+/// assign  write_or_w = (dma_en_r?(dma_dav && todev_ready ):fis_data_valid); // do not fill the buffer if FIFO is not ready for DMA,
+/// assign  write_or_w = (dma_en_r?(dma_dav && todev_ready && (!todev_full_r || !watch_prd_end_w)):fis_data_valid); // do not fill the buffer if FIFO is not ready for DMA,
+    assign  write_or_w = dma_re_w || fis_data_valid; 
     
+// When watching for FIS end, do not fill/use output register in the same cycle    
+
     always @ (posedge mclk) begin
         // Mutliplex between DMA and FIS output to the output routed to transmit FIFO
         // Count bypassing DMA dwords to generate FIS_last condition?
@@ -220,14 +229,17 @@ module  ahci_fis_transmit #(
         if (write_or_w)                    todev_data <= dma_en_r? dma_out: fis_data_out;
         
         if      (hba_rst)                  todev_type <= 3; // invalid? - no, now first and last word in command FIS (impossible?)
-        else if (write_or_w)               todev_type <= dma_en_r? {dx_dma_last_w, 1'b0} : fis_data_type;
-        else if (was_dma_ndav[1])          todev_type <=           {1'b1, 1'b0}; // type = last in FIS
+        else if (write_or_w)               todev_type <= dma_en_r? {dx_dma_last_w , 1'b0} : fis_data_type;
+//        else if (was_dma_ndav[1])          todev_type <=           {1'b1, 1'b0}; // type = last in FIS
         
-        if      (hba_rst)                  was_dma_ndav <= 0;
-        else                               was_dma_ndav <= {was_dma_ndav[1:0], ~dma_dav & todev_full_r & watch_prd_end_w} ;
+//        if      (hba_rst)                  was_dma_ndav <= 0;
+//        else                               was_dma_ndav <= {was_dma_ndav[1:0], ~dma_dav & todev_full_r & watch_prd_end_w} ;
         
-        if (hba_rst || dx_xmit || done_w)  watch_prd_end <= 0;
-        else if (masked_last_h2d_data)     watch_prd_end <= 1;
+//        if      (hba_rst || dma_dav || !todev_full_r || !watch_prd_end_w) was_dma_ndav <= 0;
+//        else                                                              was_dma_ndav <= (was_dma_ndav << 1) | 1;        
+        
+//        if (hba_rst || dx_xmit || done_w)  watch_prd_end <= 0;
+//        else if (masked_last_h2d_data)     watch_prd_end <= 1;
         // Read 3 DWORDs from the command header
         
         if (hba_rst)                       fetch_chead_r <= 0; // running 1 
@@ -309,7 +321,7 @@ module  ahci_fis_transmit #(
        
        //TODO: update xfer length, prdtl (only after R_OK) - yes, do it outside
        
-       if (dx_xmit) xfer_cntr_not_set <= xfer_cntr_zero; // if it was zero - rely on PRDs
+//       if (dx_xmit) xfer_cntr_is_set <= !xfer_cntr_zero; // if it was zero - rely on PRDs
        
        if   (dx_xmit)     dx_dwords_left[11:0] <= (xfer_cntr_zero || (|xfer_cntr[31:13])) ? 12'h800 : {1'b0,xfer_cntr[12:2]};
        else if (dma_re_w) dx_dwords_left[11:0] <= dx_dwords_left[11:0] - 1;

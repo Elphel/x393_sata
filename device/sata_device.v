@@ -328,13 +328,15 @@ task linkMonitorFIS;
     input integer id;
     input integer dmat_index;
     output integer status;
-    reg [112:0] rprim;
+    reg [111:0] rprim;
     integer pause;
     integer rcv_stop;
     integer rcv_ignore;
     integer cnt;
+    reg [31:0] descrambled_data;
     reg [31:0] scrambler_value;
     reg [31:0] crc;
+    reg        crc_match;
     begin
         pause = receive_wait_fifo;
         status = 0;
@@ -485,29 +487,38 @@ task linkMonitorFIS;
                 rcv_stop = 2;
             end
             if ((rcv_stop == 0) && (rcv_ignore == 0)) begin
-                if (cnt > 2048) begin
-//                    $display("[Device] LINK:      Wrong data dwords count received, reception id = %d", id);
-                    DEV_TITLE = "Wrong data dwords count received";
+            
+            
+                if (rprim == "ALIGN") begin
+                    DEV_TITLE = "ALIGN got";
                     DEV_DATA =  id;
-                    $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
-                    $finish;
-                end
-                if (cnt >= dmat_index) begin
-                    linkSendPrim("DMAT");
-                end
-//                scrambler_value = scrambleFunc(scrambler_value[31:16]);
-                scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
-                receive_data[cnt] = linkGetData(0) ^ scrambler_value;
-//                $display("[Device] LINK:      Got data = %h", receive_data[cnt]);
-                DEV_TITLE = "Got data";
-                DEV_DATA =  receive_data[cnt];
-                $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
-                
-                pause = pause + receive_data_pause[cnt];
-                crc = calculateCRC(crc, receive_data[cnt]); // running crc. shall be 0 
-                cnt = cnt + 1;
-                if (cnt <= 2048)
+                    $display("[Device] LINK:      %s, reception id = %d, cnt = %d @%t", DEV_TITLE, DEV_DATA, cnt, $time);
+                end else begin
+                    if (cnt > 2048) begin
+    //                    $display("[Device] LINK:      Wrong data dwords count received, reception id = %d", id);
+                        DEV_TITLE = "Wrong data dwords count received";
+                        DEV_DATA =  id;
+                        $display("[Device] LINK:      %s, reception id = %d @%t", DEV_TITLE, DEV_DATA, $time);
+                        $finish;
+                    end
+                    if (cnt >= dmat_index) begin
+                        linkSendPrim("DMAT");
+                    end
+                    scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
+///                    receive_data[cnt] = linkGetData(0) ^ scrambler_value;
+                    descrambled_data = linkGetData(0) ^ scrambler_value;
+                    receive_data[cnt] = descrambled_data;
+                    DEV_TITLE = "Got data";
+                    DEV_DATA =  receive_data[cnt];
+                    $display("[Device] LINK:      %s = %h (#%d) @%t", DEV_TITLE, DEV_DATA, cnt, $time);
                     pause = pause + receive_data_pause[cnt];
+                    crc_match = (crc == descrambled_data);
+                    crc = calculateCRC(crc, descrambled_data); // running crc. shall be 0 
+//                    crc_match = (crc == receive_data[cnt]);
+                    cnt = cnt + 1;
+                    if (cnt <= 2048)
+                        pause = pause + receive_data_pause[cnt];
+                end    
             end
             @ (posedge clk)
                 rprim = linkGetPrim(0);
@@ -523,7 +534,8 @@ task linkMonitorFIS;
         DEV_DATA =  crc;
         $display("[Device] LINK:      %s = %h @%t", DEV_TITLE, DEV_DATA, $time);
         
-        if (crc != 32'h88c21025) begin // running disparity when data crc matches actual received crc
+//        if (crc != 32'h88c21025) begin // running disparity when data crc matches actual received crc
+        if (!crc_match) begin // running disparity when data crc matches actual received crc
 //            $display("[Device] LINK:      Running CRC check failed");
             DEV_TITLE = "Running CRC check failed";
             $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
@@ -766,7 +778,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
     integer pause;
     integer cnt;
     integer crc;
-    reg [112:0] rprim;
+    reg [111:0] rprim;
     reg [31:0] scrambler_value;
     begin
         crc = 32'h52325032;// crc seed
@@ -1018,9 +1030,9 @@ endfunction
  * Returns current primitive at the outputs of phy level
  * Return value is a string containing its name!
  */
-function [112:0] linkGetPrim;
+function [111:0] linkGetPrim;
     input integer dummy; // @SuppressThisWarning VEditor - unused (is it for some simulator?)
-    reg [112:0] type;
+    reg [111:0] type;
     begin
         if (~|phy2dev_charisk) begin
             type = "DATA";
@@ -1082,7 +1094,7 @@ endtask
  * input is a string containing its name!
  */
 task linkSendPrim;
-    input [112:0] type;
+    input [111:0] type;
     begin
         case (type)
             "SYNC": 

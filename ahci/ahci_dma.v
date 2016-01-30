@@ -497,7 +497,7 @@ module  ahci_dma (
         .dout         (sys_out),                     // output[31:0] 
         .dout_vld     (sys_dav),                     // output
         .dout_re      (sys_re),                      // input
-        .last_data    (last_h2d_data)                // output
+        .last_DW      (last_h2d_data)                // output
     );
     
     ahci_dma_wr_fifo #( // device to memory

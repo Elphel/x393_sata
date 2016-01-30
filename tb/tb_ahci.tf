@@ -1051,6 +1051,8 @@ end
   initial begin
 //       #30000;
      #50000;
+//     #29630;
+//     #30000;
 //     #250000;
 //     #60000;
     $display("finish testbench 2");
