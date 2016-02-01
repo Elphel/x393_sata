@@ -985,7 +985,17 @@ initial begin //Host
     TESTBENCH_TITLE = "DMA transfer to device completed";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     repeat (50)  @(posedge CLK);
-    $finish;
+// Reset port
+    maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
+    maxigp1_writep       (HBA_PORT__PxSCTL__DET__ADDR << 2, 1); // Reset SATA 
+    maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
+    repeat (50)  @(posedge CLK);
+    maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
+    maxigp1_writep       (HBA_PORT__PxSCTL__DET__ADDR << 2, 0); // Reset Off 
+    repeat (1000)  @(posedge CLK);
+    maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
+//DET    
+//    $finish;
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
@@ -1082,7 +1092,7 @@ end
 
   initial begin
 //       #30000;
-     #50000;
+     #60000;
 //     #29630;
 //     #30000;
 //     #250000;

@@ -74,8 +74,10 @@ module sata_phy #(
     input                                       set_offline,     // electrically idle
     input                                       comreset_send,   // Not possible yet?
     output  wire                                cominit_got,
-    output  wire                                comwake_got
-    
+    output  wire                                comwake_got,
+    output                                      cplllock_debug,
+    output                                      usrpll_locked_debug,
+    output                               [31:0] debug_sata
 );
 
 wire    [DATA_BYTE_WIDTH * 8 - 1:0] txdata;
@@ -119,6 +121,9 @@ wire            rxelsempty;
 assign cominit_got = rxcominitdet; // For AHCI
 assign comwake_got = rxcomwakedet; // For AHCI
 wire dummy;
+
+
+
 oob_ctrl oob_ctrl(
     // sata clk = usrclk2
     .clk                (clk),
@@ -231,6 +236,9 @@ assign  rst = !sata_reset_done_r;
 assign  sata_reset_done = sata_reset_done_r[1];
 
 
+assign cplllock_debug = cplllock;
+assign usrpll_locked_debug = usrpll_locked;
+
 // generate internal reset after a clock is established
 // !!!ATTENTION!!!
 // async rst block
@@ -257,11 +265,11 @@ end
 
 
 always @ (posedge gtrefclk) begin
-//    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
-//    txreset_f <= ~cplllock | cpllreset;
+    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
+    txreset_f <= ~cplllock | cpllreset;
 
-    rxreset_f <= ~cplllock | cpllreset | ~usrpll_locked | ~sata_reset_done | rxreset_oob & gtx_configured;
-    txreset_f <= ~cplllock | cpllreset | ~usrpll_locked;
+///    rxreset_f <= ~cplllock | cpllreset | ~usrpll_locked | ~sata_reset_done | rxreset_oob & gtx_configured;
+///    txreset_f <= ~cplllock | cpllreset | ~usrpll_locked;
 
     txreset_f_r <= txreset_f;
     rxreset_f_r <= rxreset_f;
@@ -478,5 +486,43 @@ assign  ll_data_out     = rxdata_out;
 assign  ll_charisk_out  = rxcharisk_out;
 assign  txdata_in       = ll_data_in;
 assign  txcharisk_in    = ll_charisk_in;
+
+reg [3:0] debug_cntr1;
+reg [3:0] debug_cntr2;
+reg [3:0] debug_cntr3;
+reg [3:0] debug_cntr4;
+//txoutclk
+always @ (posedge gtrefclk) begin
+    if (extrst) debug_cntr1 <= 0;
+    else        debug_cntr1 <= debug_cntr1 + 1;
+end
+
+always @ (posedge clk) begin
+    if (rst) debug_cntr2 <= 0;
+    else        debug_cntr2 <= debug_cntr2 + 1;
+end
+
+always @ (posedge reliable_clk) begin
+    if (extrst) debug_cntr3 <= 0;
+    else        debug_cntr3 <= debug_cntr3 + 1;
+end
+
+always @ (posedge txoutclk) begin
+    if (extrst) debug_cntr4 <= 0;
+    else        debug_cntr4 <= debug_cntr4 + 1;
+end
+
+assign debug_sata[ 3: 0] = debug_cntr1;
+assign debug_sata[ 7: 4] = debug_cntr2;
+assign debug_sata[11: 8] = debug_cntr3;
+assign debug_sata[12] =    debug_cnt[11];
+assign debug_sata[13] =    cplllock;
+assign debug_sata[14] =    cpllreset;
+assign debug_sata[15] =    rxelecidle;
+assign debug_sata[16] =    usrpll_locked;
+assign debug_sata[17] =    txreset;
+assign debug_sata[18] =    txpcsreset;
+assign debug_sata[19] =    txelecidle;
+assign debug_sata[23:20] = debug_cntr4;
 
 endmodule

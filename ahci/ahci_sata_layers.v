@@ -90,7 +90,10 @@ module  ahci_sata_layers #(
     output  wire        txp_out,
     output  wire        txn_out,
     input   wire        rxp_in,
-    input   wire        rxn_in
+    input   wire        rxn_in,
+    
+    output       [31:0] debug_sata
+    
 );
     localparam PHY_SPEED = 2; // SATA2
     localparam FIFO_ADDR_WIDTH = 9;
@@ -183,9 +186,9 @@ module  ahci_sata_layers #(
     assign serr_DH = phy_ready && (xmit_err);
     
 // not yet assigned errors
-    assign serr_DT = phy_ready && (0);   // RWC: Transport state transition error
-    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
-    assign serr_DC = phy_ready && (0);   // RWC: CRC error in Link layer
+    assign serr_DT = phy_ready && (comreset_send); // RWC: Transport state transition error
+    assign serr_DS = phy_ready && (cominit_got);   // RWC: Link sequence error
+    assign serr_DC = phy_ready && (serr_DW);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
     assign serr_DI = phy_ready && (0);   // RWC: PHY Internal Error
     assign serr_EP = phy_ready && (0);   // RWC: Protocol Error - a violation of SATA protocol detected
@@ -194,6 +197,9 @@ module  ahci_sata_layers #(
     assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
     assign serr_EI = phy_ready && (0);   // RWC: Recovered Data integrity Error
     
+//        .comreset_send   (comreset_send),     // input
+//        .cominit_got     (cominit_got),       // output wire 
+//        .comwake_got     (serr_DW),            // output wire 
     
     
     
@@ -295,7 +301,11 @@ module  ahci_sata_layers #(
         .set_offline     (set_offline),       // input
         .comreset_send   (comreset_send),     // input
         .cominit_got     (cominit_got),       // output wire 
-        .comwake_got     (serr_DW)            // output wire 
+        .comwake_got     (serr_DW),            // output wire 
+        .cplllock_debug  (),
+        .usrpll_locked_debug(),
+        .debug_sata      (debug_sata)  
+        
         
     );
 

@@ -90,7 +90,7 @@ module  axi_ahci_regs#(
     // Apply next 2 resets and arst OR-ed to SATA.extrst
     output                    hba_arst,          // hba async reset (currently does ~ the same as port reset)
     output                    port_arst,         // port0 async reset by software
-    output                    port_arst_any,    // port0 async reset by POR or software
+    output                    port_arst_any,     // port0 async reset by POR or software
 
 // 2. HBA R/W registers, use hba clock
     input                     hba_clk,          // SATA clock, now 75MHz
@@ -114,7 +114,8 @@ module  axi_ahci_regs#(
     output reg         [ 3:0] afi_rcache,
     output                    afi_cache_set,
     output                    was_hba_rst,    // last reset was hba reset (not counting system reset)
-    output                    was_port_rst    // last reset was port reset
+    output                    was_port_rst,    // last reset was port reset
+    input              [31:0] debug_in
 );
 
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
@@ -175,8 +176,9 @@ module  axi_ahci_regs#(
     wire                   pgm_fsm_and_w = |(ahci_regs_di & HBA_PORT__PGM_AHCI_SM__AnD__MASK);
     
     wire                   set_hba_rst =  bram_wen_r && !high_sel && (bram_addr == GHC__GHC__HR__ADDR) && (ahci_regs_di & GHC__GHC__HR__MASK);
+    localparam HBA_PORT__PxSCTL__DET__MASK01 = HBA_PORT__PxSCTL__DET__MASK & ~1; // == 'he
     wire                   set_port_rst = bram_wen_r && !high_sel && (bram_addr == HBA_PORT__PxSCTL__DET__ADDR) &&
-                                          ((ahci_regs_di & HBA_PORT__PxSCTL__DET__MASK | 1) == HBA_PORT__PxSCTL__DET__MASK); // writing only 0/1
+                                          ((ahci_regs_di & HBA_PORT__PxSCTL__DET__MASK01) == 0); // writing only 0/1
                                                                  //  in lower 4 bits
     
     wire                   port_rst_on = set_port_rst && ahci_regs_di[0];
@@ -187,6 +189,8 @@ module  axi_ahci_regs#(
     reg             [2:0]  arst_r = ~0;          // previous state of arst
     reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
     wire                   any_access = bram_wen_r || bram_ren[0];
+    reg                    debug_rd_r;
+    
 
     assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
     
@@ -198,7 +202,6 @@ module  axi_ahci_regs#(
     
     
     always @(posedge aclk) begin
-///        bram_ren0_r <= bram_ren_w[0];
        
         if      (arst)              write_busy_r <= 0;
         else if (write_start_burst) write_busy_r <= 1;
@@ -206,8 +209,7 @@ module  axi_ahci_regs#(
 
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
-///        if (bram_ren_w[1])          bram_rdata_r <= bram_rdata;
-        if (bram_ren[1])            bram_rdata_r <= bram_rdata;
+        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_in : bram_rdata;
         
         bram_wstb_r <= {4{bram_wen}} & bram_wstb;
         
@@ -279,7 +281,12 @@ module  axi_ahci_regs#(
         else      {pgm_wa,pgm_wd}  <= {2{pgm_fsm_set_w}} & {pgm_fsm_and_w, ~pgm_fsm_and_w};
         
         if (pgm_fsm_set_w) pgm_ad <= ahci_regs_di[17:0];
-    end    
+    end
+    
+    always @(posedge aclk) begin
+        if (bram_ren[0])   debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs
+    end
+    //debug_rd_r    
 
 
 /*

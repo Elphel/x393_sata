@@ -233,7 +233,8 @@ module  ahci_fsm
     input                         ch_r,        // reset - may need to send SYNC escape before this command
     input                         ch_p,        // prefetchable - only used with non-zero PRDTL or ATAPI bit set
     input                         ch_w,        // Write: system memory -> device
-    input                         ch_a         // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
+    input                         ch_a,         // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
+    output reg             [ 9:0] last_jump_addr // debug feature
 ///    input                   [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
 ///    input                  [11:0] dwords_sent // number of DWORDs transmitted (up to 2048)                                 
@@ -329,6 +330,8 @@ module  ahci_fsm
         
         if   (fsm_jump[0]) pgm_addr <= pgm_jump_addr;
         else if (fsm_next) pgm_addr <= pgm_addr + 1;
+        
+        if   (fsm_jump[0]) last_jump_addr <= pgm_jump_addr; // debug feature
         
 //        if            (hba_rst) conditions <= 0; 
 //        if (fsm_transitions[0]) conditions <= precond_w;

@@ -181,7 +181,10 @@ module  ahci_top#(
     
     
 
-    output             irq // CPU interrupt request
+    output             irq, // CPU interrupt request
+    
+    input       [31:0] debug_in
+    
     
 );
 // axi_ahci_regs signals:
@@ -436,6 +439,7 @@ module  ahci_top#(
     wire                          pxci0_clear;       // PxCI clear
     wire                          pxci0;             // pxCI current value
     
+    wire                    [9:0] last_jump_addr;
     // Async FF
     always @ (posedge mrst or posedge mclk) begin
         if (mrst) en_port <= 0;
@@ -620,9 +624,10 @@ module  ahci_top#(
         .ch_r            (fsnd_ch_r),          // input
         .ch_p            (fsnd_ch_p),          // input
         .ch_w            (fsnd_ch_w),          // input
-        .ch_a            (fsnd_ch_a)          // input
+        .ch_a            (fsnd_ch_a),          // input
 ///        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
 ///        .dwords_sent     (data_out_dwords)     // input[11:0] ????
+        .last_jump_addr (last_jump_addr)
     );
 
 
@@ -684,11 +689,9 @@ module  ahci_top#(
         .afi_rcache       (axi_rd_cache_mode),// output[3:0] reg 
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
-        .was_port_rst     (was_port_rst)     // output 
-        
-        
+        .was_port_rst     (was_port_rst),     // output 
+        .debug_in         ({2'b0, last_jump_addr[9:0], debug_in[19:0]})
     );
-
     ahci_ctrl_stat #(
         .ADDRESS_BITS            (ADDRESS_BITS)
     ) ahci_ctrl_stat_i (

@@ -97,7 +97,7 @@
 // RO: HBA Revision ID
     localparam PCI_Header__RID__RID__ADDR = 'h62;
     localparam PCI_Header__RID__RID__MASK = 'hff;
-    localparam PCI_Header__RID__RID__DFLT = 'h1;
+    localparam PCI_Header__RID__RID__DFLT = 'h2;
 // RO: Base Class Code: 1 - Mass Storage Device
     localparam PCI_Header__CC__BCC__ADDR = 'h62;
     localparam PCI_Header__CC__BCC__MASK = 'hff000000;
@@ -642,11 +642,11 @@
     localparam HBA_PORT__PxSCTL__IPM__ADDR = 'h4b;
     localparam HBA_PORT__PxSCTL__IPM__MASK = 'hf00;
     localparam HBA_PORT__PxSCTL__IPM__DFLT = 'h0;
-// RO: Interface Highest Speed
+// RW: Interface Highest Speed
     localparam HBA_PORT__PxSCTL__SPD__ADDR = 'h4b;
     localparam HBA_PORT__PxSCTL__SPD__MASK = 'hf0;
     localparam HBA_PORT__PxSCTL__SPD__DFLT = 'h0;
-// RO: Device Detection Initialization
+// RW: Device Detection Initialization
     localparam HBA_PORT__PxSCTL__DET__ADDR = 'h4b;
     localparam HBA_PORT__PxSCTL__DET__MASK = 'hf;
     localparam HBA_PORT__PxSCTL__DET__DFLT = 'h0;

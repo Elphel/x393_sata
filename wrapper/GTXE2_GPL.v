@@ -1258,7 +1258,7 @@ wire                    val_wr;
 wire                    val_rd;
 wire                    bitcounter_limit;
 wire                    almost_empty_rd;
-
+reg                     need_reset = 1;
 assign  bitcounter_limit = trim ? bitcounter == (trimmed_width - 1) : bitcounter == (width - 1);
 
 always @ (posedge inclk)
@@ -1279,13 +1279,15 @@ endgenerate
 assign  val_rd  = ~empty_rd & ~almost_empty_rd;
 assign  val_wr  = ~full_wr & bitcounter == (width - 1);
 
-always @ (posedge inclk)
-    if (full_wr)
-    begin
-        $display("FIFO in %m is full, that is not an appropriate behaviour");
-        $finish;
+always @ (posedge inclk) begin
+    if (reset) need_reset <= 0;
+    else if (full_wr && !need_reset) begin
+        $display("FIFO in %m is full, that is not an appropriate behaviour - needs reset @%time", $time);
+        bitcounter <= 'bx;
+        need_reset <= 1'b1;
+//        $finish;
     end
-
+end
 resync_fifo_nonsynt #(
     .width      (width),
     .log_depth  (3)
@@ -1835,8 +1837,9 @@ assign  val_wr  = ~full_wr & wordcounter == (div - 1);
 always @ (posedge usrclk)
     if (full_wr)
     begin
-        $display("FIFO in %m is full, that is not an appropriate behaviour");
-        $finish;
+        $display("FIFO in %m is full, that is not an appropriate behaviour, needs reset");
+        wordcounter = 'bx;
+//        $finish;
     end
 
 wire    [interface_total_width - 1:0] resync;

@@ -27,6 +27,7 @@ __status__ = "Development"
 import sys
 
 # All unspecified ranges/fields default to fT:RO, fC:0 (readonly, reset value = 0)
+RID = 0x02   # Revision ID (use for bitstream version)
 VID = 0xfffe # What to use for non-PCI "vendorID"?
 DID = 0x0001
 SSVID = 0xfffe
@@ -112,7 +113,7 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
              {fN:"IS",  fS: 3,        fT:RO,  fC:0, fD:"Interrupt Status (1 - asserted)"},
              {          fS: 0, fE:2,  fT:RO,  fC:0, fD:"Reserved"}]},
          {rN:"RID", rS:0x08,                        rD:"HBA Revision ID", rC:
-            [{fN:"RID",               fT:RO,  fC:1, fD:"HBA Revision ID"}]},
+            [{fN:"RID",               fT:RO,  fC:RID, fD:"HBA Revision ID"}]},
          {rN:"CC",  rS:0x09, rE:0x0b,               rD:"Class Code", rC:
             [{fN:"BCC", fS:16, fE:23, fT:RO,  fC:1, fD:"Base Class Code: 1 - Mass Storage Device"},
              {fN:"SCC", fS: 8, fE:15, fT:RO,  fC:6, fD:"Sub Class Code: 0x06 - SATA Device"},
@@ -362,12 +363,12 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
                                                       # 2 - Transitions to Slumber are disabled
                                                       # 4 - Transitions to DevSleep are disabled
                                                       # Other bit-ORed values are possible
-             {fN:"SPD",   fS: 4, fE: 7, fT:RO, fC:0, fD:"Interface Highest Speed"},
+             {fN:"SPD",   fS: 4, fE: 7, fT:RW, fC:0, fD:"Interface Highest Speed"},
                                                       # 0 - No Speed Limit
                                                       # 1 - Gen 1 speed only
                                                       # 2 - Gen 2 speed or less
                                                       # 3 - Gen 3 speed or less
-             {fN:"DET",   fS: 0, fE: 3, fT:RO, fC:0, fD:"Device Detection Initialization"},
+             {fN:"DET",   fS: 0, fE: 3, fT:RW, fC:0, fD:"Device Detection Initialization"},
                                                       # 0 - no device detection/initialization requested
                                                       # 1 - Perform interface initialization (same as hard reset)
                                                       # 4 - Disable SATA and put PHY in offline mode
