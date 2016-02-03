@@ -690,7 +690,8 @@ module  ahci_top#(
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),     // output 
-        .debug_in         ({2'b0, last_jump_addr[9:0], debug_in[19:0]})
+//        .debug_in         ({2'b0, last_jump_addr[9:0], debug_in[19:0]})
+        .debug_in         (debug_in[31:0])
     );
     ahci_ctrl_stat #(
         .ADDRESS_BITS            (ADDRESS_BITS)

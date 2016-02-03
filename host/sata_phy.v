@@ -78,6 +78,8 @@ module sata_phy #(
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
     output                               [31:0] debug_sata
+    ,output debug_detected_alignp
+    
 );
 
 wire    [DATA_BYTE_WIDTH * 8 - 1:0] txdata;
@@ -168,7 +170,7 @@ oob_ctrl oob_ctrl(
     // To/from AHCI
     .set_offline        (set_offline), // input
     .comreset_send      (comreset_send) // input
-    
+    ,.debug_detected_alignp(debug_detected_alignp)
 );
 
 wire    cplllockdetclk; // TODO
@@ -491,6 +493,10 @@ reg [3:0] debug_cntr1;
 reg [3:0] debug_cntr2;
 reg [3:0] debug_cntr3;
 reg [3:0] debug_cntr4;
+reg [15:0] debug_cntr5;
+reg [15:0] debug_cntr6;
+reg [1:0] debug_rxbyteisaligned_r;
+reg       debug_error_r;
 //txoutclk
 always @ (posedge gtrefclk) begin
     if (extrst) debug_cntr1 <= 0;
@@ -512,6 +518,17 @@ always @ (posedge txoutclk) begin
     else        debug_cntr4 <= debug_cntr4 + 1;
 end
 
+always @ (posedge clk) begin
+    debug_rxbyteisaligned_r <= {debug_rxbyteisaligned_r[0],rxbyteisaligned};
+    debug_error_r <= |ll_err_out;
+    if      (rst)                             debug_cntr5 <= 0;
+    else if (debug_rxbyteisaligned_r==1)      debug_cntr5 <= debug_cntr5 + 1;
+
+    if      (rst)                             debug_cntr6 <= 0;
+    else if (debug_error_r)                   debug_cntr6 <= debug_cntr6 + 1;
+end
+
+/*
 assign debug_sata[ 3: 0] = debug_cntr1;
 assign debug_sata[ 7: 4] = debug_cntr2;
 assign debug_sata[11: 8] = debug_cntr3;
@@ -524,5 +541,8 @@ assign debug_sata[17] =    txreset;
 assign debug_sata[18] =    txpcsreset;
 assign debug_sata[19] =    txelecidle;
 assign debug_sata[23:20] = debug_cntr4;
-
+*/
+//assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
+assign debug_sata = {debug_cntr6,debug_cntr5};
+ 
 endmodule

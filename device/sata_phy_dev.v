@@ -62,7 +62,10 @@ module sata_phy_dev #(
 
     // from link layer
     input   wire    [31:0]  ll_data_in,
-    input   wire    [3:0]   ll_charisk_in
+    input   wire    [3:0]   ll_charisk_in,
+    
+    input           [4:0]  serial_delay // delay output to check host alignment
+
 );
 
 wire    [31:0]  txdata;
@@ -739,6 +742,15 @@ gtx_wrapper(
     .TXSYNCALLIN                    (1'b0),
     .TXSYNCIN                       (1'b0)*/
 );
+// Serial data bit shift to check host alignment
+wire tx_serial_clk=gtx_wrapper.gtx_gpl.channel.tx_serial_clk;
+//reg  [4:0] serial_delay = 0;
+reg [31:0] txp_r;
+reg [31:0] txn_r;
+always @(posedge tx_serial_clk) begin
+    txp_r = {txp_r[30:0],txp};
+    txn_r = {txn_r[30:0],txn};
+end
 
 // align to 4-byte boundary
 reg twobytes_shift;
@@ -761,8 +773,12 @@ assign  drpclk          = gtrefclk;
 assign  clk             = usrclk2;
 assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
-assign  txn_out         = txn;
-assign  txp_out         = txp;
+
+///assign  txn_out         = txn;
+///assign  txp_out         = txp;
+assign  txn_out         = txn_r[serial_delay];
+assign  txp_out         = txp_r[serial_delay];
+
 //assign  ll_data_out     = rxdata_out;
 //assign  ll_charisk_out  = rxcharisk_out;
 //assign  txdata_in       = ll_data_in;

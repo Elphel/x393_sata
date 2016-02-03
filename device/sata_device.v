@@ -60,6 +60,24 @@ reg     [31:0]  dev2phy_data    = 32'hB5B5957C; // SYNCP
 reg     [3:0]   dev2phy_isk     = 4'h1;
 
 reg     [2:0]   phy_ready_syncp_r;  // allow device to send 3 SYNCp before getting ready
+reg     [4:0]   serial_delay = 7;  // delay output to check host alignment
+
+localparam DEV_ALIGN_PERIOD = 32; // make it more frequent than 250
+//integer    align_cntr = DEV_ALIGN_PERIOD;
+reg     [7:0]  align_cntr = DEV_ALIGN_PERIOD;
+initial forever @ (posedge clk) begin
+    if (align_cntr > 0) align_cntr = align_cntr - 1;
+end
+
+task send_align_pair_if_needed;
+    if (align_cntr ==0) begin
+        dev2phy_data    <= PRIM_ALIGNP;
+        dev2phy_isk     <= 4'h1;
+        align_cntr = DEV_ALIGN_PERIOD;
+        @ (posedge clk);
+        @ (posedge clk);
+    end
+endtask    
 
 sata_phy_dev phy(
     // pll reset
@@ -84,7 +102,9 @@ sata_phy_dev phy(
     .ll_err_out         (phy2dev_err),
 
     .ll_data_in         (dev2phy_data),
-    .ll_charisk_in      (dev2phy_isk)
+    .ll_charisk_in      (dev2phy_isk),
+    .serial_delay       (serial_delay) // delay output to check host alignment
+    
 );
 
 localparam [31:0] PRIM_SYNCP    = {3'd5, 5'd21, 3'd5, 5'd21, 3'd4, 5'd21, 3'd3, 5'd28};
@@ -1186,6 +1206,7 @@ endfunction
 task linkSendData;
     input [31:0] data;
     begin
+        send_align_pair_if_needed;
         dev2phy_data    <= data;
         dev2phy_isk     <= 4'h0;
     end
@@ -1198,9 +1219,11 @@ endtask
 task linkSendPrim;
     input [111:0] type;
     begin
+//        send_align_pair_if_needed;
         case (type)
             "SYNC": 
             begin
+                send_align_pair_if_needed;            
                 dev2phy_data    <= PRIM_SYNCP;
                 dev2phy_isk     <= 4'h1;
             end

@@ -99,6 +99,8 @@ module oob #(
     output  wire    oob_error,
     // noone responds to our cominits
     output  wire    oob_silence
+    
+    ,output debug_detected_alignp
 
 `ifdef OOB_MULTISPEED
     //TODO
@@ -118,6 +120,8 @@ module oob #(
     input   wire    speed_rst_ack
 `endif //OOB_MULTISPEED
 );
+
+assign debug_detected_alignp = detected_alignp;
 
 `ifdef SIMULATION
     reg [639:0] HOST_OOB_TITLE ='bz; // to show human-readable state in the GTKWave
@@ -150,6 +154,9 @@ reg     [DATA_BYTE_WIDTH - 1:0]   rxcharisk;
 
 // primitives detection
 wire    detected_alignp;
+localparam NUM_CON_ALIGNS = 1024;
+reg     detected_alignp_r; // debugging - N-th ALIGNp primitive
+reg [12:0]  detected_alignp_cntr; // count detected ALIGNp - do not respond yet
 wire    detected_syncp;
 
 // wait until device's cominit is done
@@ -222,7 +229,8 @@ assign  set_recal_tx     = state_wait_comwake & rxcomwakedet_l & rxcomwake_done;
 assign  set_wait_eidle   = state_recal_tx & recal_tx_done;
 assign  set_wait_rxrst   = state_wait_eidle & eidle_timer_done;
 assign  set_wait_align   = state_wait_rxrst & rxreset_ack;
-assign  set_wait_synp    = state_wait_align & detected_alignp;
+//assign  set_wait_synp    = state_wait_align & detected_alignp;
+assign  set_wait_synp    = state_wait_align & (detected_alignp_r); // N previous were both ALIGNp
 assign  set_wait_linkup  = state_wait_synp & detected_syncp;
 assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_recal_tx | state_wait_eidle | state_wait_rxrst | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
 assign  clr_wait_cominit = set_wait_comwake | set_error;
@@ -306,19 +314,19 @@ generate
         always @ (posedge clk)
             detected_alignp_f <= rst | ~state_wait_align ? 1'b0 : 
                                  ~|(rxdata[15:0] ^ alignp[15:0]) & ~|(rxcharisk[1:0] ^ 2'b01); // {D10.2, K28.5}
-        assign detected_alignp = detected_alignp_f & ~|(rxdata[15:0] ^ alignp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D27.3, D10.2}  // SuppressThisWarning VEditor -warning would be fixed in future releases
+        assign detected_alignp = detected_alignp_f & ~|(rxdata[15:0] ^ alignp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D27.3, D10.2}  // S uppressThisWarning VEditor -warning would be fixed in future releases
         
         reg detected_syncp_f;
         always @ (posedge clk)
             detected_syncp_f <= rst | ~state_wait_synp ? 1'b0 : 
                                 ~|(rxdata[15:0] ^ syncp[15:0]) & ~|(rxcharisk[1:0] ^ 2'b01); // {D21.4, K28.3}
-        assign detected_syncp = detected_syncp_f & ~|(rxdata[15:0] ^ syncp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D21.5, D21.5}  // SuppressThisWarning VEditor -warning would be fixed in future releases
+        assign detected_syncp = detected_syncp_f & ~|(rxdata[15:0] ^ syncp[31:16]) & ~|(rxcharisk[1:0] ^ 2'b00); // {D21.5, D21.5}  // S uppressThisWarning VEditor -warning would be fixed in future releases
     end
     else
     if (DATA_BYTE_WIDTH == 4)
     begin
-        assign detected_alignp = ~|(rxdata[31:0] ^ alignp[31:0]) & ~|(rxcharisk[3:0] ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}  // SuppressThisWarning VEditor -warning would be fixed in future releases
-        assign detected_syncp  = ~|(rxdata[31:0] ^ syncp[31:0])  & ~|(rxcharisk[3:0] ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}  // SuppressThisWarning VEditor -warning would be fixed in future releases
+        assign detected_alignp = ~|(rxdata[31:0] ^ alignp[31:0]) & ~|(rxcharisk[3:0] ^ 4'h1); // {D27.3, D10.2, D10.2, K28.5}  // S uppressThisWarning VEditor -warning would be fixed in future releases
+        assign detected_syncp  = ~|(rxdata[31:0] ^ syncp[31:0])  & ~|(rxcharisk[3:0] ^ 4'h1); // {D21.5, D21.5, D21.4, K28.3}  // S uppressThisWarning VEditor -warning would be fixed in future releases
     end
     else
     if (DATA_BYTE_WIDTH == 8)
@@ -449,6 +457,12 @@ assign  txcharisk_out = txcharisk;
 assign  eidle_timer_done = eidle_timer == 64;
 always @ (posedge clk)
     eidle_timer <= rst | rxelecidle | ~state_wait_eidle ? 8'b0 : eidle_timer + CLK_TO_TIMER_CONTRIB[7:0];
+    
+always @ (posedge clk) begin
+    if (rst || !detected_alignp)    detected_alignp_cntr <= NUM_CON_ALIGNS;
+    else if (|detected_alignp_cntr) detected_alignp_cntr <= detected_alignp_cntr -1;
+    detected_alignp_r <= detected_alignp_cntr == 0;
+end
 
 always @ (posedge clk)
     debug <= rst ? 12'h000 : { 

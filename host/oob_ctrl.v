@@ -63,6 +63,7 @@ module oob_ctrl #(
     output wire                           phy_ready,      // output wire       // shows if channel is ready
     input                                 set_offline,    // input wire        // electrically idle // From
     input                                 comreset_send   // input wire        // Not possible yet? // From
+    ,output debug_detected_alignp
 );
 
 // oob sequence needs to be issued
@@ -160,6 +161,7 @@ oob
     .oob_incompatible     (oob_incompatible),// output wire // incompatible host-device speed grades (host cannot lock to alignp)
     .oob_error            (oob_error),       // output wire // timeout in an unexpected place 
     .oob_silence          (oob_silence)      // output wire // noone responds to our cominits
+    ,.debug_detected_alignp(debug_detected_alignp)
 );
 
 

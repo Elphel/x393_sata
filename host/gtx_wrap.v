@@ -624,7 +624,9 @@ gtxe2_channel_wrapper #(
     .RX_XCLK_SEL                            ("RXREC"),
     .RX_DDI_SEL                             (6'b000000),
     .RX_DEFER_RESET_BUF_EN                  ("TRUE"),
-    .RXCDR_CFG                              (72'h03000023ff10200020),
+/// .RXCDR_CFG                              (72'h03000023ff10200020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
+///    .RXCDR_CFG                              (72'h03800023ff10200008),// Guess for SS
+    .RXCDR_CFG                              (72'h03_8800_8BFF_4020_0008),// http://www.xilinx.com/support/answers/53364.html - SATA-2, div=2
     .RXCDR_FR_RESET_ON_EIDLE                (1'b0),
     .RXCDR_HOLD_DURING_EIDLE                (1'b0),
     .RXCDR_PH_RESET_ON_EIDLE                (1'b0),
@@ -703,7 +705,8 @@ gtxe2_channel_wrapper #(
     .RX_DFE_H4_CFG                          (11'b00011110000),
     .RX_DFE_H5_CFG                          (11'b00011100000),
     .RX_DFE_KL_CFG                          (13'b0000011111110),
-    .RX_DFE_LPM_CFG                         (16'h0954),
+///    .RX_DFE_LPM_CFG                         (16'h0954),
+    .RX_DFE_LPM_CFG                         (16'h0904),
     .RX_DFE_LPM_HOLD_DURING_EIDLE           (1'b0),
     .RX_DFE_UT_CFG                          (17'b10001111000000000),
     .RX_DFE_VP_CFG                          (17'b00011111100000011),

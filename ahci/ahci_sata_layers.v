@@ -107,7 +107,8 @@ module  ahci_sata_layers #(
     localparam H2D_TYPE_FIS_HEAD = 1;
     localparam H2D_TYPE_FIS_LAST = 2;
     
-    wire               phy_ready;
+    wire               phy_ready;        // active when GTX gets aligned output
+    wire               link_established; // Received 3 back-to-back non-ALIGNp 
     wire        [31:0] ll_h2d_data_in;
     wire         [1:0] ll_h2d_mask_in;
     wire               ll_strobe_out;
@@ -168,9 +169,18 @@ module  ahci_sata_layers #(
     wire                           d2h_fifo_wr = ll_d2h_valid || fis_over_r; // fis_over_r will push FIS end to FIFO
     reg                            h2d_pending;    // HBA started sending FIS to fifo
     
+    wire                    [31:0] debug_phy;
+    wire                    [31:0] debug_link;
+    
+    wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
+    
+    
+//    assign debug_sata = {link_established, phy_ready, debug_phy[29:16],debug_link[15:0]}; // 
+    assign debug_sata = debug_link[31:0]; // 
+///    assign debug_sata = debug_phy;
+    
+    
     assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
-    
-    
     assign d2h_valid = d2h_nempty;
     assign d2h_many =  |d2h_fill[FIFO_ADDR_WIDTH:3]; // 
     
@@ -180,15 +190,21 @@ module  ahci_sata_layers #(
 //    assign ll_frame_req_w = !ll_frame_busy && h2d_pending && (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) || (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT]));
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
 //assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
-    assign phy_speed = phy_ready ? PHY_SPEED:0;
-
-    assign serr_DB = phy_ready && (|ph2ll_err_out);
-    assign serr_DH = phy_ready && (xmit_err);
+//    assign phy_speed = phy_ready ? PHY_SPEED:0;
+//    assign serr_DB = phy_ready && (|ph2ll_err_out);
+//    assign serr_DH = phy_ready && (xmit_err);
+    assign phy_speed = link_established ? PHY_SPEED:0;
+    assign serr_DB =   link_established && (|ph2ll_err_out);
+    assign serr_DH =   link_established && (xmit_err);
+    //
     
 // not yet assigned errors
-    assign serr_DT = phy_ready && (comreset_send); // RWC: Transport state transition error
-    assign serr_DS = phy_ready && (cominit_got);   // RWC: Link sequence error
-    assign serr_DC = phy_ready && (serr_DW);       // RWC: CRC error in Link layer
+///    assign serr_DT = phy_ready && (comreset_send); // RWC: Transport state transition error
+///    assign serr_DS = phy_ready && (cominit_got);   // RWC: Link sequence error
+///    assign serr_DC = phy_ready && (serr_DW);       // RWC: CRC error in Link layer
+    assign serr_DT = phy_ready && (0); // RWC: Transport state transition error
+    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
+    assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
     assign serr_DI = phy_ready && (0);   // RWC: PHY Internal Error
     assign serr_EP = phy_ready && (0);   // RWC: Protocol Error - a violation of SATA protocol detected
@@ -239,6 +255,7 @@ module  ahci_sata_layers #(
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
         .incom_stop_req   (pcmd_st_cleared),          // input wire  // TL demands to stop current recieving session
+        .link_established (link_established),
         // inputs from phy
         .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established
         // data-primitives stream from phy
@@ -247,7 +264,8 @@ module  ahci_sata_layers #(
         .phy_err_in       (ph2ll_err_out),         // input[3:0] wire   // disperr | notintable
         // to phy
         .phy_data_out     (ll2ph_data_in),         // output[31:0] wire 
-        .phy_isk_out      (ll2ph_charisk_in)       // output[3:0] wire   // charisk
+        .phy_isk_out      (ll2ph_charisk_in),       // output[3:0] wire   // charisk
+        .debug_out        (debug_link)
     );
     
     always @ (posedge clk) begin
@@ -304,9 +322,8 @@ module  ahci_sata_layers #(
         .comwake_got     (serr_DW),            // output wire 
         .cplllock_debug  (),
         .usrpll_locked_debug(),
-        .debug_sata      (debug_sata)  
-        
-        
+        .debug_sata      (debug_phy)  
+        ,.debug_detected_alignp(debug_detected_alignp)
     );
 
     fifo_sameclock_control #(

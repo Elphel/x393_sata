@@ -49,72 +49,46 @@ module link #(
     // in case of strange data aligments and size (1st mentioned @ doc, p.310, odd number of words case)
     // Actually, only last data bundle shall be masked, others are always valid.
     // Mask could be encoded into 3 bits instead of 4 for qword, but encoding+decoding aren't worth the bit
-    // TODO, for now not supported, all mask bits are assumed to be set
-    input   wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_in,
-    // buffer read strobe
-    output  wire    data_strobe_out,
-    // transaction's last data budle pulse
-    input   wire    data_last_in,
-    // read data is valid (if 0 while last pulse wasn't received => need to hold the line)
-    input   wire    data_val_in,
-
+    
+    input   wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_in,  // TODO, for now not supported, all mask bits are assumed to be set
+    output  wire    data_strobe_out,                         // buffer read strobe
+    input   wire    data_last_in,                            // transaction's last data budle pulse
+    input   wire    data_val_in,                             // read data is valid (if 0 while last pulse wasn't received => need to hold the line)
     // data outputs to transport layer
-    // read data, same as related inputs
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] data_out,
-    // same thing - all 1s for now. TODO
-    output  wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_out,
-    // count every data bundle read by transport layer, even if busy flag is set
-    // let the transport layer handle oveflows by himself
-    output  wire    data_val_out,
-    // transport layer tells if its inner buffer is almost full
-    input   wire    data_busy_in,
+    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] data_out,      // read data, same as related inputs
+    output  wire    [DATA_BYTE_WIDTH/2 - 1:0] data_mask_out, // same thing - all 1s for now. TODO
+    output  wire    data_val_out,                            // count every data bundle read by transport layer, even if busy flag is set
+                                                             // let the transport layer handle oveflows by itself
+    input   wire    data_busy_in,                            // transport layer tells if its inner buffer is almost full
     output  wire    data_last_out,
-
-    // request for a new frame transition
-    input   wire    frame_req,
-    // a little bit of overkill with the cound of response signals, think of throwing out 1 of them
-    // LL tells back if it cant handle the request for now
-    output  wire    frame_busy,
-    // LL tells if the request is transmitting
-    output  wire    frame_ack,
-    // or if it was cancelled because of simultanious incoming transmission
-    output  wire    frame_rej,
-    // TL tell if the outcoming transaction is done and how it was done
-    output  wire    frame_done_good,
+    input   wire    frame_req,                               // request for a new frame transition
+// a little bit of overkill with the cound of response signals, think of throwing out 1 of them    
+    output  wire    frame_busy,                              // LL tells back if it cant handle the request for now
+    output  wire    frame_ack,                               // LL tells if the request is transmitting
+    output  wire    frame_rej,                               // or if it was cancelled because of simultanious incoming transmission
+    output  wire    frame_done_good,                         // Tell TL if the outcoming transaction is done and how it was done
     output  wire    frame_done_bad,
-
-    // if started an incoming transaction
-    output  wire    incom_start,
-    // if incoming transition was completed
-    output  wire    incom_done,
-    // if incoming transition had errors
-    output  wire    incom_invalidate,
-    // particular type - got sync escape
-    output  wire    incom_sync_escape,
-    // transport layer responds on a completion of a FIS
-    input   wire    incom_ack_good,
+    output  wire    incom_start,                             // if started an incoming transaction
+    output  wire    incom_done,                              // if incoming transition was completed
+    output  wire    incom_invalidate,                        // if incoming transition had errors
+    output  wire    incom_sync_escape,                       // particular type - got sync escape
+    input   wire    incom_ack_good,                          // transport layer responds on a completion of a FIS
     input   wire    incom_ack_bad,
-
-    // oob sequence is reinitiated and link now is not established or rxelecidle
-    input   wire    link_reset,
-    // TL demands to brutally cancel current transaction
-    input   wire    sync_escape_req,
-    // acknowlegement of a successful reception
-    output  wire    sync_escape_ack,
-    // TL demands to stop current recieving session
-    input   wire    incom_stop_req,
-
+    input   wire    link_reset,                              // oob sequence is reinitiated and link now is not established or rxelecidle
+    input   wire    sync_escape_req,                         // TL demands to brutally cancel current transaction
+    output  wire    sync_escape_ack,                         // acknowlegement of a successful reception
+    input   wire    incom_stop_req,                          // TL demands to stop current recieving session
+    output          link_established,                        // received 3 back-to-back non-align primitives.                  
     // inputs from phy
-    // phy is ready - link is established
-    input   wire    phy_ready,
-
-    // data-primitives stream from phy
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in,
-    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_in, // charisk
-    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_err_in, // disperr | notintable
+    input   wire    phy_ready,                               // phy is ready - link is established: Not yet - need 3 non-align primitives
+    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in,   // data-primitives stream from phy
+    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_in,    // charisk
+    input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_err_in,    // disperr | notintable
     // to phy
     output  wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_out,
-    output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out // charisk
+    output  wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_out,   // charisk
+    // debug
+    output                             [31:0] debug_out      //
 );
 `ifdef SIMULATION
     reg [639:0] HOST_LINK_TITLE; // to show human-readable state in the GTKWave
@@ -132,8 +106,12 @@ reg     [DATA_BYTE_WIDTH   - 1:0] phy_err_in_r0; // disperr | notintable
 
 reg     [DATA_BYTE_WIDTH*8 - 1:0] last_not_cont_di; // last primitive dword, but not CONTp
 reg                               rcv_junk;         // receiving CONTp junk data
-wire                              is_non_cont_p_w;  // got primitive other than CONTp
-wire                              is_cont_p_w;      // got CONTp primitive
+wire                              is_non_cont_non_align_p_w;  // got primitive other than CONTp and ALIGNp (early by 1)
+wire                              is_cont_p_w;                // got CONTp primitive  (early by 1)
+wire                              is_align_p_w;               // got ALIGNp primitive  (early by 1)
+
+//CONTp should pass ALIGNp
+
 
 wire    frame_done;
 // scrambled data
@@ -143,8 +121,12 @@ wire    dec_err; // doc, p.311
 wire    crc_good;
 wire    crc_bad;
 // current crc
-wire    [31:0] crc_dword; 
-
+wire    [31:0] crc_dword;
+// Removing - state_align is handled by OOB 
+///reg                                link_established_r;                        // received 3 back-to-back non-align primitives.
+///reg                          [1:0] non_align_cntr;                  
+///assign link_established = link_established_r; 
+assign link_established = phy_ready;
 // send primitives variety count, including CRC and DATA as primitives
 localparam  PRIM_NUM = 16; // 15;
 wire    [PRIM_NUM - 1:0] rcvd_dword; // shows current processing primitive (or just data dword)
@@ -173,15 +155,17 @@ always @ (posedge clk) begin
     phy_isk_in_r0    <= phy_isk_in;
     phy_err_in_r0    <= phy_err_in;
     
-    if (is_non_cont_p_w)        last_not_cont_di <= phy_data_in_r0;
-    if (rst || is_non_cont_p_w) rcv_junk <= 0;
-    else if (is_cont_p_w)       rcv_junk <= 1;
-    if (is_cont_p_w || (rcv_junk && !is_non_cont_p_w)) begin
-        phy_data_in_r   <= last_not_cont_di;
-        phy_isk_in_r    <= 1;
+    if (is_non_cont_non_align_p_w) last_not_cont_di <= phy_data_in_r0; // last_not_cont_di - primitive to repeat instead of junk
+    
+    if (rst || is_non_cont_non_align_p_w) rcv_junk <= 0;
+    else if (is_cont_p_w)                 rcv_junk <= 1;
+    
+    if (is_cont_p_w || (rcv_junk && !(is_non_cont_non_align_p_w || is_align_p_w))) begin
+        phy_data_in_r   <= last_not_cont_di;  // last non-cont/non-align primitive will be sent instead of junk
+        phy_isk_in_r    <= 1;                 // it was always primitive (4'b0001)
     end else begin
-        phy_data_in_r   <= phy_data_in_r0;
-        phy_isk_in_r    <= phy_isk_in_r0;
+        phy_data_in_r   <= phy_data_in_r0;   // data and ALIGNp will go through
+        phy_isk_in_r    <= phy_isk_in_r0;    // data and ALIGNp will go through
     end
     phy_err_in_r    <= phy_err_in_r0;
     
@@ -208,7 +192,7 @@ wire    state_idle;
 reg     state_sync_esc;     // SyncEscape
 reg     state_nocommerr;    // NoComErr
 reg     state_nocomm;       // NoComm
-reg     state_align;        // SendAlign
+reg     state_align;        // SendAlign - not used, handled by OOB
 reg     state_reset;        // RESET
 // tranmitter branch
 reg     state_send_rdy;     // SendChkRdy
@@ -327,19 +311,23 @@ reg    alignes_pair_0; // time for 1st align primitive
 reg    alignes_pair_1; // time for 2nd align primitive
 
 always @ (posedge clk) begin
-    if (rst || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
-    else                                 alignes_timer <= alignes_timer -1;
+///    if (!link_established_r || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
+    if (!phy_ready || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
+    else                                        alignes_timer <= alignes_timer -1;
     alignes_pair_0 <= alignes_timer == 0;
     alignes_pair_1 <= alignes_pair_0;
 end
-assign  alignes_pair   = alignes_pair_0 | alignes_pair_1;
+///assign  alignes_pair   = link_established_r && (alignes_pair_0 | alignes_pair_1);
+assign  alignes_pair   = phy_ready && (alignes_pair_0 | alignes_pair_1);
 
 
 // Whole transitions table, literally from doc pages 311-328
 assign  set_sync_esc        = sync_escape_req;
 assign  set_nocommerr       = ~phy_ready & ~state_nocomm & ~state_reset;
 assign  set_nocomm          = state_nocommerr;
-assign  set_align           = state_reset       & ~link_reset;
+///assign  set_align           = state_reset       & ~link_reset;
+///assign  set_align           = state_reset       & ~link_reset & rcvd_dword[CODE_ALIGNP];
+assign  set_align  = 0; // never, as this state is handled by OOB
 assign  set_reset           = link_reset;
 assign  set_send_rdy        = state_idle        & frame_req;
 assign  set_send_sof        = state_send_rdy    & phy_ready  &                                dword_val &  rcvd_dword[CODE_RRDYP];
@@ -375,8 +363,11 @@ assign  set_rcvr_badend     = state_rcvr_data   & dword_val &  rcvd_dword[CODE_W
 assign  clr_sync_esc        = set_nocommerr | set_reset                | dword_val & (rcvd_dword[CODE_RRDYP] | rcvd_dword[CODE_SYNCP]);
 assign  clr_nocommerr       =                 set_reset                | set_nocomm;
 assign  clr_nocomm          =                 set_reset                | set_align;
-assign  clr_align           = set_nocommerr | set_reset                | phy_ready;
+///assign  clr_align        = set_nocommerr | set_reset                | phy_ready;
+///assign  clr_align           = set_nocommerr | set_reset                | link_established_r; // Not phy_ready !!!
+assign  clr_align           = 0; // never - this state is handled in OOB
 assign  clr_reset           =                                           ~link_reset;
+///assign  clr_reset           =                                           set_align;
 assign  clr_send_rdy        = set_nocommerr | set_reset | set_sync_esc | set_send_sof | set_rcvr_wait;
 assign  clr_send_sof        = set_nocommerr | set_reset | set_sync_esc | set_send_data | got_escape;
 assign  clr_send_data       = set_nocommerr | set_reset | set_sync_esc | set_send_rhold | set_send_shold | set_send_crc | got_escape;
@@ -403,6 +394,7 @@ begin
     state_sync_esc      <= (state_sync_esc     | set_sync_esc     & ~alignes_pair) & ~clr_sync_esc     & ~rst;
     state_nocommerr     <= (state_nocommerr    | set_nocommerr    & ~alignes_pair) & ~clr_nocommerr    & ~rst;
     state_nocomm        <= (state_nocomm       | set_nocomm       & ~alignes_pair) & ~clr_nocomm       & ~rst;
+    // state_align is not used, it is handled by OOB
     state_align         <= (state_align        | set_align        & ~alignes_pair) & ~clr_align        & ~rst;
     state_reset         <= (state_reset        | set_reset                       ) & ~clr_reset        & ~rst;
     state_send_rdy      <= (state_send_rdy     | set_send_rdy     & ~alignes_pair) & ~clr_send_rdy     & ~rst;
@@ -461,7 +453,7 @@ localparam [15:0] PRIM_ERRP_HI		= {3'd2, 5'd22, 3'd2, 5'd22};
 localparam [15:0] PRIM_ERRP_LO		= {3'd5, 5'd21, 3'd3, 5'd28};
 //The transmission of CONTp is optional, but the ability to receive and properly process CONTp is required.
 localparam [15:0] PRIM_CONTP_HI     = {3'd4, 5'd25, 3'd4, 5'd25};
-localparam [15:0] PRIM_CONTP_LO     = {3'd2, 5'd10, 3'd3, 5'd28};
+localparam [15:0] PRIM_CONTP_LO     = {3'd5, 5'd10, 3'd3, 5'd28};
 
 
 wire    [DATA_BYTE_WIDTH*8 - 1:0] prim_data [PRIM_NUM - 1:0];
@@ -644,25 +636,52 @@ assign  incom_sync_escape = (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data 
 // shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val
 assign  dword_val = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP];
 // determine imcoming primitive type
+/*
+// determine imcoming primitive type
+assign  rcvd_dword[CODE_DATA]   = ~|phy_isk_in_r;
+assign  rcvd_dword[CODE_CRC]    = 1'b0;
+assign  rcvd_dword[CODE_SYNCP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_ALIGNP] = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in_r;
+assign  rcvd_dword[CODE_XRDYP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_SOFP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in_r;
+assign  rcvd_dword[CODE_HOLDAP] = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in_r;
+assign  rcvd_dword[CODE_HOLDP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_EOFP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in_r;
+assign  rcvd_dword[CODE_WTRMP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_RRDYP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_IPP]    = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in_r;
+assign  rcvd_dword[CODE_DMATP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in_r;
+assign  rcvd_dword[CODE_OKP]    = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in_r;
+assign  rcvd_dword[CODE_ERRP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in_r;
+// was missing
+assign  rcvd_dword[CODE_CONTP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP ] == phy_data_in_r;
+
+*/
 assign  rcvd_dword[CODE_DATA]	= ~|phy_isk_in_r;
 assign  rcvd_dword[CODE_CRC]	= 1'b0;
-assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in_r;
-assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_SOFP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in_r;
-assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in_r;
-assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_EOFP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in_r;
-assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_IPP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in_r;
-assign  rcvd_dword[CODE_DMATP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_OKP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in_r;
-assign  rcvd_dword[CODE_ERRP]	= phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in_r;
+assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SYNCP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_ALIGNP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ALIGNP] == phy_data_in_r);
+assign  rcvd_dword[CODE_XRDYP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_XRDYP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_SOFP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SOFP  ] == phy_data_in_r);
+assign  rcvd_dword[CODE_HOLDAP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_HOLDAP] == phy_data_in_r);
+assign  rcvd_dword[CODE_HOLDP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_HOLDP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_EOFP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_EOFP  ] == phy_data_in_r);
+assign  rcvd_dword[CODE_WTRMP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_WTRMP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_RRDYP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_RRDYP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_IPP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_IPP   ] == phy_data_in_r);
+assign  rcvd_dword[CODE_DMATP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_DMATP ] == phy_data_in_r);
+assign  rcvd_dword[CODE_OKP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_OKP   ] == phy_data_in_r);
+assign  rcvd_dword[CODE_ERRP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ERRP  ] == phy_data_in_r);
+// was missing
+assign  rcvd_dword[CODE_CONTP]  = phy_isk_in_r[0] && ~(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP ] == phy_data_in_r);
 
 // CONTp (*_r0 is one cycle ahead of *_r)
-assign is_cont_p_w =     phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] == phy_data_in_r0;
-assign is_non_cont_p_w = phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] != phy_data_in_r0;
+//assign is_cont_p_w =     phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] == phy_data_in_r0;
+//assign is_non_cont_non_align_p_w = phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] != phy_data_in_r0;
+assign is_cont_p_w =               phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP  ] == phy_data_in_r0);
+assign is_align_p_w =              phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ALIGNP ] == phy_data_in_r0);
+assign is_non_cont_non_align_p_w = phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP  ] != phy_data_in_r0)
+                                                                                             && (prim_data[CODE_ALIGNP ] != phy_data_in_r0);
 
 
 // phy level errors handling TODO
@@ -673,12 +692,188 @@ assign  frame_done      = frame_done_good | frame_done_bad;
 assign  frame_done_good = state_wait & dword_val & rcvd_dword[CODE_OKP];
 assign  frame_done_bad  = state_wait & dword_val & rcvd_dword[CODE_ERRP];
 
+// Handling 3 non-align primitives - removed, this is (should be) done by OOB
+/*
+always @ (posedge clk) begin
+    if      (!phy_ready || link_reset)           link_established_r <= 0;
+    else if (state_align && !(|non_align_cntr))  link_established_r <= 1;
+    
+    if (!state_align || rcvd_dword[CODE_ALIGNP]) non_align_cntr <= 3;
+    else                                         non_align_cntr <=  non_align_cntr - 1;
+end
+*/
+
+
+// =========== Debug code ===================
+wire [PRIM_NUM - 1:0] rcvd_dword0; // at least oce received after reset
+
+assign  rcvd_dword0[CODE_DATA]   = ~|phy_isk_in_r0;
+assign  rcvd_dword0[CODE_CRC]    = 1'b0;
+assign  rcvd_dword0[CODE_SYNCP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SYNCP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_ALIGNP] = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ALIGNP] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_XRDYP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_XRDYP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_SOFP]   = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SOFP  ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_HOLDAP] = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_HOLDAP] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_HOLDP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_HOLDP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_EOFP]   = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_EOFP  ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_WTRMP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_WTRMP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_RRDYP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_RRDYP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_IPP]    = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_IPP   ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_DMATP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_DMATP ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_OKP]    = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_OKP   ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_ERRP]   = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ERRP  ] == phy_data_in_r0);
+assign  rcvd_dword0[CODE_CONTP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP ] == phy_data_in_r0);
+
+reg [PRIM_NUM - 1:0] debug_rcvd_dword; // at least oce received after reset
+//reg [7:0]            debug_alignp_cntr;
+///reg [7:0] debug_unknown_primitives;
+///reg [7:0] debug_notaligned_primitives;
+///reg [7:0] debug_data_primitives;
+///reg  [7:0] debug_alignes;
+///reg  [1:0]  debug_state_reset_r;
+///reg         debug_alignp_r;
+///reg         debug_syncp_r;
+reg         debug_first_error;
+reg         debug_first_alignp;
+reg         debug_first_syncp;
+reg         debug_first_nonsyncp;
+reg         debug_first_unknown; 
+reg  [19:0] debug_to_first_err;
+reg  [15:0] debug_num_aligns;
+reg  [15:0] debug_num_syncs;
+reg  [15:0] debug_num_later_aligns;
+reg         other_prim_r;
+reg  [15:0] debug_num_other; // other primitives - not aligh, sync or cont
+reg  [31:0] debug_unknown_dword; 
+wire  debug_is_sync_p_w = phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SYNCP ] == phy_data_in_r0);
+
+
+wire [STATES_COUNT - 1:0] debug_states_concat = {
+                           state_idle
+                         , state_sync_esc
+                         , state_nocommerr
+                         , state_nocomm
+                         , state_align
+                         , state_reset
+                         , state_send_rdy
+                         , state_send_sof
+                         , state_send_data
+                         , state_send_rhold
+                         , state_send_shold
+                         , state_send_crc
+                         , state_send_eof
+                         , state_wait
+                         , state_rcvr_wait
+                         , state_rcvr_rdy
+                         , state_rcvr_data
+                         , state_rcvr_rhold
+                         , state_rcvr_shold
+                         , state_rcvr_eof
+                         , state_rcvr_goodcrc
+                         , state_rcvr_goodend
+                         , state_rcvr_badend
+                         };
+reg [STATES_COUNT - 1:0] debug_states_visited;
+
+always @ (posedge clk) begin
+    other_prim_r <= is_non_cont_non_align_p_w && !debug_is_sync_p_w;
+
+    if  (rst)                                              debug_first_alignp <= 0;
+    else if (is_align_p_w)                                 debug_first_alignp <= 1;
+
+    if  (rst)                                              debug_first_syncp <= 0;
+    else if (debug_is_sync_p_w && debug_first_alignp)      debug_first_syncp <= 1;
+
+    if  (rst)                                              debug_first_error <= 0;
+    else if (dec_err && debug_first_syncp)                 debug_first_error <= 1;
+
+
+    if  (rst)                                              debug_first_nonsyncp <= 0;
+    else if (!debug_is_sync_p_w && debug_first_syncp)      debug_first_nonsyncp <= 1;
+    
+    if  (rst)                                              debug_first_unknown <= 0;
+    else if ((rcvd_dword0 ==0) && debug_first_alignp)      debug_first_unknown <= 1;
+    
+    
+    
+    if  (rst)                                              debug_to_first_err <= 0;
+    else if (debug_first_alignp && !debug_first_error)     debug_to_first_err <= debug_to_first_err + 1;
+    
+    if  (rst)                                              debug_num_aligns <= 0;
+    else if (debug_first_alignp && !debug_first_syncp)     debug_num_aligns <= debug_num_aligns + 1;
+    
+    if  (rst)                                              debug_num_syncs <= 0;
+    else if (debug_first_syncp && !debug_first_nonsyncp)   debug_num_syncs <= debug_num_syncs + 1;
+
+    if  (rst)                                                              debug_num_later_aligns <= 0;
+    else if (debug_first_nonsyncp && !debug_first_error && is_align_p_w)   debug_num_later_aligns <= debug_num_later_aligns + 1;
+
+    if  (rst)                                                              debug_num_other <= 0;
+//    else if (debug_first_nonsyncp && !debug_first_error && other_prim_r)   debug_num_later_aligns <= debug_num_later_aligns + 1;
+    else if (debug_first_nonsyncp && !debug_first_error && other_prim_r)   debug_num_other <= debug_num_other + 1;
+    
+    if      (rst)                                                             debug_unknown_dword <= 0;
+    else if ((rcvd_dword0 ==0) && debug_first_alignp && !debug_first_unknown) debug_unknown_dword <= phy_data_in_r0;
+    
+    if      (rst)                                                             debug_rcvd_dword <= 0;
+    else if (debug_first_syncp                         && !debug_first_error) debug_rcvd_dword <= debug_rcvd_dword | rcvd_dword0;
+    
+    if (rst) debug_states_visited <= 0;
+    else     debug_states_visited <= debug_states_visited | debug_states_concat;
+    
+/* 
+    if      (rst)          debug_rcvd_dword <= 0;
+    debug_alignp_r <= rcvd_dword[CODE_ALIGNP];
+    debug_syncp_r <=  rcvd_dword[CODE_SYNCP];
+    debug_state_reset_r <= {debug_state_reset_r[0], state_reset};
+    
+    if      (rst)          debug_rcvd_dword <= 0;
+//    if      (rst)       debug_rcvd_dword <= 0;
+    else if (debug_state_reset_r[0])  debug_rcvd_dword <= debug_rcvd_dword | rcvd_dword;
+   
+    if      (state_reset)                           debug_unknown_primitives <= 0;
+    else if ((phy_isk_in_r == 1) && !(|rcvd_dword)) debug_unknown_primitives <= debug_unknown_primitives + 1;
+    
+
+    if      (rst)                                                 debug_data_primitives <= 0;
+    else if ((debug_state_reset_r[0] && debug_syncp_r))  debug_data_primitives <= debug_data_primitives + 1;
+    
+    if      (rst)                                                 debug_alignes <= 0;
+    else if (debug_state_reset_r[0] && debug_alignp_r)   debug_alignes <= debug_alignes + 1;
+    
+    
+    if      (rst)                                   debug_notaligned_primitives <= 0;
+//    else if (phy_isk_in_r[3:1] != 0)                debug_notaligned_primitives <= debug_notaligned_primitives + 1;
+    else if (debug_state_reset_r == 1)              debug_notaligned_primitives <= debug_notaligned_primitives + 1;
+*/    
+end
+///assign debug_out[19: 0] =          debug_to_first_err;
+//assign debug_out[23:16] =          debug_num_aligns;
+//assign debug_out[31:20] =          debug_num_syncs[11:0];
+//assign debug_out[31:20] =          debug_num_later_aligns[11:0];
+///assign debug_out[31:20] =          debug_num_other[11:0];
+
+///assign debug_out = debug_unknown_dword; // first unknown dword
+//assign debug_out[15: 0] =            debug_to_first_err[19:4];
+//assign debug_out[31:16] =            debug_rcvd_dword;
+
+
+assign debug_out[STATES_COUNT - 1:0] = debug_states_visited;
+
+/* 
+//assign debug_out[PRIM_NUM - 1:0] = debug_rcvd_dword;
+assign debug_out[ 7: 0] =          debug_rcvd_dword[7:0];
+assign debug_out[15: 8] =          debug_alignes;
+assign debug_out[23:16] =          debug_data_primitives;
+assign debug_out[30:24] =          debug_notaligned_primitives[6:0]; // now count state_reset _/~
+assign debug_out[31] =             debug_state_reset_r[0];
+*/
 `ifdef CHECKERS_ENABLED
 // incoming primitives
 always @ (posedge clk)
     if (~|rcvd_dword & phy_ready)
     begin
-        $display("%m: invalid primitive recieved : %h, conrol : %h, err : %h", phy_data_in_r, phy_isk_in_r, phy_err_in_r);
+        $display("%m: invalid primitive received : %h, conrol : %h, err : %h", phy_data_in_r, phy_isk_in_r, phy_err_in_r);
         $finish;
     end
 // States checker
