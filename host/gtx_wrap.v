@@ -510,10 +510,12 @@ end
 
 wire    txoutclk_gtx;
 wire    xclk_gtx;
-wire    xclk_mr;
+//wire    xclk_mr;
 BUFG bufg_txoutclk (.O(txoutclk),.I(txoutclk_gtx));
-BUFR bufr_xclk  (.O(xclk),.I(xclk_mr),.CE(1'b1),.CLR(1'b0));
-BUFMR bufmr_xclk  (.O(xclk_mr),.I(xclk_gtx));
+//BUFR bufr_xclk  (.O(xclk),.I(xclk_mr),.CE(1'b1),.CLR(1'b0));
+//BUFMR bufmr_xclk  (.O(xclk_mr),.I(xclk_gtx));
+
+BUFG bug_xclk  (.O(xclk),.I(xclk_gtx));
 
 gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
@@ -777,8 +779,13 @@ gtxe2_channel_wrapper(
     .RXCDRRESETRSV                  (1'b0),
     .RXCLKCORCNT                    (),
     .RX8B10BEN                      (1'b0),
-    .RXUSRCLK                       (rxusrclk),
-    .RXUSRCLK2                      (rxusrclk),
+    
+///    .RXUSRCLK                       (rxusrclk),
+///    .RXUSRCLK2                      (rxusrclk),
+/// When internal elastic buffer is bypassed, these clocks should be restored clock synchronous
+    .RXUSRCLK                       (xclk),
+    .RXUSRCLK2                      (xclk),
+    
     .RXDATA                         (rxdata_gtx),
     .RXPRBSERR                      (),
     .RXPRBSSEL                      (3'd0),

@@ -854,11 +854,11 @@ end
 ///assign debug_out[31:20] =          debug_num_other[11:0];
 
 ///assign debug_out = debug_unknown_dword; // first unknown dword
-//assign debug_out[15: 0] =            debug_to_first_err[19:4];
-//assign debug_out[31:16] =            debug_rcvd_dword;
+assign debug_out[15: 0] =            debug_to_first_err[19:4];
+assign debug_out[31:16] =            debug_rcvd_dword;
 
 
-assign debug_out[STATES_COUNT - 1:0] = debug_states_visited;
+//assign debug_out[STATES_COUNT - 1:0] = debug_states_visited;
 
 /* 
 //assign debug_out[PRIM_NUM - 1:0] = debug_rcvd_dword;
