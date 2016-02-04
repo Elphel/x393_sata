@@ -171,14 +171,19 @@ module  ahci_sata_layers #(
     
     wire                    [31:0] debug_phy;
     wire                    [31:0] debug_link;
+
+    wire                           rxelsfull; 
+    wire                           rxelsempty; 
     
     wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
     
     
 //    assign debug_sata = {link_established, phy_ready, debug_phy[29:16],debug_link[15:0]}; // 
-    assign debug_sata = debug_link[31:0]; // 
+//    assign debug_sata = debug_link[31:0]; // 
 ///    assign debug_sata = debug_phy;
     
+//    assign debug_sata = {debug_link[31:4],debug_phy[3:0]} ; // 
+    assign debug_sata = {debug_link[31:8],debug_phy[7:0]} ; // 
     
     assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
     assign d2h_valid = d2h_nempty;
@@ -206,8 +211,8 @@ module  ahci_sata_layers #(
     assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
     assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
-    assign serr_DI = phy_ready && (0);   // RWC: PHY Internal Error
-    assign serr_EP = phy_ready && (0);   // RWC: Protocol Error - a violation of SATA protocol detected
+    assign serr_DI = phy_ready && (rxelsfull);   // RWC: PHY Internal Error // just debugging
+    assign serr_EP = phy_ready && (rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
     assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
     assign serr_ET = phy_ready && (0);   // RWC: Transient Data Integrity Error (error not recovered by the interface)
     assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
@@ -319,9 +324,13 @@ module  ahci_sata_layers #(
         .set_offline     (set_offline),       // input
         .comreset_send   (comreset_send),     // input
         .cominit_got     (cominit_got),       // output wire 
-        .comwake_got     (serr_DW),            // output wire 
+        .comwake_got     (serr_DW),           // output wire 
+        .rxelsfull       (rxelsfull),         // output wire 
+        .rxelsempty      (rxelsempty),        // output wire 
+
         .cplllock_debug  (),
         .usrpll_locked_debug(),
+        
         .debug_sata      (debug_phy)  
         ,.debug_detected_alignp(debug_detected_alignp)
     );

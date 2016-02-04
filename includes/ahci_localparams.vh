@@ -402,7 +402,7 @@
     localparam HBA_PORT__PxIS__PRCS__ADDR = 'h44;
     localparam HBA_PORT__PxIS__PRCS__MASK = 'h400000;
     localparam HBA_PORT__PxIS__PRCS__DFLT = 'h0;
-// RO: Device Mechanical Presence Status
+// RWC: Device Mechanical Presence Status
     localparam HBA_PORT__PxIS__DMPS__ADDR = 'h44;
     localparam HBA_PORT__PxIS__DMPS__MASK = 'h80;
     localparam HBA_PORT__PxIS__DMPS__DFLT = 'h0;

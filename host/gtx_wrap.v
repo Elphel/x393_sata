@@ -84,7 +84,12 @@ module gtx_wrap #(
     output  wire    [DATA_BYTE_WIDTH * 8 - 1:0] rxdata,
     output  wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk,
     output  wire    [DATA_BYTE_WIDTH - 1:0]     rxnotintable,
-    output  wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr
+    output  wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr,
+    
+    output  wire    dbg_rxphaligndone,
+    output  wire    dbg_rx_clocks_aligned,
+    output  wire    dbg_rxcdrlock,
+    output  wire    dbg_rxdlysresetdone
 );
 
 wire    rxresetdone_gtx; 
@@ -293,6 +298,39 @@ gtx_8x10enc gtx_8x10enc(
     .outdata    (txdata_enc_out)
 );
 
+// Adjust RXOUTCLK so RXUSRCLK (==xclk) matches SIPO output data
+
+wire rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle?
+reg rxdlysreset = 0;
+wire rxphaligndone;
+wire rxdlysresetdone; 
+reg rx_clocks_aligned = 0;
+reg [2:0] rxdlysreset_cntr = 7;
+reg  rxdlysresetdone_r;
+
+assign dbg_rxphaligndone =     rxphaligndone;     // never gets up?
+assign dbg_rx_clocks_aligned = rx_clocks_aligned;
+assign dbg_rxcdrlock =         rxcdrlock;         //goes in/out (because of the SS ?
+assign dbg_rxdlysresetdone =   rxdlysresetdone_r;
+always @ (posedge xclk) begin
+//    if (rxelecidle || !rxcdrlock) rxdlysreset_cntr <= 5;
+    if (rxelecidle)               rxdlysreset_cntr <= 5;
+    else if (|rxdlysreset_cntr)   rxdlysreset_cntr <=  rxdlysreset_cntr - 1;
+    
+//    if (rxelecidle || !rxcdrlock) rxdlysreset <= 0;
+    if (rxelecidle)               rxdlysreset <= 0;
+    else                          rxdlysreset <= |rxdlysreset_cntr;
+    
+//    if (rxelecidle || !rxcdrlock || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
+//    if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
+    if (rxelecidle)                  rx_clocks_aligned <= 0;
+//    else if (rxphaligndone)                             rx_clocks_aligned <= 1;
+    else if (rxphaligndone)          rx_clocks_aligned <= 1;
+
+    if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rxdlysresetdone_r <= 0;
+    else if (rxdlysresetdone)                             rxdlysresetdone_r <= 1;
+end
+
 /*
  * RX PCS part: comma detect + align module, 10/8 decoder, elastic buffer, interface resynchronisation
  * all modules before elastic buffer shall work on a restored clock - xclk
@@ -331,7 +369,9 @@ begin
 end
 
 gtx_comma_align gtx_comma_align(
+//    .rst        (~rx_clocks_aligned), // ~wrap_rxreset_),
     .rst        (~wrap_rxreset_),
+    
     .clk        (xclk),
     .indata     (rxdata_comma_in),
     .outdata    (rxdata_comma_out),
@@ -348,6 +388,7 @@ wire    [1:0]   rxnotintable_dec_out;
 wire    [1:0]   rxdisperr_dec_out;
 
 gtx_10x8dec gtx_10x8dec(
+//    .rst        (~rx_clocks_aligned), // ~wrap_rxreset_),
     .rst        (~wrap_rxreset_),
     .clk        (xclk),
     .indata     (rxdata_comma_out),
@@ -372,11 +413,13 @@ gtx_elastic #(
     .OFFSET     (4)
 )
 gtx_elastic(
+//    .rst            (~rx_clocks_aligned), // ~wrap_rxreset_),
     .rst            (~wrap_rxreset_),
     .wclk           (xclk),
     .rclk           (rxusrclk),
 
-    .isaligned_in   (state_aligned),
+///    .isaligned_in   (state_aligned),
+    .isaligned_in   (state_aligned && rxdlysresetdone_r), // rx_clocks_aligned), //Allow to align early, but do not tell it is aligned until xclk is aligned to SIPO par. clock
     .charisk_in     (rxcharisk_dec_out),
     .notintable_in  (rxnotintable_dec_out),
     .disperror_in   (rxdisperr_dec_out),
@@ -623,7 +666,7 @@ gtxe2_channel_wrapper #(
     .RXPH_CFG                               (24'h000000),
     .RXPHDLY_CFG                            (24'h084020),
     .RXPH_MONITOR_SEL                       (5'b00000),
-    .RX_XCLK_SEL                            ("RXREC"),
+    .RX_XCLK_SEL                            ("RXUSR"), // ("RXREC"), // Andrey: Now they are the same, just using p.247 "Using RX Buffer Bypass..."
     .RX_DDI_SEL                             (6'b000000),
     .RX_DEFER_RESET_BUF_EN                  ("TRUE"),
 /// .RXCDR_CFG                              (72'h03000023ff10200020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
@@ -773,7 +816,7 @@ gtxe2_channel_wrapper(
     .EYESCANTRIGGER                 (1'b0),
     .RXCDRFREQRESET                 (1'b0),
     .RXCDRHOLD                      (1'b0),
-    .RXCDRLOCK                      (),
+    .RXCDRLOCK                      (rxcdrlock),
     .RXCDROVRDEN                    (1'b0),
     .RXCDRRESET                     (1'b0),
     .RXCDRRESETRSV                  (1'b0),
@@ -799,14 +842,16 @@ gtxe2_channel_wrapper(
     .GTXRXN                         (rxn),
     .RXBUFRESET                     (1'b0),
     .RXBUFSTATUS                    (),
-    .RXDDIEN                        (1'b0),
-    .RXDLYBYPASS                    (1'b1),
+//    .RXDDIEN                        (1'b0),
+    .RXDDIEN                        (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+//    .RXDLYBYPASS                    (1'b1),
+    .RXDLYBYPASS                    (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
     .RXDLYEN                        (1'b0),
     .RXDLYOVRDEN                    (1'b0),
-    .RXDLYSRESET                    (1'b0),
-    .RXDLYSRESETDONE                (),
+    .RXDLYSRESET                    (rxdlysreset),
+    .RXDLYSRESETDONE                (rxdlysresetdone),
     .RXPHALIGN                      (1'b0),
-    .RXPHALIGNDONE                  (),
+    .RXPHALIGNDONE                  (rxphaligndone),
     .RXPHALIGNEN                    (1'b0),
     .RXPHDLYPD                      (1'b0),
     .RXPHDLYRESET                   (1'b0),

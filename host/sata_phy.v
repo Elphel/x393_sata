@@ -75,6 +75,11 @@ module sata_phy #(
     input                                       comreset_send,   // Not possible yet?
     output  wire                                cominit_got,
     output  wire                                comwake_got,
+    
+    // elastic buffer status
+    output  wire                                rxelsfull,
+    output  wire                                rxelsempty,
+
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
     output                               [31:0] debug_sata
@@ -116,8 +121,13 @@ wire            rxreset_req;
 wire            rxreset_ack;
 wire            rxreset_oob;
 // elastic buffer status signals TODO
-wire            rxelsfull;
-wire            rxelsempty;
+//wire            rxelsfull;
+//wire            rxelsempty;
+
+wire            dbg_rxphaligndone;
+wire            dbg_rx_clocks_aligned;
+wire            dbg_rxcdrlock;
+wire            dbg_rxdlysresetdone;
 
 //wire            gtx_ready;
 assign cominit_got = rxcominitdet; // For AHCI
@@ -467,7 +477,11 @@ gtx_wrap
     .rxdata             (rxdata),          // output[31:0] wire 
     .rxcharisk          (rxcharisk),       // output[3:0] wire 
     .rxdisperr          (rxdisperr),       // output[3:0] wire 
-    .rxnotintable       (rxnotintable)     // output[3:0] wire 
+    .rxnotintable       (rxnotintable),     // output[3:0] wire
+    .dbg_rxphaligndone    (dbg_rxphaligndone),
+    .dbg_rx_clocks_aligned(dbg_rx_clocks_aligned),
+    .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
+    .dbg_rxdlysresetdone(dbg_rxdlysresetdone)
 );
 
 
@@ -543,6 +557,7 @@ assign debug_sata[19] =    txelecidle;
 assign debug_sata[23:20] = debug_cntr4;
 */
 //assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
-assign debug_sata = {debug_cntr6,debug_cntr5};
+//assign debug_sata = {debug_cntr6,debug_cntr5};
+assign debug_sata = {25'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
  
 endmodule

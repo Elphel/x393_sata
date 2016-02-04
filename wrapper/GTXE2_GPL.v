@@ -2961,7 +2961,8 @@ parameter   RX_CLK25_DIV                 = 6;
 parameter   TX_CLK25_DIV                 = 6;
 
 // clocking reset ( + TX PMA)
-wire clk_reset = EYESCANRESET | RXCDRFREQRESET | RXCDRRESET | RXCDRRESETRSV | RXPRBSCNTRESET | RXBUFRESET | RXDLYSRESET | RXPHDLYRESET | RXDFELPMRESET | GTRXRESET | RXOOBRESET | RXPCSRESET | RXPMARESET | CFGRESET | GTTXRESET | GTRESETSEL | RESETOVRD | TXDLYSRESET | TXPHDLYRESET | TXPCSRESET | TXPMARESET;
+//wire clk_reset = EYESCANRESET | RXCDRFREQRESET | RXCDRRESET | RXCDRRESETRSV | RXPRBSCNTRESET | RXBUFRESET | RXDLYSRESET | RXPHDLYRESET | RXDFELPMRESET | GTRXRESET | RXOOBRESET | RXPCSRESET | RXPMARESET | CFGRESET | GTTXRESET | GTRESETSEL | RESETOVRD | TXDLYSRESET | TXPHDLYRESET | TXPCSRESET | TXPMARESET;
+wire clk_reset = EYESCANRESET | RXCDRFREQRESET | RXCDRRESET | RXCDRRESETRSV | RXPRBSCNTRESET | RXBUFRESET | RXPHDLYRESET | RXDFELPMRESET | GTRXRESET | RXOOBRESET | RXPCSRESET | RXPMARESET | CFGRESET | GTTXRESET | GTRESETSEL | RESETOVRD | TXDLYSRESET | TXPHDLYRESET | TXPCSRESET | TXPMARESET;
 // have to wait before an external pll (mmcm) locks with usrclk, after that PCS can be resetted. Actually, we reset PMA also, because why not
 reg reset;
 reg [31:0] reset_timer = 0;
@@ -2974,8 +2975,17 @@ always @ (posedge TXUSRCLK)
 
 reg rx_rst_done = 1'b0;
 reg tx_rst_done = 1'b0;
+reg rxcdrlock = 1'b0;
+reg rxdlysresetdone = 1'b0;
+reg rxphaligndone = 1'b0;
+
 assign  RXRESETDONE = rx_rst_done;
 assign  TXRESETDONE = tx_rst_done;
+
+assign RXCDRLOCK =        rxcdrlock;
+assign RXDLYSRESETDONE =  rxdlysresetdone;
+assign RXPHALIGNDONE =    rxphaligndone;
+
 initial
 forever @ (posedge reset)
 begin
@@ -2994,7 +3004,46 @@ begin
         @ (posedge GTREFCLK0);
     rx_rst_done <= 1'b1;
 end
+localparam RXCDRLOCK_DELAY = 10; // Refclk periods
+localparam RXDLYSRESET_MIN_DURATION = 50; // ns 
+localparam RXDLYSRESETDONE_DELAY = 10;
+localparam RXDLYSRESETDONE_DURATION = 7; // 100ns
+localparam RXPHALIGNDONE_DELAY1 = 15;
+localparam RXPHALIGNDONE_DURATION1 = 7;
+localparam RXPHALIGNDONE_DELAY2 = 10;
 
+initial forever @ (posedge (reset || RXELECIDLE)) begin
+    rxcdrlock <= 1'b0;
+    @ (negedge (reset || RXELECIDLE));
+    repeat (RXCDRLOCK_DELAY) @ (posedge GTREFCLK0);
+    rxcdrlock <= 1'b1;
+    
+end
+
+initial forever @ (posedge RXDLYSRESET) begin
+    rxdlysresetdone <= 1'b0;
+    rxphaligndone <= 1'b0;
+    # (RXDLYSRESET_MIN_DURATION);
+    if (!RXDLYSRESET) begin
+        $display ("%m: RXDLYSRESET is too short - minimal duration is 50 nsec");
+    end else begin
+        @ (negedge RXDLYSRESET);
+//        if (!RXELECIDLE && rxcdrlock) begin
+        if (!RXELECIDLE) begin // removed that condition - rxcdrlock seems to go up/down (SS?)
+            repeat (RXDLYSRESETDONE_DELAY) @ (posedge GTREFCLK0);
+            rxdlysresetdone <= 1'b1;
+            repeat (RXDLYSRESETDONE_DURATION) @ (posedge GTREFCLK0);
+            rxdlysresetdone <= 1'b0;
+            repeat (RXPHALIGNDONE_DELAY1) @ (posedge GTREFCLK0);
+            rxphaligndone <= 1'b1;
+            repeat (RXPHALIGNDONE_DURATION1) @ (posedge GTREFCLK0);
+            rxphaligndone <= 1'b0;
+            repeat (RXPHALIGNDONE_DELAY2) @ (posedge GTREFCLK0);
+            rxphaligndone <= 1'b1;
+        end else $display ("%m: RXELECIDLE in active or rxcdrlock is inactive when applying RXDLYSRESET"); 
+    end
+end
+//RXELECIDLE
 gtxe2_chnl #(
     .CPLL_CFG               (CPLL_CFG),
     .CPLL_FBDIV             (CPLL_FBDIV),

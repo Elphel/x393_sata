@@ -154,9 +154,11 @@ reg     [DATA_BYTE_WIDTH - 1:0]   rxcharisk;
 
 // primitives detection
 wire    detected_alignp;
-localparam NUM_CON_ALIGNS = 1024;
+localparam NUM_CON_ALIGNS = 2; // just for debugging 1024;
+reg  [1:0]  detected_alignp_cntr; // count detected ALIGNp - do not respond yet
+///localparam NUM_CON_ALIGNS = 1024; // just for debugging 1024;
+///reg [12:0]  detected_alignp_cntr; // count detected ALIGNp - do not respond yet
 reg     detected_alignp_r; // debugging - N-th ALIGNp primitive
-reg [12:0]  detected_alignp_cntr; // count detected ALIGNp - do not respond yet
 wire    detected_syncp;
 
 // wait until device's cominit is done

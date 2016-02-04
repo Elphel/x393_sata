@@ -63,6 +63,10 @@ module tb_ahci #(
     `endif // CVC
 `endif // IVERILOG
 
+parameter HOST_CLK_PERIOD = 6.666; //nsec
+//parameter DEVICE_CLK_PERIOD = 6.653; //nsec
+parameter DEVICE_CLK_PERIOD = 6.666; //nsec TODO: Implement actual CDR
+
 reg [639:0] TESTBENCH_TITLE = 'bz; // to show human-readable state in the GTKWave
 reg  [31:0] TESTBENCH_DATA;
 reg  [11:0] TESTBENCH_ID;
@@ -81,6 +85,8 @@ end
 
 reg EXTCLK_P = 1'b1;
 reg EXTCLK_N = 1'b0;
+reg DEV_EXTCLK_P = 1'b1;
+reg DEV_EXTCLK_N = 1'b0;
 //reg serial_clk = 1'b1;
 
 reg      [11:0] ARID_IN_r;
@@ -335,8 +341,8 @@ sata_device dev(
     .RXP      (txp),
     .TXN      (rxn),
     .TXP      (rxp),
-    .EXTCLK_P (EXTCLK_P),
-    .EXTCLK_N (EXTCLK_N)
+    .EXTCLK_P (DEV_EXTCLK_P),
+    .EXTCLK_N (DEV_EXTCLK_N)
 );
 
 // SAXI HP interface
@@ -603,11 +609,16 @@ initial forever @ (posedge CLK) begin
     end
 end
 
-always #3.333 begin
+//always #3.333 begin
+always #(DEVICE_CLK_PERIOD/2) begin
     EXTCLK_P = ~EXTCLK_P;
     EXTCLK_N = ~EXTCLK_N;
 end
 
+always #(HOST_CLK_PERIOD/2) begin
+    DEV_EXTCLK_P = ~DEV_EXTCLK_P;
+    DEV_EXTCLK_N = ~DEV_EXTCLK_N;
+end
 /*
 // MAXI clock
 always #10
@@ -889,6 +900,7 @@ localparam ATA_WDMA = 'hca; // Identify command
     
 
 initial begin //Host
+    NUM_WORDS_EXPECTED =0;
     wait (!RST);
 //reg [639:0] TESTBENCH_TITLE = "RESET"; // to show human-readable state in the GTKWave
     TESTBENCH_TITLE = "NO_RESET";
@@ -936,8 +948,18 @@ initial begin //Host
     maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Now it should be 0
     
     maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,"HBA_PORT__PxIS__DHRS__ADDR"); // It should be 400041 - DHR inerrupt (and others)
-    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear that interrupt
+//    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear that interrupt
+    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, ~0); // clear all interrupt
     maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,"HBA_PORT__PxIS__DHRS__ADDR"); // Now it should be 0400040 (DHR cleared)
+    maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR << 2,"HBA_PORT__PxSERR"); //
+    maxigp1_writep       (HBA_PORT__PxSERR__DIAG__X__ADDR << 2, ~0); // clear all errors
+    maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,     "cleared all i/e: HBA_PORT__PxIS__DHRS__ADDR"); //
+    maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR << 2,"cleared all i/e: HBA_PORT__PxSERR"); //
+    maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,     "re-read: HBA_PORT__PxIS__DHRS__ADDR"); //
+    maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR << 2,"re-read: HBA_PORT__PxSERR"); //
+    maxigp1_print        (HBA_PORT__PxIS__DHRS__ADDR << 2,     "re-read: HBA_PORT__PxIS__DHRS__ADDR"); //
+    maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR << 2,"re-read: HBA_PORT__PxSERR"); //
+     
 //HBA_PORT__PxIS__DHRS__ADDR    
 
     maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32");

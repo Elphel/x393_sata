@@ -168,13 +168,18 @@ module  ahci_ctrl_stat #(
     reg                    [31:0] PxCMD_r;
     reg                           pxci0_r;
     
+    reg                           cirq_PRC; // clear PRC bit when clearing PxSERR.DIAG.N
+    reg                           cirq_PC; // clear PC bit when clearing PxSERR.DIAG.X
+    wire                   [31:0] cirq ={32{cirq_PRC}} & HBA_PORT__PxIS__PRCS__MASK | // 'h400000;
+                                        {32{cirq_PC}} &  HBA_PORT__PxIS__PCS__MASK; // 'h40;;};        
+    
     
     wire                   [31:0] sirq = {32{sirq_TFE}} & HBA_PORT__PxIS__TFES__MASK | // 'h40000000;
                                          {32{sirq_IF }} & HBA_PORT__PxIS__IFS__MASK |  // 'h8000000;
                                          {32{sirq_INF}} & HBA_PORT__PxIS__INFS__MASK | // 'h4000000;
                                          {32{sirq_OF }} & HBA_PORT__PxIS__OFS__MASK |  // 'h1000000;
                                          {32{sirq_PRC}} & HBA_PORT__PxIS__PRCS__MASK | // 'h400000;
-                                         {32{sirq_PC}} &  HBA_PORT__PxIS__PCS__MASK |  // 'h40;;
+                                         {32{sirq_PC}} &  HBA_PORT__PxIS__PCS__MASK |  // 'h40;
                                          {32{sirq_DP}} &  HBA_PORT__PxIS__DPS__MASK |  // 'h20;
                                          {32{sirq_UF }} & HBA_PORT__PxIS__UFS__MASK |  // 'h10;
                                          {32{sirq_SDB}} & HBA_PORT__PxIS__SDBS__MASK | // 'h8;
@@ -257,7 +262,11 @@ module  ahci_ctrl_stat #(
     assign update_pending =  | regs_changed;
     assign pcmd_fre = |(HBA_PORT__PxCMD__FRE__MASK & PxCMD_r); 
     assign serr_diag_X = |(HBA_PORT__PxSERR__DIAG__X__MASK & PxSERR_r);
-    assign ssts_det = PxSSTS_r[3:0];   
+    assign ssts_det = PxSSTS_r[3:0];
+    
+//    assign cirq_PRC = swr_HBA_PORT__PxSERR && |(soft_write_data & HBA_PORT__PxSERR__DIAG__N__MASK);
+//    assign cirq_PC =  swr_HBA_PORT__PxSERR && |(soft_write_data & HBA_PORT__PxSERR__DIAG__X__MASK);
+       
     
 localparam PxIE_MASK =   HBA_PORT__PxIE__TFEE__MASK | // 'h40000000;
                          HBA_PORT__PxIE__IFE__MASK |  // 'h8000000;
@@ -355,6 +364,11 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
     assign pcmd_clo = PxCMD_r[3];   // causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     assign pcmd_st =  PxCMD_r[0];   // current value
                        
+    always @(posedge mclk) begin // Here we do not have data written by soft, only the result (cleared). If bit is 0, it is
+                                 // either cleared, or was 0. If it was 0, then IS bit was also 0, so clearing will not hurt.
+        cirq_PRC <= swr_HBA_PORT__PxSERR && |(~soft_write_data & HBA_PORT__PxSERR__DIAG__N__MASK);
+        cirq_PC <=  swr_HBA_PORT__PxSERR && |(~soft_write_data & HBA_PORT__PxSERR__DIAG__X__MASK);
+    end
     
     always @(posedge mclk) begin
         if (mrst) irq <= 0;
@@ -392,7 +406,7 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
     // HBA_PORT__PxIS register
     always @(posedge mclk) begin
         if (rst_por) PxIS_r <= 0;
-        else         PxIS_r <= PxIS_MASK & ((swr_HBA_PORT__PxIS ? soft_write_data :  PxIS_r) | sirq);
+        else         PxIS_r <= PxIS_MASK & ((swr_HBA_PORT__PxIS ? soft_write_data :  (PxIS_r & ~cirq)) | sirq);
     end
 
     // HBA_PORT__PxIE register
@@ -485,11 +499,11 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         else if (update_HBA_PORT__PxSSTS)                      ssts_changed <= 0;
         
         if      (mrst)                                         serr_changed <= 1; //0;
-        else if (serr)                                         serr_changed <= 1; 
+        else if (|serr)                                        serr_changed <= 1; 
         else if (update_HBA_PORT__PxSERR)                      serr_changed <= 0;
         
         if      (mrst)                                         sirq_changed <= 1; //0;
-        else if (sirq)                                         sirq_changed <= 1; 
+        else if ((|sirq) || (|cirq))                           sirq_changed <= 1; 
         else if (update_HBA_PORT__PxIS)                        sirq_changed <= 0;
 
         if      (mrst)                                         pxcmd_changed <= 1; //0;

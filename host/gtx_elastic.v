@@ -32,8 +32,8 @@
  * with at least one of the Free Software programs.
  *******************************************************************************/
 module gtx_elastic #(
-    parameter DEPTH_LOG2 = 3,   // => 8 total rows
-    parameter OFFSET = 4        // distance between read and write pointers, = wr_ptr - rd_ptr
+    parameter DEPTH_LOG2 = 4, // 3,   // => 8 total rows
+    parameter OFFSET = 8 // 4        // distance between read and write pointers, = wr_ptr - rd_ptr
 )
 (
     input   wire    rst,

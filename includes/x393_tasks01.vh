@@ -228,14 +228,17 @@
         input [ 3:0] len;
         input [ 1:0] burst;
         begin
-            wait (!CLK && AR_READY);
+            @ (negedge CLK);
+            while (!AR_READY) @ (negedge CLK);
+//            wait (!CLK && AR_READY);
             ARID_IN_r    <= id;
             ARADDR_IN_r  <= addr;
             ARLEN_IN_r   <= len;
             ARSIZE_IN_r  <= 3'b010;
             ARBURST_IN_r <= burst;
             AR_SET_CMD_r <= 1'b1;
-            wait (CLK);
+            @(posedge CLK);
+//            wait (CLK);
             ARID_IN_r    <= 12'hz;
             ARADDR_IN_r  <= 'hz;
             ARLEN_IN_r   <= 4'hz;

@@ -874,6 +874,7 @@ always @ (posedge clk)
     if (~|rcvd_dword & phy_ready)
     begin
         $display("%m: invalid primitive received : %h, conrol : %h, err : %h", phy_data_in_r, phy_isk_in_r, phy_err_in_r);
+        #500;
         $finish;
     end
 // States checker
