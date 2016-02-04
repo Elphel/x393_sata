@@ -1,16 +1,17 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Thu Feb  4 04:54:31 2016
+[*] Thu Feb  4 19:47:54 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160203212010340.fst"
-[dumpfile_mtime] "Thu Feb  4 04:21:22 2016"
-[dumpfile_size] 8311364
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160204124302694.fst"
+[dumpfile_mtime] "Thu Feb  4 19:44:22 2016"
+[dumpfile_size] 9978698
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 13492600
+[timestart] 0
 [size] 1823 1180
 [pos] 1959 27
-*-14.313643 13551454 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-23.683727 4778998 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
+[treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.linkMonitorFIS.
 [treeopen] tb_ahci.dev.phy.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.
@@ -30,8 +31,6 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.
-[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk5.
-[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.channel.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.channel.rx.
@@ -51,13 +50,15 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.ahci_regs_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_write_i.
+[treeopen] tb_ahci.elastic1632_fast_i.
+[treeopen] tb_ahci.elastic1632_slow_i.
 [treeopen] tb_ahci.simul_axi_hp_rd_i.
 [treeopen] tb_ahci.simul_axi_hp_wr_i.
 [treeopen] tb_ahci.simul_axi_hp_wr_i.waddr_i.
 [treeopen] tb_ahci.simul_axi_hp_wr_i.wdata_i.
 [treeopen] tb_ahci.simul_axi_read_i.
-[sst_width] 317
-[signals_width] 307
+[sst_width] 362
+[signals_width] 374
 [sst_expanded] 1
 [sst_vpaned_height] 568
 @820
@@ -2996,48 +2997,176 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_g
 @1401200
 -GTXE2_GPL
 -phy
-@800200
+@c00200
 -comma
 @22
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.indata[19:0]
-@23
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.outdata[19:0]
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.comma
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.comma_detected
 @200
 -
-@1000200
+@1401200
 -comma
-@c00200
--elastic
+@c00201
+-elastic_slow
 @28
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.rst
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.rclk
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.wclk
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.charisk_in[1:0]
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.charisk_out[1:0]
+tb_ahci.elastic1632_slow_i.wclk
+tb_ahci.elastic1632_slow_i.rclk
+[color] 3
+tb_ahci.elastic1632_fast_i.rclk
+tb_ahci.elastic1632_slow_i.is_alignp_w
 @22
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.data_in[15:0]
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.data_out[15:0]
+tb_ahci.elastic1632_slow_i.data_in[15:0]
+tb_ahci.elastic1632_slow_i.data_in_r[15:0]
 @28
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.lword_strobe
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.fword_strobe
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.fword_strobe_correction
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.align_1st
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_elastic.align_2nd
+tb_ahci.elastic1632_slow_i.charisk_in[1:0]
+tb_ahci.elastic1632_slow_i.isaligned_in
+tb_ahci.elastic1632_slow_i.aligned32_in_r
+@22
+tb_ahci.elastic1632_slow_i.data_out[31:0]
+tb_ahci.elastic1632_slow_i.charisk_out[3:0]
+@28
+tb_ahci.elastic1632_slow_i.isaligned_out
+tb_ahci.elastic1632_slow_i.empty
+tb_ahci.elastic1632_slow_i.full
+tb_ahci.elastic1632_slow_i.msb_in_r
+@c00022
+tb_ahci.elastic1632_slow_i.fill_out[15:0]
+@28
+(0)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(1)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(2)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(3)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(4)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(5)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(6)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(7)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(8)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(9)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(10)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(11)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(12)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(13)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(14)tb_ahci.elastic1632_slow_i.fill_out[15:0]
+(15)tb_ahci.elastic1632_slow_i.fill_out[15:0]
 @1401200
--elastic
+-group_end
+@c00022
+tb_ahci.elastic1632_slow_i.fill[15:0]
+@28
+(0)tb_ahci.elastic1632_slow_i.fill[15:0]
+(1)tb_ahci.elastic1632_slow_i.fill[15:0]
+(2)tb_ahci.elastic1632_slow_i.fill[15:0]
+(3)tb_ahci.elastic1632_slow_i.fill[15:0]
+(4)tb_ahci.elastic1632_slow_i.fill[15:0]
+(5)tb_ahci.elastic1632_slow_i.fill[15:0]
+(6)tb_ahci.elastic1632_slow_i.fill[15:0]
+(7)tb_ahci.elastic1632_slow_i.fill[15:0]
+(8)tb_ahci.elastic1632_slow_i.fill[15:0]
+(9)tb_ahci.elastic1632_slow_i.fill[15:0]
+(10)tb_ahci.elastic1632_slow_i.fill[15:0]
+(11)tb_ahci.elastic1632_slow_i.fill[15:0]
+(12)tb_ahci.elastic1632_slow_i.fill[15:0]
+(13)tb_ahci.elastic1632_slow_i.fill[15:0]
+(14)tb_ahci.elastic1632_slow_i.fill[15:0]
+(15)tb_ahci.elastic1632_slow_i.fill[15:0]
+@1401200
+-group_end
+@28
+tb_ahci.elastic1632_slow_i.dbg_dav1
+@800022
+tb_ahci.elastic1632_slow_i.aligned_rclk[2:0]
+@28
+(0)tb_ahci.elastic1632_slow_i.aligned_rclk[2:0]
+(1)tb_ahci.elastic1632_slow_i.aligned_rclk[2:0]
+(2)tb_ahci.elastic1632_slow_i.aligned_rclk[2:0]
+@1001200
+-group_end
+@800022
+tb_ahci.elastic1632_slow_i.dav_rclk[1:0]
+@28
+(0)tb_ahci.elastic1632_slow_i.dav_rclk[1:0]
+(1)tb_ahci.elastic1632_slow_i.dav_rclk[1:0]
+@1001200
+-group_end
+@22
+tb_ahci.elastic1632_slow_i.full_0[1:0]
+tb_ahci.elastic1632_slow_i.full_1[1:0]
+@28
+tb_ahci.elastic1632_slow_i.align_out
+tb_ahci.elastic1632_slow_i.align_out_r
+tb_ahci.elastic1632_slow_i.correct
+@800028
+tb_ahci.elastic1632_slow_i.correct_r[2:0]
+@28
+(0)tb_ahci.elastic1632_slow_i.correct_r[2:0]
+(1)tb_ahci.elastic1632_slow_i.correct_r[2:0]
+(2)tb_ahci.elastic1632_slow_i.correct_r[2:0]
+@1001200
+-group_end
+@28
+tb_ahci.elastic1632_slow_i.add_rclk
+tb_ahci.elastic1632_slow_i.skip_rclk
+@8022
+tb_ahci.elastic1632_slow_i.waddr[4:0]
+tb_ahci.elastic1632_slow_i.raddr[4:0]
+tb_ahci.elastic1632_slow_i.dbg_diff[4:0]
+@1401201
+-elastic_slow
 @c00200
--rx_resynchro
+-elastic_fast
 @28
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk5.rxdata_resynchro.rclk
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk5.rxdata_resynchro.wclk
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk5.rxdata_resynchro.we
-@200
--
+tb_ahci.elastic1632_fast_i.wclk
+tb_ahci.elastic1632_fast_i.rclk
+tb_ahci.elastic1632_fast_i.is_alignp_w
+@22
+tb_ahci.elastic1632_fast_i.data_in[15:0]
+tb_ahci.elastic1632_fast_i.charisk_in[1:0]
+tb_ahci.elastic1632_fast_i.charisk_in_r[1:0]
+@28
+tb_ahci.elastic1632_fast_i.isaligned_in
+@22
+tb_ahci.elastic1632_fast_i.data_out[31:0]
+tb_ahci.elastic1632_fast_i.charisk_out[3:0]
+@28
+tb_ahci.elastic1632_fast_i.isaligned_out
+tb_ahci.elastic1632_fast_i.empty
+tb_ahci.elastic1632_fast_i.full
+tb_ahci.elastic1632_fast_i.msb_in_r
+@22
+tb_ahci.elastic1632_fast_i.aligned_rclk[2:0]
+@c00022
+tb_ahci.elastic1632_fast_i.dav_rclk[1:0]
+@28
+(0)tb_ahci.elastic1632_fast_i.dav_rclk[1:0]
+(1)tb_ahci.elastic1632_fast_i.dav_rclk[1:0]
 @1401200
--rx_resynchro
+-group_end
+@22
+tb_ahci.elastic1632_fast_i.full_0[1:0]
+tb_ahci.elastic1632_fast_i.full_1[1:0]
+@28
+tb_ahci.elastic1632_fast_i.align_out
+tb_ahci.elastic1632_fast_i.align_out_r
+tb_ahci.elastic1632_fast_i.correct
+tb_ahci.elastic1632_fast_i.add_rclk
+tb_ahci.elastic1632_fast_i.skip_rclk
+@c00028
+tb_ahci.elastic1632_fast_i.correct_r[2:0]
+@28
+(0)tb_ahci.elastic1632_fast_i.correct_r[2:0]
+(1)tb_ahci.elastic1632_fast_i.correct_r[2:0]
+(2)tb_ahci.elastic1632_fast_i.correct_r[2:0]
+@1401200
+-group_end
+@8022
+tb_ahci.elastic1632_fast_i.waddr[4:0]
+tb_ahci.elastic1632_fast_i.raddr[4:0]
+tb_ahci.elastic1632_fast_i.dbg_diff[4:0]
+@1401200
+-elastic_fast
 @c00200
 -oob_ctrl
 @28
@@ -3057,27 +3186,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.gtx_ready
 -oob
 @1401200
 -oob_ctrl
-@820
-tb_ahci.maxigp1_print.msg[319:0]
-@22
-tb_ahci.read_and_wait.address[31:0]
-tb_ahci.axi_read_addr.addr[31:0]
-@28
-tb_ahci.axi_read_addr.burst[1:0]
-@22
-tb_ahci.axi_read_addr.id[11:0]
-tb_ahci.axi_read_addr.len[3:0]
-@28
-tb_ahci.CLK
-tb_ahci.rvalid
-tb_ahci.rready
-tb_ahci.simul_axi_read_i.reset
-tb_ahci.simul_axi_read_i.start_burst
-@22
-tb_ahci.simul_axi_read_i.addr_out[15:0]
-@200
--
-@c00200
+@800200
 -gtx
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rx_clocks_aligned
@@ -3087,11 +3196,10 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.set_aligned
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.set_triggered
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.clr_triggered
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcominitdet
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.isaligned
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.channel.rx.rx_oob.reset
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.xclk
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcominitdet_gtx
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcominitdet_gtx_r
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcomwakedet_gtx
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcominitdet
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxelecidle
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset
@@ -3152,6 +3260,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txdata_enc_out[19:0]
 -
 @1401200
 -gtx8x10enc
+@1000200
 -gtx
 @c00200
 -device

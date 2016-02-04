@@ -325,6 +325,86 @@ wire    rxp;
 wire    txn;
 wire    txp;
 wire    device_rst;
+
+localparam  TEST_ELASTIC_PERIOD_SLOW = 13.40;
+localparam  TEST_ELASTIC_PERIOD_FAST = 13.27;
+
+
+wire        test_elastic_wclk =          dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.xclk;
+//wire        test_elastic_rclk =          dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxusrclk2;
+wire        test_elastic_isaligned_in =  dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.state_aligned && dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysresetdone_r;
+wire  [1:0] test_elastic_charisk_in =    dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxcharisk_dec_out;
+wire  [1:0] test_elastic_notintable_in = dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxnotintable_dec_out;
+wire  [1:0] test_elastic_disperror_in =  dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdisperr_dec_out;
+wire [15:0] test_elastic_data_in =       dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdata_dec_out;
+
+wire        test_elastic_slow_isaligned_out;
+wire  [3:0] test_elastic_slow_charisk_out;
+wire  [3:0] test_elastic_slow_notintable_out;
+wire  [3:0] test_elastic_slow_disperror_out;
+wire [31:0] test_elastic_slow_data_out;
+wire        test_elastic_slow_full;
+wire        test_elastic_slow_empty;
+
+wire        test_elastic_fast_isaligned_out;
+wire  [3:0] test_elastic_fast_charisk_out;
+wire  [3:0] test_elastic_fast_notintable_out;
+wire  [3:0] test_elastic_fast_disperror_out;
+wire [31:0] test_elastic_fast_data_out;
+wire        test_elastic_fast_full;
+wire        test_elastic_fast_empty;
+
+
+reg test_elastic_slow_rclk = 0;
+reg test_elastic_fast_rclk = 0;
+
+always #(TEST_ELASTIC_PERIOD_SLOW/2) test_elastic_slow_rclk =!test_elastic_slow_rclk;
+always #(TEST_ELASTIC_PERIOD_FAST/2) test_elastic_fast_rclk =!test_elastic_fast_rclk;
+
+    elastic1632 #(
+        .DEPTH_LOG2(4),
+        .OFFSET(5)
+    ) elastic1632_slow_i (
+        .wclk           (test_elastic_wclk),                // input
+        .rclk           (test_elastic_slow_rclk),           // input
+        .isaligned_in   (test_elastic_isaligned_in),        // input
+        .charisk_in     (test_elastic_charisk_in),          // input[1:0] 
+        .notintable_in  (test_elastic_notintable_in),       // input[1:0] 
+        .disperror_in   (test_elastic_disperror_in),        // input[1:0] 
+        .data_in        (test_elastic_data_in),             // input[15:0] 
+        .isaligned_out  (test_elastic_slow_isaligned_out),  // output
+        .charisk_out    (test_elastic_slow_charisk_out),    // output[3:0] reg 
+        .notintable_out (test_elastic_slow_notintable_out), // output[3:0] reg 
+        .disperror_out  (test_elastic_slow_disperror_out),  // output[3:0] reg 
+        .data_out       (test_elastic_slow_data_out),       // output[31:0] reg 
+        .full           (test_elastic_slow_full),           // output
+        .empty          (test_elastic_slow_empty)           // output
+    );
+
+    elastic1632 #(
+        .DEPTH_LOG2(4),
+        .OFFSET(5)
+    ) elastic1632_fast_i (
+        .wclk           (test_elastic_wclk),                // input
+        .rclk           (test_elastic_fast_rclk),           // input
+        .isaligned_in   (test_elastic_isaligned_in),        // input
+        .charisk_in     (test_elastic_charisk_in),          // input[1:0] 
+        .notintable_in  (test_elastic_notintable_in),       // input[1:0] 
+        .disperror_in   (test_elastic_disperror_in),        // input[1:0] 
+        .data_in        (test_elastic_data_in),             // input[15:0] 
+        .isaligned_out  (test_elastic_fast_isaligned_out),  // output
+        .charisk_out    (test_elastic_fast_charisk_out),    // output[3:0] reg 
+        .notintable_out (test_elastic_fast_notintable_out), // output[3:0] reg 
+        .disperror_out  (test_elastic_fast_disperror_out),  // output[3:0] reg 
+        .data_out       (test_elastic_fast_data_out),       // output[31:0] reg 
+        .full           (test_elastic_fast_full),           // output
+        .empty          (test_elastic_fast_empty)           // output
+    );
+
+
+
+
+
 top dut(
     .RXN             (rxn),
     .RXP             (rxp),
@@ -1116,7 +1196,7 @@ end
 
   initial begin
 //       #30000;
-     #60000;
+     #70000;
 //     #29630;
 //     #30000;
 //     #250000;

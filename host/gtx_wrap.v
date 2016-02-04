@@ -94,16 +94,19 @@ module gtx_wrap #(
 
 wire    rxresetdone_gtx; 
 wire    txresetdone_gtx;
-reg     rxresetdone_gtx_r; 
-reg     txresetdone_gtx_r;
 reg     wrap_rxreset_;
 reg     wrap_txreset_;
-// resets while PCS resets, active low
-always @ (posedge rxusrclk2)
-    wrap_rxreset_ <= rxuserrdy & rxresetdone_gtx_r;
-always @ (posedge txusrclk2)
-    wrap_txreset_ <= txuserrdy & txresetdone_gtx_r;
-
+`ifdef OLD_ELASTIC
+    reg     rxresetdone_gtx_r; 
+    reg     txresetdone_gtx_r;
+    // resets while PCS resets, active low
+    always @ (posedge rxusrclk2) wrap_rxreset_ <= rxuserrdy & rxresetdone_gtx_r;
+    always @ (posedge txusrclk2) wrap_txreset_ <= txuserrdy & txresetdone_gtx_r;
+`else // OLD_ELASTIC
+    // resets while PCS resets, active low
+    always @ (posedge rxusrclk2) wrap_rxreset_ <= rxuserrdy & rxresetdone_gtx;
+    always @ (posedge txusrclk2) wrap_txreset_ <= txuserrdy & txresetdone_gtx;
+`endif // OLD_ELASTIC
 wire    [63:0]  rxdata_gtx;
 wire    [7:0]   rxcharisk_gtx;
 wire    [7:0]   rxdisperr_gtx;
@@ -213,63 +216,7 @@ if (DATA_BYTE_WIDTH == 4) begin
     assign  txcomwake_gtx       = txcomwake_gtx_f[0];
     assign  txelecidle_gtx      = txelecidle_gtx_f[0];
     
-    
-    /*wire    txdata_resync_nempty;
-    reg     txdata_resync_nempty_r;
-    reg     txdata_resync_nempty_rr;
-    reg     txdata_resync_strobe;
-    wire    [38:0] txdata_resync_out;
-    reg     [35:0] txdata_resync;
-
-    assign  txdata_enc_in       = {16{~txdata_resync_strobe}} & txdata_resync[15:0] | {16{txdata_resync_strobe}} & txdata_resync[31:16];
-    assign  txcharisk_enc_in   = {2{~txdata_resync_strobe}} & txdata_resync[33:32] | {2{txdata_resync_strobe}} & txdata_resync[35:34];
-    // Andrey: wrap_txreset_ has different clock domain
-    always @ (posedge txusrclk)
-    begin
-        txdata_resync        <= ~wrap_txreset_ ? 36'h0 : ((txdata_resync_nempty & txdata_resync_strobe) ? txdata_resync_out[35:0] : txdata_resync);
-        txdata_resync_strobe <= ~wrap_txreset_ ? 1'b0  : ((~txdata_resync_nempty) ? txdata_resync_strobe : ~txdata_resync_strobe); // -> 1 once every resynced dword = signal to latch it
-    end
-
-    // nempty_rr & nempty => shall be at least 2 elements in fifo
-    always @ (posedge txusrclk2) 
-    begin
-        txdata_resync_nempty_r  <= txdata_resync_nempty;
-        txdata_resync_nempty_rr <= txdata_resync_nempty_r;
-    end
-
-    fifo_cross_clocks #(
-      .DATA_WIDTH (39),
-      .DATA_DEPTH (4)
-    )
-    txdata_resynchro(
-        .rst        (txreset),
-        .rrst       (txreset),
-        .wrst       (txreset),
-        .rclk       (txusrclk),
-        .wclk       (txusrclk2),
-        .we         (1'b1),
-        .re         (txdata_resync_nempty & txdata_resync_nempty_rr & txdata_resync_strobe),
-        .data_in    ({txelecidle, txcominit, txcomwake, txcharisk, txdata}),
-        .data_out   (txdata_resync_out),
-        .nempty     (txdata_resync_nempty),
-        .half_empty ()
-    );
-
-
-    reg txcomwake_gtx_f;
-    reg txcominit_gtx_f;
-    reg txelecidle_gtx_f;
-    always @ (posedge txusrclk)
-    begin
-        txcomwake_gtx_f  <= txdata_resync_out[36];
-        txcominit_gtx_f  <= txdata_resync_out[37];
-        txelecidle_gtx_f <= txdata_resync_out[38];
-    end
-    assign  txcomwake_gtx  = txcomwake_gtx_f;
-    assign  txcominit_gtx  = txcominit_gtx_f;
-    assign  txelecidle_gtx = txelecidle_gtx_f;
-    */
-end
+ end
 
 else
 if (DATA_BYTE_WIDTH == 2) begin
@@ -397,160 +344,221 @@ gtx_10x8dec gtx_10x8dec(
     .notintable (rxnotintable_dec_out),
     .disperror  (rxdisperr_dec_out)
 );
-
-// elastic buffer: transition from xclk to rxusrclk
-wire    [15:0]  rxdata_els_out;
-wire    [1:0]   rxcharisk_els_out;
-wire    [1:0]   rxnotintable_els_out;
-wire    [1:0]   rxdisperr_els_out;
-wire            lword_strobe;
-wire            isaligned;
-wire            elastic_full;
-wire            elastic_empty;
-
-gtx_elastic #(
-    .DEPTH_LOG2 (3),
-    .OFFSET     (4)
-)
-gtx_elastic(
-//    .rst            (~rx_clocks_aligned), // ~wrap_rxreset_),
-    .rst            (~wrap_rxreset_),
-    .wclk           (xclk),
-    .rclk           (rxusrclk),
-
-///    .isaligned_in   (state_aligned),
-    .isaligned_in   (state_aligned && rxdlysresetdone_r), // rx_clocks_aligned), //Allow to align early, but do not tell it is aligned until xclk is aligned to SIPO par. clock
-    .charisk_in     (rxcharisk_dec_out),
-    .notintable_in  (rxnotintable_dec_out),
-    .disperror_in   (rxdisperr_dec_out),
-    .data_in        (rxdata_dec_out),
-
-    .isaligned_out  (isaligned),
-    .charisk_out    (rxcharisk_els_out),
-    .notintable_out (rxnotintable_els_out),
-    .disperror_out  (rxdisperr_els_out),
-    .data_out       (rxdata_els_out),
-
-    .lword_strobe   (lword_strobe),
-
-    .full           (elastic_full),
-    .empty          (elastic_empty)
-);
-
 // iface resync
-
-/*
-    output  wire    cplllock,       - async
-    output  wire    rxbyteisaligned,- rxusrclk2
-    output  wire    rxcomwakedet,   - rxusrclk2
-    output  wire    rxcominitdet,   - rxusrclk2
-    output  wire    rxelecidle,     - async
-    output  wire    rxresetdone,    - rxusrclk2
-    output  wire    txresetdone,    - txusrclk2
-*/
 wire    rxcomwakedet_gtx;
 wire    rxcominitdet_gtx;
-reg     rxcomwakedet_gtx_r;
-reg     rxcominitdet_gtx_r;
 
-
-// insert resync if it's necessary
-generate 
-if (DATA_BYTE_WIDTH == 4) begin
-    // resync to rxusrclk
-    // Fin = 2*Fout => 2*WIDTHin = WIDTHout
-    // first data word arrived = last word of a primitive, second arrived - first one
-    // lword_strobe indicates that second data word is arrived
-    wire    rxdata_resync_nempty;
-    reg     rxdata_resync_nempty_r;
-    wire    rxdata_resync_strobe;
-    wire    [50:0] rxdata_resync_in;
-    wire    [50:0] rxdata_resync_out;
-    reg     [25:0] rxdata_resync_buf;
-
-    assign  rxdata_resync_strobe = lword_strobe;
-    assign  rxdata_resync_in = {
-                                isaligned,                                  // 1
-                                rxcomwakedet_gtx_r | rxdata_resync_buf[25], // 1
-                                rxcominitdet_gtx_r | rxdata_resync_buf[24], // 1
-                                rxresetdone_gtx_r,                          // 1 
-                                txresetdone_gtx_r,                          // 1
-                                elastic_full  | rxdata_resync_buf[23], // 1 
-                                elastic_empty | rxdata_resync_buf[22], // 1
-                                rxdisperr_els_out,                     // 2
-                                rxnotintable_els_out,                  // 2
-                                rxcharisk_els_out,                     // 2
-                                rxdata_els_out,                        // 16
-                                rxdata_resync_buf[21:0]};              // 22 / 51 total
-    always @ (posedge rxusrclk)
-        rxdata_resync_buf    <= ~wrap_rxreset_ ? 26'h0 : ~rxdata_resync_strobe ? {rxcomwakedet_gtx_r, rxcominitdet_gtx_r, elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
-
-    always @ (posedge rxusrclk2)
-        rxdata_resync_nempty_r <= rxdata_resync_nempty;
-
-    fifo_cross_clocks #(
-      .DATA_WIDTH (51),
-      .DATA_DEPTH (4)
+`ifdef OLD_ELASTIC
+    
+    // elastic buffer: transition from xclk to rxusrclk
+    wire    [15:0]  rxdata_els_out;
+    wire    [1:0]   rxcharisk_els_out;
+    wire    [1:0]   rxnotintable_els_out;
+    wire    [1:0]   rxdisperr_els_out;
+    wire            lword_strobe;
+    wire            isaligned;
+    wire            elastic_full;
+    wire            elastic_empty;
+    
+    gtx_elastic #(
+        .DEPTH_LOG2 (3),
+        .OFFSET     (4)
     )
-    rxdata_resynchro(
-//        .rst        (~wrap_rxreset_),
-        .rst        (1'b0),
-        .rrst       (~wrap_rxreset_),
-        .wrst       (~wrap_rxreset_),
-        .rclk       (rxusrclk2),
-        .wclk       (rxusrclk),
-        .we         (rxdata_resync_strobe),
-        .re         (rxdata_resync_nempty & rxdata_resync_nempty_r),
-        .data_in    (rxdata_resync_in),
-        .data_out   (rxdata_resync_out),
-        .nempty     (rxdata_resync_nempty),
-        .half_empty ()
+    gtx_elastic(
+    //    .rst            (~rx_clocks_aligned), // ~wrap_rxreset_),
+        .rst            (~wrap_rxreset_),
+        .wclk           (xclk),
+        .rclk           (rxusrclk),
+    
+    ///    .isaligned_in   (state_aligned),
+        .isaligned_in   (state_aligned && rxdlysresetdone_r), // rx_clocks_aligned), //Allow to align early, but do not tell it is aligned until xclk is aligned to SIPO par. clock
+        .charisk_in     (rxcharisk_dec_out),
+        .notintable_in  (rxnotintable_dec_out),
+        .disperror_in   (rxdisperr_dec_out),
+        .data_in        (rxdata_dec_out),
+    
+        .isaligned_out  (isaligned),
+        .charisk_out    (rxcharisk_els_out),
+        .notintable_out (rxnotintable_els_out),
+        .disperror_out  (rxdisperr_els_out),
+        .data_out       (rxdata_els_out),
+    
+        .lword_strobe   (lword_strobe),
+    
+        .full           (elastic_full),
+        .empty          (elastic_empty)
     );
-    assign  rxbyteisaligned = rxdata_resync_out[50];
+    
+    // iface resync
+    reg     rxcomwakedet_gtx_r;
+    reg     rxcominitdet_gtx_r;
+    
+    
+    // insert resync if it's necessary
+    generate 
+    if (DATA_BYTE_WIDTH == 4) begin
+        // resync to rxusrclk
+        // Fin = 2*Fout => 2*WIDTHin = WIDTHout
+        // first data word arrived = last word of a primitive, second arrived - first one
+        // lword_strobe indicates that second data word is arrived
+        wire    rxdata_resync_nempty;
+        reg     rxdata_resync_nempty_r;
+        wire    rxdata_resync_strobe;
+        wire    [50:0] rxdata_resync_in;
+        wire    [50:0] rxdata_resync_out;
+        reg     [25:0] rxdata_resync_buf;
+    
+        assign  rxdata_resync_strobe = lword_strobe;
+        assign  rxdata_resync_in = {
+                                    isaligned,                                  // 1
+                                    rxcomwakedet_gtx_r | rxdata_resync_buf[25], // 1
+                                    rxcominitdet_gtx_r | rxdata_resync_buf[24], // 1
+                                    rxresetdone_gtx_r,                          // 1 
+                                    txresetdone_gtx_r,                          // 1
+                                    elastic_full  | rxdata_resync_buf[23], // 1 
+                                    elastic_empty | rxdata_resync_buf[22], // 1
+                                    rxdisperr_els_out,                     // 2
+                                    rxnotintable_els_out,                  // 2
+                                    rxcharisk_els_out,                     // 2
+                                    rxdata_els_out,                        // 16
+                                    rxdata_resync_buf[21:0]};              // 22 / 51 total
+        always @ (posedge rxusrclk) begin
+    ///        rxdata_resync_buf    <= ~wrap_rxreset_ ? 26'h0 : ~rxdata_resync_strobe ? {rxcomwakedet_gtx_r, rxcominitdet_gtx_r, elastic_full, elastic_empty, rxdisperr_els_out, rxnotintable_els_out, rxcharisk_els_out, rxdata_els_out} : rxdata_resync_buf;
+            if      (!wrap_rxreset_)        rxdata_resync_buf <= 26'b0;
+            else if (!rxdata_resync_strobe) rxdata_resync_buf <= {rxcomwakedet_gtx_r,
+                                                                  rxcominitdet_gtx_r,
+                                                                  elastic_full,
+                                                                  elastic_empty,
+                                                                  rxdisperr_els_out,
+                                                                  rxnotintable_els_out,
+                                                                  rxcharisk_els_out,
+                                                                  rxdata_els_out};
+        end 
+        always @ (posedge rxusrclk2)
+            rxdata_resync_nempty_r <= rxdata_resync_nempty;
+    
+        fifo_cross_clocks #(
+          .DATA_WIDTH (51),
+          .DATA_DEPTH (4)
+        )
+        rxdata_resynchro(
+    //        .rst        (~wrap_rxreset_),
+            .rst        (1'b0),
+            .rrst       (~wrap_rxreset_),
+            .wrst       (~wrap_rxreset_),
+            .rclk       (rxusrclk2),
+            .wclk       (rxusrclk),
+            .we         (rxdata_resync_strobe),
+            .re         (rxdata_resync_nempty & rxdata_resync_nempty_r),
+            .data_in    (rxdata_resync_in),
+            .data_out   (rxdata_resync_out),
+            .nempty     (rxdata_resync_nempty),
+            .half_empty ()
+        );
+        assign  rxbyteisaligned = rxdata_resync_out[50];
+        assign  rxcomwakedet    = rxdata_resync_out[49];
+        assign  rxcominitdet    = rxdata_resync_out[48];
+        assign  rxresetdone     = rxdata_resync_out[47];
+        assign  txresetdone     = rxdata_resync_out[46];
+        assign  rxelsfull       = rxdata_resync_out[45];
+        assign  rxelsempty      = rxdata_resync_out[44];
+        assign  rxdisperr[3:0]      = {rxdata_resync_out[43:42], rxdata_resync_out[21:20]};
+        assign  rxnotintable[3:0]   = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
+        assign  rxcharisk[3:0]      = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
+        assign  rxdata[31:0]        = {rxdata_resync_out[37:22], rxdata_resync_out[15:0] };
+    end else if (DATA_BYTE_WIDTH == 2) begin
+        // no resync is needed => straightforward assignments
+        assign  rxbyteisaligned = isaligned;
+        assign  rxcomwakedet    = rxcomwakedet_gtx_r;
+        assign  rxcominitdet    = rxcominitdet_gtx_r;
+        assign  rxresetdone     = rxresetdone_gtx_r;
+        assign  txresetdone     = txresetdone_gtx_r;
+        assign  rxelsfull           = elastic_full;
+        assign  rxelsempty          = elastic_empty;
+        assign  rxdisperr[1:0]      = rxdisperr_els_out;
+        assign  rxnotintable[1:0]   = rxnotintable_els_out;
+        assign  rxcharisk[1:0]      = rxcharisk_els_out;
+        assign  rxdata[15:0]        = rxdata_els_out;
+    end
+    else begin
+        // unconsidered case
+        always @ (posedge txusrclk)
+        begin
+            $display("Wrong width set in %m, value is %d", DATA_BYTE_WIDTH);
+        end
+    end
+    endgenerate
+    
+    // latching gtx outputs, synchronous to RXUSRCLK2 = rxusrclk
+    always @ (posedge rxusrclk)
+    begin
+        rxcomwakedet_gtx_r  <= rxcomwakedet_gtx;
+        rxcominitdet_gtx_r  <= rxcominitdet_gtx;
+        rxresetdone_gtx_r   <= rxresetdone_gtx;
+        txresetdone_gtx_r   <= txresetdone_gtx;
+    end
+    
+`else // OLD_ELASTIC
+    elastic1632 #(
+        .DEPTH_LOG2(4),
+        .OFFSET(5)
+    ) elastic1632_i (
+        .wclk           (xclk),                               // input 150MHz, recovered
+        .rclk           (rxusrclk2),                          // input 75 MHz, system
+        .isaligned_in   (state_aligned && rxdlysresetdone_r), // input
+        .charisk_in     (rxcharisk_dec_out),                  // input[1:0] 
+        .notintable_in  (rxnotintable_dec_out),               // input[1:0] 
+        .disperror_in   (rxdisperr_dec_out),                  // input[1:0] 
+        .data_in        (rxdata_dec_out),                     // input[15:0] 
+        .isaligned_out  (rxbyteisaligned),                    // output
+        .charisk_out    (rxcharisk),                          // output[3:0] reg 
+        .notintable_out (rxnotintable),                       // output[3:0] reg 
+        .disperror_out  (rxdisperr),                          // output[3:0] reg 
+        .data_out       (rxdata),                             // output[31:0] reg 
+        .full           (rxelsfull),                          // output
+        .empty          (rxelsempty)                          // output
+    );
+/*
+    // What is left:
     assign  rxcomwakedet    = rxdata_resync_out[49];
     assign  rxcominitdet    = rxdata_resync_out[48];
     assign  rxresetdone     = rxdata_resync_out[47];
     assign  txresetdone     = rxdata_resync_out[46];
-    assign  rxelsfull       = rxdata_resync_out[45];
-    assign  rxelsempty      = rxdata_resync_out[44];
-    assign  rxdisperr[3:0]      = {rxdata_resync_out[43:42], rxdata_resync_out[21:20]};
-    assign  rxnotintable[3:0]   = {rxdata_resync_out[41:40], rxdata_resync_out[19:18]};
-    assign  rxcharisk[3:0]      = {rxdata_resync_out[39:38], rxdata_resync_out[17:16]};
-    assign  rxdata[31:0]        = {rxdata_resync_out[37:22], rxdata_resync_out[15:0] };
-end
-else
-if (DATA_BYTE_WIDTH == 2) begin
-    // no resync is needed => straightforward assignments
-    assign  rxbyteisaligned = isaligned;
-    assign  rxcomwakedet    = rxcomwakedet_gtx_r;
-    assign  rxcominitdet    = rxcominitdet_gtx_r;
-    assign  rxresetdone     = rxresetdone_gtx_r;
-    assign  txresetdone     = txresetdone_gtx_r;
-    assign  rxelsfull           = elastic_full;
-    assign  rxelsempty          = elastic_empty;
-    assign  rxdisperr[1:0]      = rxdisperr_els_out;
-    assign  rxnotintable[1:0]   = rxnotintable_els_out;
-    assign  rxcharisk[1:0]      = rxcharisk_els_out;
-    assign  rxdata[15:0]        = rxdata_els_out;
-end
-else begin
-    // unconsidered case
-    always @ (posedge txusrclk)
-    begin
-        $display("Wrong width set in %m, value is %d", DATA_BYTE_WIDTH);
-    end
-end
-endgenerate
 
-// latching gtx outputs, synchronous to RXUSRCLK2 = rxusrclk
-always @ (posedge rxusrclk)
-begin
-    rxcomwakedet_gtx_r  <= rxcomwakedet_gtx;
-    rxcominitdet_gtx_r  <= rxcominitdet_gtx;
-    rxresetdone_gtx_r   <= rxresetdone_gtx;
-    txresetdone_gtx_r   <= txresetdone_gtx;
-end
+*/
+    reg rxresetdone_r;
+    reg txresetdone_r;
+    always @ (posedge rxusrclk2) rxresetdone_r <= rxresetdone_gtx;
+    always @ (posedge txusrclk2) txresetdone_r <= txresetdone_gtx;
+    assign  rxresetdone     = rxresetdone_r;
+    assign  txresetdone     = txresetdone_r;
+    
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) pulse_cross_clock_rxcominitdet_i (
+        .rst       (~wrap_rxreset_),   // input
+        .src_clk   (xclk),             // input
+        .dst_clk   (rxusrclk2),        // input
+        .in_pulse  (rxcominitdet_gtx), // input
+        .out_pulse (rxcominitdet),     // output
+        .busy      ()                  // output
+    );
+    
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) pulse_cross_clock_rxcomwakedet_i (
+        .rst       (~wrap_rxreset_),   // input
+        .src_clk   (xclk),             // input
+        .dst_clk   (rxusrclk2),        // input
+        .in_pulse  (rxcomwakedet_gtx), // input
+        .out_pulse (rxcomwakedet),     // output
+        .busy      ()                  // output
+    );
+    
 
+//rxusrclk2  
+
+`endif //OLD_ELASTIC
 wire    txoutclk_gtx;
 wire    xclk_gtx;
 //wire    xclk_mr;
