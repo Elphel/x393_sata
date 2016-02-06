@@ -51,6 +51,10 @@ module oob_ctrl #(
     input  wire                           recal_tx_done,  // input wire 
     output wire                           rxreset_req,    // output wire       // rx reset (after rxelecidle -> 0)
     input  wire                           rxreset_ack,    // input wire 
+    // Andrey: adding new signal and state - after RX is operational try re-align clock
+    output  wire                          clk_phase_align_req,                 // Request GTX to align SIPO parallel clock and user- provided RXUSRCLK
+    input   wire                          clk_phase_align_ack,                 // GTX aligned clock phase (DEBUG - not always clear when it works or not)   
+    
     input  wire [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,      // output[31:0] wire // input data stream (if any data during OOB setting => ignored)
     input  wire   [DATA_BYTE_WIDTH - 1:0] txcharisk_in,   // output[3:0] wire  // input data stream (if any data during OOB setting => ignored)
     output wire [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,     // output[31:0] wire // output data stream to gtx
@@ -129,19 +133,21 @@ oob #(
 )
 oob
 (
-    .debug                (debug), // output [11:0] reg
-    .clk                  (clk), // input wire  // sata clk = usrclk2
-    .rst                  (rst), // input wire  // reset oob
-    .rxcominitdet_in      (rxcominitdet_in), // input wire // oob responses
-    .rxcomwakedet_in      (rxcomwakedet_in), // input wire // oob responses
-    .rxelecidle_in        (rxelecidle_in), // input wire // oob responses
-    .txcominit            (txcominit), // output wire   // oob issues
-    .txcomwake            (txcomwake), // output wire   // oob issues
-    .txelecidle           (txelecidle_inner), // output wire // oob issues
-    .txpcsreset_req       (txpcsreset_req), // output wire
-    .recal_tx_done        (recal_tx_done), // input wire 
-    .rxreset_req          (rxreset_req), // output wire
+    .debug                (debug),           // output [11:0] reg
+    .clk                  (clk),             // input wire  // sata clk = usrclk2
+    .rst                  (rst),             // input wire  // reset oob
+    .rxcominitdet_in      (rxcominitdet_in), // input wire  // oob responses
+    .rxcomwakedet_in      (rxcomwakedet_in), // input wire  // oob responses
+    .rxelecidle_in        (rxelecidle_in),   // input wire  // oob responses
+    .txcominit            (txcominit),       // output wire // oob issues
+    .txcomwake            (txcomwake),       // output wire // oob issues
+    .txelecidle           (txelecidle_inner),// output wire // oob issues
+    .txpcsreset_req       (txpcsreset_req),  // output wire
+    .recal_tx_done        (recal_tx_done),   // input wire 
+    .rxreset_req          (rxreset_req),     // output wire
     .rxreset_ack          (rxreset_ack),     // input wire 
+    .clk_phase_align_req  (clk_phase_align_req), // output wire 
+    .clk_phase_align_ack  (clk_phase_align_ack), // input wire 
     .txdata_in            (txdata_in),       // input [31:0] wire // input data stream (if any data during OOB setting => ignored)
     .txcharisk_in         (txcharisk_in),    // input [3:0] wire // input data stream (if any data during OOB setting => ignored)
     .txdata_out           (txdata_out),      // output [31:0] wire // output data stream to gtx

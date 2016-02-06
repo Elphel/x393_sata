@@ -64,6 +64,10 @@ module gtx_wrap #(
     output  wire    rxcominitdet,
     output  wire    rxelecidle,
     output  wire    rxresetdone,
+    
+    input   wire    clk_phase_align_req, 
+    output  wire    clk_phase_align_ack, 
+    
     input   wire    txreset,
     input   wire    txusrclk,
     input   wire    txusrclk2,
@@ -89,7 +93,9 @@ module gtx_wrap #(
     output  wire    dbg_rxphaligndone,
     output  wire    dbg_rx_clocks_aligned,
     output  wire    dbg_rxcdrlock,
-    output  wire    dbg_rxdlysresetdone
+    output  wire    dbg_rxdlysresetdone,
+    
+    output wire [1:0] txbufstatus
 );
 
 wire    rxresetdone_gtx; 
@@ -129,17 +135,6 @@ assign  txchardispmode_gtx  = {6'h0, txdata_enc_out[19], txdata_enc_out[9]};
 assign  txchardispval_gtx   = {6'h0, txdata_enc_out[18], txdata_enc_out[8]};
 
 // Interface part
-/*
-    input   wire    cpllreset,  - async
-    input   wire    wrap_rxreset_,  - async
-    input   wire    wrap_txreset_,  - async
-    input   wire    rxreset,    - async
-    input   wire    txreset,    - async
-    input   wire    txelecidle, - txusrclk2 - need to resync to gtx iface clk - txusrclk
-    input   wire    txpcsreset, - async
-    input   wire    txcominit,  - txusrclk2 - need to resync to gtx iface clk - txusrclk
-    input   wire    txcomwake,  - txusrclk2 - need to resync to gtx iface clk - txusrclk
-*/
 // @ gtx iface clk
 wire    txcominit_gtx; 
 wire    txcomwake_gtx;
@@ -178,15 +173,7 @@ if (DATA_BYTE_WIDTH == 4) begin
     always @ (posedge txreset or posedge txusrclk) begin
         if      (txreset)             txdata_resync_strobe <= 0;
         else if (txdata_resync_valid) txdata_resync_strobe <= ~txdata_resync_strobe;
-/*        
-        if (txreset) begin
-            txdata_enc_in_r <=    0;
-            txcharisk_enc_in_r <= 0;
-        end else if (txdata_resync_valid) begin
-            txdata_enc_in_r <=    txdata_resync_strobe? txdata_resync_out[31:16]: txdata_resync_out[15:0];
-            txcharisk_enc_in_r <= txdata_resync_strobe? txdata_resync_out[35:34]: txdata_resync_out[33:32];
-        end
-*/        
+
         if (txreset) begin
             txcomwake_gtx_f  <= 0;
             txcominit_gtx_f  <= 0;
@@ -246,37 +233,93 @@ gtx_8x10enc gtx_8x10enc(
 );
 
 // Adjust RXOUTCLK so RXUSRCLK (==xclk) matches SIPO output data
-
-wire rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle?
-reg rxdlysreset = 0;
-wire rxphaligndone;
-wire rxdlysresetdone; 
-reg rx_clocks_aligned = 0;
-reg [2:0] rxdlysreset_cntr = 7;
-reg  rxdlysresetdone_r;
-
-assign dbg_rxphaligndone =     rxphaligndone;     // never gets up?
-assign dbg_rx_clocks_aligned = rx_clocks_aligned;
-assign dbg_rxcdrlock =         rxcdrlock;         //goes in/out (because of the SS ?
-assign dbg_rxdlysresetdone =   rxdlysresetdone_r;
-always @ (posedge xclk) begin
-//    if (rxelecidle || !rxcdrlock) rxdlysreset_cntr <= 5;
-    if (rxelecidle)               rxdlysreset_cntr <= 5;
-    else if (|rxdlysreset_cntr)   rxdlysreset_cntr <=  rxdlysreset_cntr - 1;
+`ifdef CLK_ADJUST_VARIANT_1
+    wire rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle?
+    reg rxdlysreset = 0;
+    wire rxphaligndone;
+    wire rxdlysresetdone; 
+    reg rx_clocks_aligned = 0;
+    reg [2:0] rxdlysreset_cntr = 7;
+    reg  rxdlysresetdone_r;
     
-//    if (rxelecidle || !rxcdrlock) rxdlysreset <= 0;
-    if (rxelecidle)               rxdlysreset <= 0;
-    else                          rxdlysreset <= |rxdlysreset_cntr;
+    assign dbg_rxphaligndone =     rxphaligndone;     // never gets up?
+    assign dbg_rx_clocks_aligned = rx_clocks_aligned;
+    assign dbg_rxcdrlock =         rxcdrlock;         //goes in/out (because of the SS ?
+    assign dbg_rxdlysresetdone =   rxdlysresetdone_r;
+    always @ (posedge xclk) begin
+    //    if (rxelecidle || !rxcdrlock) rxdlysreset_cntr <= 5;
+        if (rxelecidle)               rxdlysreset_cntr <= 5;
+        else if (|rxdlysreset_cntr)   rxdlysreset_cntr <=  rxdlysreset_cntr - 1;
+        
+    //    if (rxelecidle || !rxcdrlock) rxdlysreset <= 0;
+        if (rxelecidle)               rxdlysreset <= 0;
+        else                          rxdlysreset <= |rxdlysreset_cntr;
+        
+    //    if (rxelecidle || !rxcdrlock || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
+    //    if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
+        if (rxelecidle)                  rx_clocks_aligned <= 0;
+    //    else if (rxphaligndone)                             rx_clocks_aligned <= 1;
+        else if (rxphaligndone)          rx_clocks_aligned <= 1;
     
-//    if (rxelecidle || !rxcdrlock || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
-//    if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rx_clocks_aligned <= 0;
-    if (rxelecidle)                  rx_clocks_aligned <= 0;
-//    else if (rxphaligndone)                             rx_clocks_aligned <= 1;
-    else if (rxphaligndone)          rx_clocks_aligned <= 1;
+        if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rxdlysresetdone_r <= 0;
+        else if (rxdlysresetdone)                           rxdlysresetdone_r <= 1;
+    end
+`else
+    // time to first rxphaligndone ~450ns, time to second (that should stay - 4.9 usec, still much less than allowed ALIGNp response time)
 
-    if (rxelecidle || rxdlysreset || |rxdlysreset_cntr) rxdlysresetdone_r <= 0;
-    else if (rxdlysresetdone)                             rxdlysresetdone_r <= 1;
-end
+    wire   rxdlysreset = clk_phase_align_req;
+    reg    rxphaligndone1_r = 0;  // first time rxphaligndone gets active
+    reg    rxphaligndone2_r = 0;  // rxphaligndone deasserted
+    reg    rx_clocks_aligned = 0; // second time rxphaligndone gets active (and is supposed to stay)
+    reg    rxdlysresetdone_r;
+    wire   rxphaligndone;
+    wire   rxdlysresetdone; 
+    wire   rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle? (seems alternating 0/1 forever- SS?)
+    assign clk_phase_align_ack = rx_clocks_aligned;
+
+    assign dbg_rxphaligndone =     rxphaligndone;     // never gets up?
+    assign dbg_rx_clocks_aligned = rx_clocks_aligned;
+    assign dbg_rxcdrlock =         rxcdrlock;         //goes in/out (because of the SS ?
+    assign dbg_rxdlysresetdone =   rxdlysresetdone_r;
+`ifdef ALIGN_CLOCKS    
+    always @ (posedge xclk) begin
+        if (rxelecidle)                              rxphaligndone1_r <= 0;
+        else if (rxphaligndone)                      rxphaligndone1_r <= 1;
+
+        if (rxelecidle)                              rxphaligndone2_r <= 0;
+        else if (rxphaligndone1_r && !rxphaligndone) rxphaligndone2_r <= 1;
+
+        if (rxelecidle)                              rx_clocks_aligned <= 0;
+        else if (rxphaligndone2_r && rxphaligndone)  rx_clocks_aligned <= 1;
+
+        if (rxelecidle || rxdlysreset)               rxdlysresetdone_r <= 0;
+        else if (rxdlysresetdone)                    rxdlysresetdone_r <= 1;
+    end
+`else  // ALIGN_CLOCKS - just bypassing  
+    always @ (posedge xclk) begin
+        if (rxelecidle)                              rxphaligndone1_r <= 0;
+        else if (clk_phase_align_req)                rxphaligndone1_r <= 1;
+
+        if (rxelecidle)                                    rxphaligndone2_r <= 0;
+        else if (rxphaligndone1_r && !clk_phase_align_req) rxphaligndone2_r <= 1;
+
+        if (rxelecidle)                              rx_clocks_aligned <= 0;
+        else if (rxphaligndone2_r)                   rx_clocks_aligned <= 1;
+
+        if (rxelecidle || rxdlysreset)               rxdlysresetdone_r <= 0;
+        else if (rxphaligndone2_r)                   rxdlysresetdone_r <= 1;
+    end
+`endif    
+    
+`endif
+
+
+
+
+
+
+
+
 
 /*
  * RX PCS part: comma detect + align module, 10/8 decoder, elastic buffer, interface resynchronisation
@@ -371,7 +414,8 @@ wire    rxcominitdet_gtx;
         .rclk           (rxusrclk),
     
     ///    .isaligned_in   (state_aligned),
-        .isaligned_in   (state_aligned && rxdlysresetdone_r), // rx_clocks_aligned), //Allow to align early, but do not tell it is aligned until xclk is aligned to SIPO par. clock
+//        .isaligned_in   (state_aligned && rxdlysresetdone_r), // input
+        .isaligned_in   (state_aligned),                      // input Moved clock phase reset/align to OOB module to handle
         .charisk_in     (rxcharisk_dec_out),
         .notintable_in  (rxnotintable_dec_out),
         .disperror_in   (rxdisperr_dec_out),
@@ -505,7 +549,8 @@ wire    rxcominitdet_gtx;
     ) elastic1632_i (
         .wclk           (xclk),                               // input 150MHz, recovered
         .rclk           (rxusrclk2),                          // input 75 MHz, system
-        .isaligned_in   (state_aligned && rxdlysresetdone_r), // input
+//        .isaligned_in   (state_aligned && rxdlysresetdone_r), // input
+        .isaligned_in   (state_aligned),                      // input Moved clock phase reset/align to OOB module to handle
         .charisk_in     (rxcharisk_dec_out),                  // input[1:0] 
         .notintable_in  (rxnotintable_dec_out),               // input[1:0] 
         .disperror_in   (rxdisperr_dec_out),                  // input[1:0] 
@@ -518,14 +563,7 @@ wire    rxcominitdet_gtx;
         .full           (rxelsfull),                          // output
         .empty          (rxelsempty)                          // output
     );
-/*
-    // What is left:
-    assign  rxcomwakedet    = rxdata_resync_out[49];
-    assign  rxcominitdet    = rxdata_resync_out[48];
-    assign  rxresetdone     = rxdata_resync_out[47];
-    assign  txresetdone     = rxdata_resync_out[46];
 
-*/
     reg rxresetdone_r;
     reg txresetdone_r;
     always @ (posedge rxusrclk2) rxresetdone_r <= rxresetdone_gtx;
@@ -674,7 +712,11 @@ gtxe2_channel_wrapper #(
     .RXPH_CFG                               (24'h000000),
     .RXPHDLY_CFG                            (24'h084020),
     .RXPH_MONITOR_SEL                       (5'b00000),
+`ifdef ALIGN_CLOCKS    
     .RX_XCLK_SEL                            ("RXUSR"), // ("RXREC"), // Andrey: Now they are the same, just using p.247 "Using RX Buffer Bypass..."
+`else    
+    .RX_XCLK_SEL                            ("RXREC"),    // Andrey: Does not align clocks if in this mode
+`endif    
     .RX_DDI_SEL                             (6'b000000),
     .RX_DEFER_RESET_BUF_EN                  ("TRUE"),
 /// .RXCDR_CFG                              (72'h03000023ff10200020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
@@ -850,10 +892,13 @@ gtxe2_channel_wrapper(
     .GTXRXN                         (rxn),
     .RXBUFRESET                     (1'b0),
     .RXBUFSTATUS                    (),
-//    .RXDDIEN                        (1'b0),
+`ifdef ALIGN_CLOCKS    
     .RXDDIEN                        (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
-//    .RXDLYBYPASS                    (1'b1),
     .RXDLYBYPASS                    (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+`else
+    .RXDDIEN                        (1'b0),
+    .RXDLYBYPASS                    (1'b1),
+`endif
     .RXDLYEN                        (1'b0),
     .RXDLYOVRDEN                    (1'b0),
     .RXDLYSRESET                    (rxdlysreset),
@@ -975,7 +1020,7 @@ gtxe2_channel_wrapper(
     .TXPHINIT                       (1'b0),
     .TXPHINITDONE                   (),
     .TXPHOVRDEN                     (1'b0),
-    .TXBUFSTATUS                    (),
+    .TXBUFSTATUS                    (txbufstatus[1:0]), // Andrey
     .TXBUFDIFFCTRL                  (3'b100),
     .TXDEEMPH                       (1'b0),
     .TXDIFFCTRL                     (4'b1000),

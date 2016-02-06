@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Thu Feb  4 19:47:54 2016
+[*] Sat Feb  6 02:12:42 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160204124302694.fst"
-[dumpfile_mtime] "Thu Feb  4 19:44:22 2016"
-[dumpfile_size] 9978698
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160205183420632.fst"
+[dumpfile_mtime] "Sat Feb  6 01:35:47 2016"
+[dumpfile_size] 10099447
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 0
+[timestart] 22906600
 [size] 1823 1180
-[pos] 1959 27
-*-23.683727 4778998 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[pos] 1917 0
+*-15.467498 23097166 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.linkMonitorFIS.
@@ -57,12 +57,15 @@
 [treeopen] tb_ahci.simul_axi_hp_wr_i.waddr_i.
 [treeopen] tb_ahci.simul_axi_hp_wr_i.wdata_i.
 [treeopen] tb_ahci.simul_axi_read_i.
-[sst_width] 362
-[signals_width] 374
+[sst_width] 290
+[signals_width] 278
 [sst_expanded] 1
-[sst_vpaned_height] 568
+[sst_vpaned_height] 573
 @820
 tb_ahci.TESTBENCH_TITLE[639:0]
+@22
+tb_ahci.dut.sata_top.ahci_top_i.datascope_cntr[8:0]
+@820
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.HOST_OOB_TITLE[639:0]
 tb_ahci.DEVICE_TITLE[639:0]
 tb_ahci.dev.DEV_TITLE[639:0]
@@ -111,7 +114,14 @@ tb_ahci.simul_axi_master_rdaddr_i.arvalid_out
 -axi_read
 @c00200
 -axi_ahci_regs
-@800022
+@800028
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.datascope_sel[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.datascope_sel[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.datascope_sel[1:0]
+@1001200
+-group_end
+@c00022
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
@@ -146,7 +156,7 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
 (29)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
 (30)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
 (31)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.debug_in[31:0]
-@1001200
+@1401200
 -group_end
 @28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_rst
@@ -160,10 +170,23 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_wen_r
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_addr[9:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.aclk
-@22
-tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[9:0]
-@28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.dev_ready
+@800022
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(3)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(4)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(5)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(6)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(7)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(8)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(9)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+(10)tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_raddr[10:0]
+@1001200
+-group_end
 @800028
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_ren[1:0]
 @28
@@ -173,6 +196,7 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_ren[1:0]
 -group_end
 @22
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_rdata_r[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_rdata[31:0]
 @200
 -
 @28
@@ -187,7 +211,6 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_wen
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_wen_r
 @22
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_waddr_r[9:0]
-tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_waddr[9:0]
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_wstb[3:0]
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_addr[9:0]
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.bram_wdata[31:0]
@@ -366,9 +389,6 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.araddr[31:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.arvalid
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.arready
-@22
-tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_raddr[9:0]
-@28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.dev_ready
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.start_burst
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.axibram_read_i.bram_ren
@@ -624,7 +644,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.serr[31:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.pxci0_clear
 tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.pxci_changed
-@800022
+@c00022
 tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
@@ -633,9 +653,9 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
 (3)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
 (4)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
 (5)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.regs_changed[5:0]
-@1001200
+@1401200
 -group_end
-@800022
+@c00022
 tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
@@ -644,7 +664,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
 (3)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
 (4)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
 (5)tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.update_first[5:0]
-@1001200
+@1401200
 -group_end
 @200
 -
@@ -890,6 +910,11 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.ssts_spd_gen3
 @c00200
 -axi_ahci_regs
 @22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_din[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_we
+@22
+tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_addr[9:0]
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_reset_cntr[8:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.hba_arst
@@ -902,6 +927,19 @@ tb_ahci.dut.sata_top.ahci_top_i.axi_ahci_regs_i.set_port_rst
 -axi_ahci_regs
 @c00200
 -ahci_fsm
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pcmd_st_cleared
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.asynq_rq
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
+@c00028
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
+@1401200
+-group_end
 @c00022
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
 @28
@@ -969,7 +1007,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_end_w
 -
 @1401200
 -other
-@c00200
+@800200
 -actions
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pfsm_started
@@ -984,7 +1022,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.sirq_PC
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.get_rfis
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_sig
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_err_sts
-@1401200
+@1000200
 -actions
 @c00200
 -conditions
@@ -1128,6 +1166,20 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
 @c00200
 -ahci_fis_receive
 @22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_type[1:0]
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_addr[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_we
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_data[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.pUpdateSig_r
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.wreg_we_r
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_addr_r[9:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.xfer_cntr[31:2]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.xfer_cntr_zero
@@ -2544,7 +2596,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.debug_out[31:0]
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rst
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_reset
-@800022
+@c00022
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rcvd_dword[15:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rcvd_dword[15:0]
@@ -2586,8 +2638,44 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.select_prim[15:0]
 (15)tb_ahci.dut.sata_top.ahci_sata_layers_i.link.select_prim[15:0]
 @1401200
 -group_end
-@1001200
 -group_end
+@200
+-
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.phy_ready
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_send_data
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rst
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.clr_send_data
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.alignes_pair
+@c00200
+-states
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_align
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_idle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_nocomm
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_nocommerr
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_badend
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_data
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_eof
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_goodcrc
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_goodend
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_rdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_rhold
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_shold
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_wait
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_reset
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_crc
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_data
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_eof
+[color] 2
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_rdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_rhold
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_shold
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_sof
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_sync_esc
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_wait
+@1401200
+-states
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.link_reset
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_align
@@ -2610,7 +2698,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.alignes_timer[8:0]
 (8)tb_ahci.dut.sata_top.ahci_sata_layers_i.link.alignes_timer[8:0]
 @1401200
 -group_end
-@800200
+@c00200
 -oob
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.link_state
@@ -2632,7 +2720,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.phy_isk_in_r[3:0]
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.phy_data_in_r[31:0]
 @200
 -
-@800200
+@c00200
 -states
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.rst
@@ -2646,7 +2734,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_eidle
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_linkup
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_rxrst
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_synp
-@1000200
+@1401200
 -states
 -oob
 @c00200
@@ -2846,11 +2934,17 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_busy
 -link
 @c00200
 -phy
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txdata[31:0]
 @28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txelecidle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txresetdone
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_ready
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txuserrdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txpcsreset_req
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txpcsreset
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txoutclk
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txreset
-@22
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.txpcsreset_cnt[3:0]
 @c00022
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.debug_sata[31:0]
 @28
@@ -3009,7 +3103,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.comma_detec
 -
 @1401200
 -comma
-@c00201
+@c00200
 -elastic_slow
 @28
 tb_ahci.elastic1632_slow_i.wclk
@@ -3113,7 +3207,7 @@ tb_ahci.elastic1632_slow_i.skip_rclk
 tb_ahci.elastic1632_slow_i.waddr[4:0]
 tb_ahci.elastic1632_slow_i.raddr[4:0]
 tb_ahci.elastic1632_slow_i.dbg_diff[4:0]
-@1401201
+@1401200
 -elastic_slow
 @c00200
 -elastic_fast
@@ -3180,15 +3274,102 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.gtx_ready
 -
 @800200
 -oob
+-states
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_idle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_cominit
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_comwake
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_recal_tx
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_eidle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_rxrst
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_align
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_clk_align
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_align2
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_synp
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.state_wait_linkup
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.dbg_clk_align_wait
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.clk_phase_align_req
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.clk_phase_align_ack
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.rxelecidle
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.dbg_rx_clocks_aligned
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.dbg_rxphaligndone
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.phy_ready
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.dbg_clk_align_cntr[15:0]
+@1000200
+-states
+@c00022
+tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(1)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(2)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(3)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(4)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(5)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(6)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(7)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(8)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(9)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(10)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(11)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(12)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(13)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(14)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(15)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(16)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(17)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(18)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(19)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(20)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(21)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(22)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(23)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(24)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(25)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(26)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(27)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(28)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(29)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(30)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+(31)tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_sata[31:0]
+@1401200
+-group_end
 @200
 -
 @1000200
 -oob
 @1401200
 -oob_ctrl
-@800200
+@c00200
 -gtx
+@800200
+-ttxdata_resynchro
+@200
+-
 @28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.arst
+@22
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.data_in[38:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.data_out[38:0]
+@8028
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.waddr[2:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.raddr[2:0]
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.rclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.re
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.rrst[1:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.srst
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.valid
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.wclk
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resynchro.we
+@1000200
+-ttxdata_resynchro
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resync_strobe
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.txdata_resync_valid
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txuserrdy
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txpcsreset
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rx_clocks_aligned
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.state_triggered
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.state_aligned
@@ -3216,15 +3397,6 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_g
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxelecidle
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.RXCDRLOCK
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset
-@c00022
-tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset_cntr[2:0]
-@28
-(0)tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset_cntr[2:0]
-(1)tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset_cntr[2:0]
-(2)tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxdlysreset_cntr[2:0]
-@1401200
--group_end
-@28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.comma
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.wrap_rxreset_
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.rxbyteisaligned
@@ -3260,7 +3432,6 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.txdata_enc_out[19:0]
 -
 @1401200
 -gtx8x10enc
-@1000200
 -gtx
 @c00200
 -device
@@ -3315,5 +3486,80 @@ tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.tx.TXN
 tb_ahci.dev.linkSendPrim.type[111:0]
 @1401200
 -device
+@800200
+-datascope
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.fis_data_valid
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_stb
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_w
+@c00023
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_r[2:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_r[2:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_r[2:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_transmit_i.ct_re_r[2:0]
+@1401203
+-group_end
+@28
+tb_ahci.dut.sata_top.ahci_top_i.fsnd_cfis_xmit
+@200
+-
+@22
+tb_ahci.dut.sata_top.ahci_top_i.h2d_data[31:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.h2d_ready
+tb_ahci.dut.sata_top.ahci_top_i.h2d_type[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.h2d_valid
+@22
+tb_ahci.dut.sata_top.ahci_top_i.data_out_dwords[11:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.datascope_clk
+@c00022
+tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+@28
+(0)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(1)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(2)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(3)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(4)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(5)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(6)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(7)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(8)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(9)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(10)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(11)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(12)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(13)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(14)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(15)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(16)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(17)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(18)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(19)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(20)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(21)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(22)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(23)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(24)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(25)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(26)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(27)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(28)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(29)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(30)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+(31)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
+@1401200
+-group_end
+@22
+tb_ahci.dut.sata_top.ahci_top_i.datascope_run[1:0]
+tb_ahci.dut.sata_top.ahci_top_i.datascope_waddr[9:0]
+tb_ahci.dut.sata_top.ahci_top_i.datascope_waddr_r[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.datascope_we
+@22
+tb_ahci.dut.sata_top.ahci_top_i.datascope_cntr[8:0]
+@1000200
+-datascope
 [pattern_trace] 1
 [pattern_trace] 0

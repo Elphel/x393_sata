@@ -100,6 +100,8 @@ module  ahci_fis_transmit #(
     output                        todev_valid,    // output register full
     input                         todev_ready     // send FIFO has room for data (>= 8? dwords)
     
+    ,output                [9:0] debug_01
+    
     // Add a possiblity to flush any data to FIFO if error was detected after data went there?
 );
     localparam CLB_OFFS32 = 'h200; //  # In the second half of the register space (0x800..0xbff - 1KB)
@@ -152,6 +154,7 @@ module  ahci_fis_transmit #(
     
     wire                     ct_re_w; // next cycle will be ct_re;
     reg  [READ_CT_LATENCY:0] ct_re_r;
+    
     wire                     ct_stb = ct_re_r[READ_CT_LATENCY];
     
     reg                      fis_dw_first;
@@ -204,7 +207,9 @@ module  ahci_fis_transmit #(
     // What else to wait for when
     assign fis_data_valid = ct_stb || (!dma_ct_busy && dx_fis_pend_r); // no wait write to output register 'todev_data', ct_re_r[0] is throttled according to FIFO room availability
     
-    assign ct_re_w = todev_ready && ((cfis_acmd_left_r[4:1] != 0) || (cfis_acmd_left_r[0] && !ct_re_r[0]));  // Later add more sources
+///    assign ct_re_w = todev_ready &&  ((cfis_acmd_left_r[4:1] != 0) || (cfis_acmd_left_r[0] && !ct_re_r[0]));  // Later add more sources
+    assign ct_re_w = todev_ready &&  acfis_xmit_busy_r && ((cfis_acmd_left_r[4:1] != 0) || (cfis_acmd_left_r[0] && !ct_re_r[0]));  // Later add more sources
+    //
     assign fis_dw_last = (cfis_acmd_left_out_r == 1);
     assign fis_data_type = {fis_dw_last, (write_or_w && dx_fis_pend_r) | (fis_dw_first && ct_stb)};
     
@@ -219,6 +224,11 @@ module  ahci_fis_transmit #(
     
 // When watching for FIS end, do not fill/use output register in the same cycle    
 
+    reg [3:0] dbg_was_ct_re_r;
+    reg [4:0] dbg_was_cfis_acmd_left_r;
+    
+    
+    
     always @ (posedge mclk) begin
         // Mutliplex between DMA and FIS output to the output routed to transmit FIFO
         // Count bypassing DMA dwords to generate FIS_last condition?
@@ -308,7 +318,8 @@ module  ahci_fis_transmit #(
        if      (acfis_xmit_start_r) cfis_acmd_left_out_r <= cfis_acmd_left_r;
        else if (ct_stb)             cfis_acmd_left_out_r <= cfis_acmd_left_out_r - 1;
        
-       ct_re_r <= {ct_re_r[READ_CT_LATENCY-1:0],ct_re_w};
+       if (hba_rst || acfis_xmit_start_w) ct_re_r <= 0;
+       else                               ct_re_r <= {ct_re_r[READ_CT_LATENCY-1:0], ct_re_w};
        
        if      (cfis_xmit)   ct_addr <= 0;
        else if (atapi_xmit)  ct_addr <= 'h10; // start of ATAPI area
@@ -369,8 +380,15 @@ module  ahci_fis_transmit #(
 
        dma_cmd_abort <= done_w && (|dx_err_r);
 
+       if (cfis_xmit) dbg_was_ct_re_r <= {ct_re_r, ct_re_w};
+       if (cfis_xmit) dbg_was_cfis_acmd_left_r <= cfis_acmd_left_r;
 
     end 
+    
+    assign debug_01 = {dx_fis_pend_r,  ct_re_r, ct_re_w, cfis_acmd_left_r}; // 1,2,5
+//    assign debug_01 = {acfis_xmit_start_w,  acfis_xmit_pend_r, dma_ct_busy, fetch_cmd_busy_r, ct_re_w, dbg_was_cfis_acmd_left_r}; // 1,2,5
+//    wire                     acfis_xmit_start_w = (cfis_xmit || atapi_xmit || acfis_xmit_pend_r) && !dma_ct_busy && !fetch_cmd_busy_r; // dma_ct_busy no gaps with fetch_cmd_busy
+    
 
 endmodule
 

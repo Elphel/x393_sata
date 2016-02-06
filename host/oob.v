@@ -43,10 +43,8 @@ module oob #(
 )
 (
     output  reg  [11:0] debug,
-    // sata clk = usrclk2
-    input   wire    clk,
-    // reset oob
-    input   wire    rst,
+    input   wire    clk,                                      // sata clk = usrclk2
+    input   wire    rst,                                      // reset oob
     // oob responses
     input   wire    rxcominitdet_in,
     input   wire    rxcomwakedet_in,
@@ -55,50 +53,40 @@ module oob #(
     output  wire    txcominit,
     output  wire    txcomwake,
     output  wire    txelecidle,
-    // partial tx reset
-    output  wire    txpcsreset_req,
+    output  wire    txpcsreset_req,                           // partial tx reset
     input   wire    recal_tx_done,
-    // rx reset (after rxelecidle -> 0)
-    output  wire    rxreset_req,
+    output  wire    rxreset_req,                              // rx reset (after rxelecidle -> 0)
     input   wire    rxreset_ack,
-
-    // input data stream (if any data during OOB setting => ignored)
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,
+    
+    // Andrey: adding new signal and state - after RX is operational try re-align clock
+    output  wire    clk_phase_align_req,                      // Request GTX to align SIPO parallel clock and user- provided RXUSRCLK
+    input   wire    clk_phase_align_ack,                      // GTX aligned clock phase (DEBUG - not always clear when it works or not)   
+    
+    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_in,      // input data stream (if any data during OOB setting => ignored)
     input   wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_in,
-    // output data stream to gtx
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,
+    
+    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] txdata_out,    // output data stream to gtx
     output  wire    [DATA_BYTE_WIDTH - 1:0]   txcharisk_out,
-    // input data from gtx
-    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_in,
+    
+    input   wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_in,     // input data from gtx
     input   wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_in,
-    // bypassed data from gtx
-    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_out,
+    
+    output  wire    [DATA_BYTE_WIDTH*8 - 1:0] rxdata_out,    // bypassed data from gtx
     output  wire    [DATA_BYTE_WIDTH - 1:0]   rxcharisk_out,
-
-    // oob sequence needs to be issued
-    input   wire    oob_start,
-    // connection established, all further data is valid
-    output  wire    oob_done,
-    // oob can't handle new start request
-    output  wire    oob_busy,
-
-    // doc p265, link is established after 3back-to-back non-ALIGNp
-    output  wire    link_up,
-    // link goes down - if rxelecidle
-    output  wire    link_down,
-
-    // the device itself sends cominit
-    output  wire    cominit_req,
-    // allow to respond to cominit
-    input   wire    cominit_allow,
+    
+    input   wire    oob_start,                               // oob sequence needs to be issued
+    output  wire    oob_done,                                // connection established, all further data is valid
+    output  wire    oob_busy,                                // oob can't handle new start request
+    output  wire    link_up,                                 // doc p265, link is established after 3back-to-back non-ALIGNp
+    output  wire    link_down,                               // link goes down - if rxelecidle
+    output  wire    cominit_req,                             // the device itself sends cominit
+    input   wire    cominit_allow,                           // allow to respond to cominit
 
     // status information to handle by a control block if any exists
-    // incompatible host-device speed grades (host cannot lock to alignp)
-    output  wire    oob_incompatible,
-    // timeout in an unexpected place
-    output  wire    oob_error,
-    // noone responds to our cominits
-    output  wire    oob_silence
+    
+    output  wire    oob_incompatible,                        // incompatible host-device speed grades (host cannot lock to alignp)
+    output  wire    oob_error,                               // timeout in an unexpected place
+    output  wire    oob_silence                              // noone responds to our cominits
     
     ,output debug_detected_alignp
 
@@ -136,6 +124,12 @@ assign debug_detected_alignp = detected_alignp;
 localparam  [19:0]  CLK_TO_TIMER_CONTRIB = CLK_SPEED_GRADE == 1 ? 20'h4 :
                                            CLK_SPEED_GRADE == 2 ? 20'h2 :
                                            CLK_SPEED_GRADE == 4 ? 20'h1 : 20'h1;
+                                           
+localparam  RXDLYSRESET_CYCLES = 5; // minimum - 50ns
+reg  [RXDLYSRESET_CYCLES-1:0] rxdlysreset_r;
+
+assign clk_phase_align_req = rxdlysreset_r[RXDLYSRESET_CYCLES-1];
+                                          
 `ifdef SIMULATION                                           
 localparam  [19:0]  TIMER_LIMIT = 19'd20000;
 `else
@@ -172,6 +166,7 @@ reg     [9:0]   rxcom_timer;
 localparam  COMINIT_DONE_TIME = 896; // 300Mhz cycles
 localparam  COMWAKE_DONE_TIME = 448; // 300Mhz cycles
 
+
 // wait until rxelecidle is not stable (more or less) deasserted
 // let's say, if rxelecidle = 0 longer, than 2 comwake burst duration (2 * 106.7 ns), elecidle is stable and we're receiving some data
 // 2 * 106.7ns = 64 clock cycles @ 300 MHz, 32 @ 150, 16 @ 75
@@ -188,6 +183,8 @@ reg     state_recal_tx;
 reg     state_wait_eidle;
 reg     state_wait_rxrst;
 reg     state_wait_align;
+reg     state_wait_clk_align;
+reg     state_wait_align2; // after clocks aligned
 reg     state_wait_synp;
 reg     state_wait_linkup;
 reg     state_error;
@@ -198,6 +195,8 @@ wire    set_recal_tx;
 wire    set_wait_eidle;
 wire    set_wait_rxrst;
 wire    set_wait_align;
+wire    set_wait_clk_align;
+wire    set_wait_align2;
 wire    set_wait_synp;
 wire    set_wait_linkup;
 wire    set_error;
@@ -207,43 +206,80 @@ wire    clr_recal_tx;
 wire    clr_wait_eidle;
 wire    clr_wait_rxrst;
 wire    clr_wait_align;
+wire    clr_wait_clk_align;
+wire    clr_wait_align2;
 wire    clr_wait_synp;
 wire    clr_wait_linkup;
 wire    clr_error;
 
-assign  state_idle = ~state_wait_cominit & ~state_wait_comwake & ~state_wait_align & ~state_wait_synp & ~state_wait_linkup & ~state_error & ~state_recal_tx & ~state_wait_rxrst & ~state_wait_eidle;
-always @ (posedge clk)
-begin
-    state_wait_cominit  <= (state_wait_cominit | set_wait_cominit) & ~clr_wait_cominit & ~rst;
-    state_wait_comwake  <= (state_wait_comwake | set_wait_comwake) & ~clr_wait_comwake & ~rst;
-    state_recal_tx      <= (state_recal_tx     | set_recal_tx    ) & ~clr_recal_tx     & ~rst;
-    state_wait_eidle    <= (state_wait_eidle   | set_wait_eidle  ) & ~clr_wait_eidle   & ~rst;
-    state_wait_rxrst    <= (state_wait_rxrst   | set_wait_rxrst  ) & ~clr_wait_rxrst   & ~rst;
-    state_wait_align    <= (state_wait_align   | set_wait_align  ) & ~clr_wait_align   & ~rst;
-    state_wait_synp     <= (state_wait_synp    | set_wait_synp   ) & ~clr_wait_synp    & ~rst;
-    state_wait_linkup   <= (state_wait_linkup  | set_wait_linkup ) & ~clr_wait_linkup  & ~rst;
-    state_error         <= (state_error        | set_error       ) & ~clr_error        & ~rst;
+always @ (posedge clk) begin
+    if      (rst || rxelecidle)  rxdlysreset_r <= 0;
+    else if (set_wait_clk_align) rxdlysreset_r <= ~0;
+    else                         rxdlysreset_r <= rxdlysreset_r << 1; 
 end
 
-assign  set_wait_cominit = state_idle & oob_start & ~cominit_req;
-assign  set_wait_comwake = state_idle & cominit_req_l & cominit_allow & rxcominit_done | state_wait_cominit & rxcominitdet_l & rxcominit_done;
-assign  set_recal_tx     = state_wait_comwake & rxcomwakedet_l & rxcomwake_done;
-assign  set_wait_eidle   = state_recal_tx & recal_tx_done;
-assign  set_wait_rxrst   = state_wait_eidle & eidle_timer_done;
-assign  set_wait_align   = state_wait_rxrst & rxreset_ack;
+
+assign  state_idle = ~state_wait_cominit &
+                     ~state_wait_comwake &
+                     ~state_wait_align &
+                     ~state_wait_clk_align &
+                     ~state_wait_align2 &
+                     ~state_wait_synp &
+                     ~state_wait_linkup &
+                     ~state_error &
+                     ~state_recal_tx &
+                     ~state_wait_rxrst &
+                     ~state_wait_eidle;
+always @ (posedge clk)
+begin
+    state_wait_cominit   <= (state_wait_cominit   | set_wait_cominit  ) & ~clr_wait_cominit   & ~rst;
+    state_wait_comwake   <= (state_wait_comwake   | set_wait_comwake  ) & ~clr_wait_comwake   & ~rst;
+    state_recal_tx       <= (state_recal_tx       | set_recal_tx      ) & ~clr_recal_tx       & ~rst;
+    state_wait_eidle     <= (state_wait_eidle     | set_wait_eidle    ) & ~clr_wait_eidle     & ~rst;
+    state_wait_rxrst     <= (state_wait_rxrst     | set_wait_rxrst    ) & ~clr_wait_rxrst     & ~rst;
+    state_wait_align     <= (state_wait_align     | set_wait_align    ) & ~clr_wait_align     & ~rst;
+    state_wait_clk_align <= (state_wait_clk_align | set_wait_clk_align) & ~clr_wait_clk_align & ~rst;
+    state_wait_align2    <= (state_wait_align2    | set_wait_align2   ) & ~clr_wait_align2    & ~rst;
+    state_wait_synp      <= (state_wait_synp      | set_wait_synp     ) & ~clr_wait_synp      & ~rst;
+    state_wait_linkup    <= (state_wait_linkup    | set_wait_linkup   ) & ~clr_wait_linkup    & ~rst;
+    state_error          <= (state_error          | set_error         ) & ~clr_error          & ~rst;
+end
+
+assign  set_wait_cominit   = state_idle & oob_start & ~cominit_req;
+assign  set_wait_comwake   = state_idle & cominit_req_l & cominit_allow & rxcominit_done | state_wait_cominit & rxcominitdet_l & rxcominit_done;
+assign  set_recal_tx       = state_wait_comwake & rxcomwakedet_l & rxcomwake_done;
+assign  set_wait_eidle     = state_recal_tx & recal_tx_done;
+assign  set_wait_rxrst     = state_wait_eidle & eidle_timer_done;
+assign  set_wait_align     = state_wait_rxrst & rxreset_ack;
+assign  set_wait_clk_align = state_wait_align & (detected_alignp_r);
+assign  set_wait_align2    = state_wait_clk_align & clk_phase_align_ack;
+
+
+
 //assign  set_wait_synp    = state_wait_align & detected_alignp;
-assign  set_wait_synp    = state_wait_align & (detected_alignp_r); // N previous were both ALIGNp
+assign  set_wait_synp    = state_wait_align2 & (detected_alignp_r); // N previous were both ALIGNp
 assign  set_wait_linkup  = state_wait_synp & detected_syncp;
-assign  set_error        = timer_fin & (state_wait_cominit | state_wait_comwake | state_recal_tx | state_wait_eidle | state_wait_rxrst | state_wait_align | state_wait_synp/* | state_wait_linkup*/);
-assign  clr_wait_cominit = set_wait_comwake | set_error;
-assign  clr_wait_comwake = set_recal_tx | set_error;
-assign  clr_recal_tx     = set_wait_eidle | set_error;
-assign  clr_wait_eidle   = set_wait_rxrst | set_error;
-assign  clr_wait_rxrst   = set_wait_align | set_error;
-assign  clr_wait_align   = set_wait_synp | set_error;
-assign  clr_wait_synp    = set_wait_linkup | set_error;
-assign  clr_wait_linkup  = state_wait_linkup; //TODO not so important, but still have to trace 3 back-to-back non alignp primitives
-assign  clr_error        = state_error;
+assign  set_error        = timer_fin & (state_wait_cominit |
+                                        state_wait_comwake |
+                                        state_recal_tx |
+                                        state_wait_eidle |
+                                        state_wait_rxrst |
+                                        state_wait_align |
+                                        state_wait_clk_align |
+                                        state_wait_align2 |
+                                        state_wait_synp/* | state_wait_linkup*/);
+
+assign  clr_wait_cominit   = set_wait_comwake   | set_error;
+assign  clr_wait_comwake   = set_recal_tx       | set_error;
+assign  clr_recal_tx       = set_wait_eidle     | set_error;
+assign  clr_wait_eidle     = set_wait_rxrst     | set_error;
+assign  clr_wait_rxrst     = set_wait_align     | set_error;
+assign  clr_wait_align     = set_wait_clk_align | set_error;
+assign  clr_wait_clk_align = set_wait_align2    | set_error;
+assign  clr_wait_align2    = set_wait_synp      | set_error;
+assign  clr_wait_synp      = set_wait_linkup    | set_error;
+assign  clr_wait_linkup    = state_wait_linkup; //TODO not so important, but still have to trace 3 back-to-back non alignp primitives
+assign  clr_error          = state_error;
 
 // waiting timeout timer
 assign  timer_fin = timer == TIMER_LIMIT;

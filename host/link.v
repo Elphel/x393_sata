@@ -391,29 +391,29 @@ assign  clr_rcvr_badend     = set_nocommerr | set_reset | set_sync_esc | got_esc
 // Others transitions are straightforward
 always @ (posedge clk)
 begin
-    state_sync_esc      <= (state_sync_esc     | set_sync_esc     & ~alignes_pair) & ~clr_sync_esc     & ~rst;
-    state_nocommerr     <= (state_nocommerr    | set_nocommerr    & ~alignes_pair) & ~clr_nocommerr    & ~rst;
-    state_nocomm        <= (state_nocomm       | set_nocomm       & ~alignes_pair) & ~clr_nocomm       & ~rst;
+    state_sync_esc      <= (state_sync_esc     | set_sync_esc     & ~alignes_pair) & ~(clr_sync_esc & ~alignes_pair)     & ~rst;
+    state_nocommerr     <= (state_nocommerr    | set_nocommerr    & ~alignes_pair) & ~(clr_nocommerr & ~alignes_pair)    & ~rst;
+    state_nocomm        <= (state_nocomm       | set_nocomm       & ~alignes_pair) & ~(clr_nocomm & ~alignes_pair)       & ~rst;
     // state_align is not used, it is handled by OOB
-    state_align         <= (state_align        | set_align        & ~alignes_pair) & ~clr_align        & ~rst;
-    state_reset         <= (state_reset        | set_reset                       ) & ~clr_reset        & ~rst;
-    state_send_rdy      <= (state_send_rdy     | set_send_rdy     & ~alignes_pair) & ~clr_send_rdy     & ~rst;
-    state_send_sof      <= (state_send_sof     | set_send_sof     & ~alignes_pair) & ~clr_send_sof     & ~rst;
-    state_send_data     <= (state_send_data    | set_send_data    & ~alignes_pair) & ~clr_send_data    & ~rst;
-    state_send_rhold    <= (state_send_rhold   | set_send_rhold   & ~alignes_pair) & ~clr_send_rhold   & ~rst;
-    state_send_shold    <= (state_send_shold   | set_send_shold   & ~alignes_pair) & ~clr_send_shold   & ~rst;
-    state_send_crc      <= (state_send_crc     | set_send_crc     & ~alignes_pair) & ~clr_send_crc     & ~rst;
-    state_send_eof      <= (state_send_eof     | set_send_eof     & ~alignes_pair) & ~clr_send_eof     & ~rst;
-    state_wait          <= (state_wait         | set_wait         & ~alignes_pair) & ~clr_wait         & ~rst;
-    state_rcvr_wait     <= (state_rcvr_wait    | set_rcvr_wait    & ~alignes_pair) & ~clr_rcvr_wait    & ~rst;
-    state_rcvr_rdy      <= (state_rcvr_rdy     | set_rcvr_rdy     & ~alignes_pair) & ~clr_rcvr_rdy     & ~rst;
-    state_rcvr_data     <= (state_rcvr_data    | set_rcvr_data    & ~alignes_pair) & ~clr_rcvr_data    & ~rst;
-    state_rcvr_rhold    <= (state_rcvr_rhold   | set_rcvr_rhold   & ~alignes_pair) & ~clr_rcvr_rhold   & ~rst;
-    state_rcvr_shold    <= (state_rcvr_shold   | set_rcvr_shold   & ~alignes_pair) & ~clr_rcvr_shold   & ~rst;
-    state_rcvr_eof      <= (state_rcvr_eof     | set_rcvr_eof     & ~alignes_pair) & ~clr_rcvr_eof     & ~rst;
-    state_rcvr_goodcrc  <= (state_rcvr_goodcrc | set_rcvr_goodcrc & ~alignes_pair) & ~clr_rcvr_goodcrc & ~rst;
-    state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend & ~alignes_pair) & ~clr_rcvr_goodend & ~rst;
-    state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend  & ~alignes_pair) & ~clr_rcvr_badend  & ~rst;
+    state_align         <= (state_align        | set_align        & ~alignes_pair) & ~(clr_align & ~alignes_pair)        & ~rst;
+    state_reset         <= (state_reset        | set_reset                       ) & ~ clr_reset                         & ~rst;
+    state_send_rdy      <= (state_send_rdy     | set_send_rdy     & ~alignes_pair) & ~(clr_send_rdy & ~alignes_pair)     & ~rst;
+    state_send_sof      <= (state_send_sof     | set_send_sof     & ~alignes_pair) & ~(clr_send_sof & ~alignes_pair)     & ~rst;
+    state_send_data     <= (state_send_data    | set_send_data    & ~alignes_pair) & ~(clr_send_data & ~alignes_pair)    & ~rst;
+    state_send_rhold    <= (state_send_rhold   | set_send_rhold   & ~alignes_pair) & ~(clr_send_rhold & ~alignes_pair)   & ~rst;
+    state_send_shold    <= (state_send_shold   | set_send_shold   & ~alignes_pair) & ~(clr_send_shold & ~alignes_pair)   & ~rst;
+    state_send_crc      <= (state_send_crc     | set_send_crc     & ~alignes_pair) & ~(clr_send_crc & ~alignes_pair)     & ~rst;
+    state_send_eof      <= (state_send_eof     | set_send_eof     & ~alignes_pair) & ~(clr_send_eof & ~alignes_pair)     & ~rst;
+    state_wait          <= (state_wait         | set_wait         & ~alignes_pair) & ~(clr_wait & ~alignes_pair)         & ~rst;
+    state_rcvr_wait     <= (state_rcvr_wait    | set_rcvr_wait    & ~alignes_pair) & ~(clr_rcvr_wait & ~alignes_pair)    & ~rst;
+    state_rcvr_rdy      <= (state_rcvr_rdy     | set_rcvr_rdy     & ~alignes_pair) & ~(clr_rcvr_rdy & ~alignes_pair)     & ~rst;
+    state_rcvr_data     <= (state_rcvr_data    | set_rcvr_data    & ~alignes_pair) & ~(clr_rcvr_data & ~alignes_pair)    & ~rst;
+    state_rcvr_rhold    <= (state_rcvr_rhold   | set_rcvr_rhold   & ~alignes_pair) & ~(clr_rcvr_rhold & ~alignes_pair)   & ~rst;
+    state_rcvr_shold    <= (state_rcvr_shold   | set_rcvr_shold   & ~alignes_pair) & ~(clr_rcvr_shold & ~alignes_pair)   & ~rst;
+    state_rcvr_eof      <= (state_rcvr_eof     | set_rcvr_eof     & ~alignes_pair) & ~(clr_rcvr_eof & ~alignes_pair)     & ~rst;
+    state_rcvr_goodcrc  <= (state_rcvr_goodcrc | set_rcvr_goodcrc & ~alignes_pair) & ~(clr_rcvr_goodcrc & ~alignes_pair) & ~rst;
+    state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend & ~alignes_pair) & ~(clr_rcvr_goodend & ~alignes_pair) & ~rst;
+    state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend  & ~alignes_pair) & ~(clr_rcvr_badend & ~alignes_pair)  & ~rst;
 end
 
 // flag if incoming request to terminate current transaction came from TL

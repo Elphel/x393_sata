@@ -116,30 +116,28 @@ module  axi_ahci_regs#(
     output                    was_hba_rst,    // last reset was hba reset (not counting system reset)
     output                    was_port_rst,    // last reset was port reset
     input              [31:0] debug_in
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+   ,input                     datascope_clk,
+    input  [ADDRESS_BITS-1:0] datascope_waddr,      
+    input                     datascope_we,
+    input              [31:0] datascope_di
+`endif    
 );
-
+`ifdef USE_DATASCOPE
+    localparam AXIBRAM_BITS = ADDRESS_BITS + 1; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
+    wire               [31:0] datascope_rdata;
+    reg                [1:0]  datascope_sel;    // read datascope memory instead of the registers
+    always @ (posedge aclk) begin
+        datascope_sel <= {datascope_sel[0], bram_raddr[ADDRESS_BITS]};
+    end
+`else 
+    localparam AXIBRAM_BITS =  ADDRESS_BITS; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
+`endif
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
-/*
-    localparam GHC__GHC__HR__ADDR = 'h1;
-    localparam GHC__GHC__HR__MASK = 'h1;
-    localparam GHC__GHC__HR__DFLT = 'h0;
-// RO: Device Detection Initialization
-    localparam HBA_PORT__PxSCTL__DET__ADDR = 'h4b;
-    localparam HBA_PORT__PxSCTL__DET__MASK = 'hf;
-    localparam HBA_PORT__PxSCTL__DET__DFLT = 'h0;
-// RW: SAXIHP write channel cache mode 
-    localparam HBA_PORT__AFI_CACHE__WR_CM__ADDR = 'h5c;
-    localparam HBA_PORT__AFI_CACHE__WR_CM__MASK = 'hf0;
-    localparam HBA_PORT__AFI_CACHE__WR_CM__DFLT = 'h30;
-// RW: SAXIHP read channel cache mode 
-    localparam HBA_PORT__AFI_CACHE__RD_CM__ADDR = 'h5c;
-    localparam HBA_PORT__AFI_CACHE__RD_CM__MASK = 'hf;
-    localparam HBA_PORT__AFI_CACHE__RD_CM__DFLT = 'h3;
-    
-*/
-    wire   [ADDRESS_BITS-1:0] bram_waddr;
+    wire   [AXIBRAM_BITS-1:0] bram_waddr;
 //    wire   [ADDRESS_BITS-1:0] pre_awaddr;
-    wire   [ADDRESS_BITS-1:0] bram_raddr;
+    wire   [AXIBRAM_BITS-1:0] bram_raddr;
     wire               [31:0] bram_rdata;
     wire                      pre_bram_wen; // one cycle ahead of bram_wen, nut not masked by dev_ready
     wire                      bram_wen;
@@ -192,7 +190,7 @@ module  axi_ahci_regs#(
     reg                    debug_rd_r;
     
 
-    assign bram_addr =     bram_ren[0] ? bram_raddr : (bram_wen_r ? bram_waddr_r : bram_waddr);
+    assign bram_addr =     bram_ren[0] ? bram_raddr[ADDRESS_BITS-1:0] : (bram_wen_r ? bram_waddr_r : bram_waddr[ADDRESS_BITS-1:0]);
     
     assign hba_arst =      hba_rst_r;       // hba _reset (currently does ~ the same as port reset)
     assign port_arst =     port_rst_r;     // port _reset by software
@@ -215,7 +213,7 @@ module  axi_ahci_regs#(
         
         bram_wen_r <= bram_wen;
         
-        if (bram_wen) bram_waddr_r <= bram_waddr;
+        if (bram_wen) bram_waddr_r <= bram_waddr[ADDRESS_BITS-1:0];
         
     end
 
@@ -284,7 +282,7 @@ module  axi_ahci_regs#(
     end
     
     always @(posedge aclk) begin
-        if (bram_ren[0])   debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs
+        if (bram_ren[0])   debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs (With AXIBRAM_BITS will be duplicated)
     end
     //debug_rd_r    
 
@@ -325,7 +323,7 @@ sata_phy_rst_out will be released after the sata clock is stable
 
 
     axibram_write #(
-        .ADDRESS_BITS(ADDRESS_BITS)
+        .ADDRESS_BITS(AXIBRAM_BITS) // in debug mode - 1 bit more than ADDERSS_BITS
     ) axibram_write_i (
         .aclk        (aclk),                     // input
         .arst        (arst),                     // input
@@ -359,7 +357,7 @@ sata_phy_rst_out will be released after the sata clock is stable
     );
 
     axibram_read #(
-        .ADDRESS_BITS(ADDRESS_BITS)
+        .ADDRESS_BITS(AXIBRAM_BITS) // in debug mode - 1 bit more than ADDERSS_BITS
     ) axibram_read_i (
         .aclk        (aclk),                     // input
         .arst        (arst),                     // input
@@ -383,7 +381,11 @@ sata_phy_rst_out will be released after the sata clock is stable
         .bram_raddr  (bram_raddr),               // output[9:0] 
         .bram_ren    (bram_ren[0]),              // output
         .bram_regen  (bram_ren[1]),              // output
+`ifdef USE_DATASCOPE        
+        .bram_rdata  (datascope_sel[1] ? datascope_rdata : bram_rdata_r)              // input[31:0] 
+`else
         .bram_rdata  (bram_rdata_r)              // input[31:0] 
+`endif        
     );
 
     // Register memory, lower half uses read-modify-write using bit type from ahci_regs_type_i ROM, 2 aclk cycles/per write and
@@ -441,6 +443,26 @@ sata_phy_rst_out will be released after the sata clock is stable
         .web          (8'b0),                       // input[7:0] 
         .data_in      (64'b0)                       // input[63:0] 
     );
+    
+`ifdef USE_DATASCOPE
+        ram_var_w_var_r #(
+            .REGISTERS    (0),
+            .LOG2WIDTH_WR (5),
+            .LOG2WIDTH_RD (5),
+            .DUMMY(0)
+        ) datascope_mem_i (
+            .rclk         (aclk),                       // input
+            .raddr        (bram_raddr[9:0]),            // input[9:0] 
+            .ren          (bram_ren[0]),                // input
+            .regen        (bram_ren[1]),                // input
+            .data_out     (datascope_rdata),            // output[31:0] 
+            .wclk         (datascope_clk),              // input
+            .waddr        (datascope_waddr),            // input[9:0] 
+            .we           (datascope_we),               // input
+            .web          (8'hff),                      // input[7:0] 
+            .data_in      (datascope_di)                // input[31:0] 
+        );
+`endif
 
     fifo_cross_clocks #(
         .DATA_WIDTH(ADDRESS_BITS+32),

@@ -187,6 +187,14 @@ module  ahci_top#(
     
     
 );
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+   wire                     datascope_clk;
+   wire  [ADDRESS_BITS-1:0] datascope_waddr;      
+   wire                     datascope_we;
+   wire              [31:0] datascope_di;
+`endif    
+
 // axi_ahci_regs signals:
 // 1. Notification of data written @ hba_clk
     wire [ADDRESS_BITS-1:0] soft_write_addr;  // register address written by software
@@ -691,6 +699,12 @@ module  ahci_top#(
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),     // output 
         .debug_in         ({2'b0, last_jump_addr[9:0], debug_in[19:0]})
+`ifdef USE_DATASCOPE
+        ,.datascope_clk   (datascope_clk),   // input
+        .datascope_waddr  (datascope_waddr), // input[9:0] 
+        .datascope_we     (datascope_we),    // input
+        .datascope_di     (datascope_di)     // input[31:0] 
+`endif        
 ///        .debug_in         (debug_in[31:0])
     );
     ahci_ctrl_stat #(
@@ -938,7 +952,8 @@ module  ahci_top#(
         .dma_in_ready      (dma_in_ready),           // input
         .dma_in_valid      (dma_we)                  // output
     );
-
+wire ahci_fis_transmit_busy;
+wire [9:0] xmit_dbg_01;
     ahci_fis_transmit #(
         .PREFETCH_ALWAYS  (PREFETCH_ALWAYS),
         .READ_REG_LATENCY (READ_REG_LATENCY),
@@ -955,7 +970,7 @@ module  ahci_top#(
         .atapi_xmit        (fsnd_atapi_xmit),      // input
         
         .done              (fsnd_done),            // output reg 
-        .busy              (), /// fsnd_busy),            // output reg 
+        .busy              (ahci_fis_transmit_busy), /// fsnd_busy),            // output reg 
         .clearCmdToIssue   (fsnd_clearCmdToIssue), // input
         .pCmdToIssue       (fsnd_pCmdToIssue),     // output
         .xmit_ok           (xmit_ok),              // input
@@ -995,7 +1010,46 @@ module  ahci_top#(
         .todev_type        (h2d_type),             // output[1:0] reg 
         .todev_valid       (h2d_valid),            // output
         .todev_ready       (h2d_ready)             // input
+       ,.debug_01(xmit_dbg_01)
     );
+
+// Datascope code
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+//   wire                     datascope_clk;
+//   wire  [ADDRESS_BITS-1:0] datascope_waddr;      
+//   wire                     datascope_we;
+//   wire              [31:0] datascope_di;
+    localparam DATASCOPE_CFIS_START=0;
+    reg    [ADDRESS_BITS-1:0] datascope_waddr_r;
+    reg                 [1:0] datascope_run;
+    reg                 [8:0] datascope_cntr;
+    reg                       datascope_was_busy;  
+    assign datascope_clk = mclk;
+//    assign datascope_di = datascope_run[0]? {h2d_type, dma_dav, datascope_was_busy, xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
+    assign datascope_di = datascope_run[0]? {h2d_type,  xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
+    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2);
+    assign datascope_waddr = datascope_waddr_r;
+
+    always @(posedge mclk) begin
+        if      (mrst)                                      datascope_run[0] <= 0;
+        else if (fsnd_cfis_xmit)                            datascope_run[0] <= 1;
+        else if (h2d_valid && h2d_ready && (h2d_type == 2)) datascope_run[0] <= 0;
+        
+        datascope_run[1] <= datascope_run[0];
+        
+        if (fsnd_cfis_xmit)    datascope_waddr_r <= DATASCOPE_CFIS_START;
+        else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
+        
+        if (fsnd_cfis_xmit) datascope_cntr <= 0;
+        else                datascope_cntr <= datascope_cntr  + 1;
+        
+        if (fsnd_cfis_xmit) datascope_was_busy <= ahci_fis_transmit_busy;
+    end
+    
+    
+`endif    
+
 
 
 endmodule

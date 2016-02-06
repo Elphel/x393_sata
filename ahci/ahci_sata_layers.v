@@ -183,7 +183,8 @@ module  ahci_sata_layers #(
 ///    assign debug_sata = debug_phy;
     
 //    assign debug_sata = {debug_link[31:4],debug_phy[3:0]} ; // 
-    assign debug_sata = {debug_link[31:8],debug_phy[7:0]} ; // 
+//    assign debug_sata = {debug_link[31:8],debug_phy[7:0]} ; // 
+    assign debug_sata = {debug_link[27:20],debug_phy[23:0]} ; // 
     
     assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
     assign d2h_valid = d2h_nempty;

@@ -1,6 +1,8 @@
   // This file may be used to define same pre-processor macros to be included into each parsed file
 `ifndef SYSTEM_DEFINES
   `define SYSTEM_DEFINES
+  `define ALIGN_CLOCKS
+  `define USE_DATASCOPE
   `define PRELOAD_BRAMS
   `define AHCI_SATA 1
 // Enviroment-dependent options

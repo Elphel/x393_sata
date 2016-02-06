@@ -758,17 +758,17 @@ task send_good_status; // @SuppressThisWarning VEditor - Used in testbench
                   {1'b0,dev_specific_status_bits,4'b0}, // status
                    1,                                   // error
                    0,                                   // device
-                   0,                                   // lba_low
+                   1,                                   // lba_low
                    0,                                   // lba_high
-                   0,                                   // count
+                   1,                                   // count
                    status);                             // output: result status
                    
-        transmit_data[0] = FIS_D2HR | (irq? 'h4000:0) | (dev_specific_status_bits << 20) | 'h1000000;
-        transmit_data[1] = 1;
-        transmit_data[2] = 0;
-        transmit_data[3] = 1;
-        transmit_data[4] = 0;
-        linkTransmitFIS(id, 5, 0, status);        
+//        transmit_data[0] = FIS_D2HR | (irq? 'h4000:0) | (dev_specific_status_bits << 20) | 'h1000000;
+//        transmit_data[1] = 1;
+//        transmit_data[2] = 0;
+//        transmit_data[3] = 1;
+//        transmit_data[4] = 0;
+//        linkTransmitFIS(id, 5, 0, status);        
     end
 endtask
 

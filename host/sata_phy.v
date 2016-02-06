@@ -97,6 +97,7 @@ wire    [DATA_BYTE_WIDTH - 1:0]     txcharisk_in;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk_out;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxnotintable;
+wire                          [1:0] txbufstatus;                       
 
 assign  ll_err_out = rxdisperr | rxnotintable;
 
@@ -119,6 +120,10 @@ wire            txpcsreset_req;
 wire            recal_tx_done;
 wire            rxreset_req;
 wire            rxreset_ack;
+wire            clk_phase_align_req; 
+wire            clk_phase_align_ack; 
+
+
 wire            rxreset_oob;
 // elastic buffer status signals TODO
 //wire            rxelsfull;
@@ -138,48 +143,51 @@ wire dummy;
 
 oob_ctrl oob_ctrl(
     // sata clk = usrclk2
-    .clk                (clk),
+    .clk                  (clk),
     // reset oob
-    .rst                (rst),
+    .rst                  (rst),
     // gtx is ready = all resets are done
-    .gtx_ready          (gtx_ready),
-    .debug ({dummy,debug_cnt[10:0]}),
+    .gtx_ready            (gtx_ready),
+    .debug                ({dummy,debug_cnt[10:0]}),
     // oob responses
-    .rxcominitdet_in    (rxcominitdet),
-    .rxcomwakedet_in    (rxcomwakedet),
-    .rxelecidle_in      (rxelecidle),
+    .rxcominitdet_in      (rxcominitdet),
+    .rxcomwakedet_in      (rxcomwakedet),
+    .rxelecidle_in        (rxelecidle),
     // oob issues
-    .txcominit          (txcominit),
-    .txcomwake          (txcomwake),
-    .txelecidle         (txelecidle),
+    .txcominit            (txcominit),
+    .txcomwake            (txcomwake),
+    .txelecidle           (txelecidle),
 
-    .txpcsreset_req     (txpcsreset_req),
-    .recal_tx_done      (recal_tx_done),
+    .txpcsreset_req       (txpcsreset_req),
+    .recal_tx_done        (recal_tx_done),
 
-    .rxreset_req        (rxreset_req),
-    .rxreset_ack        (rxreset_ack),
+    .rxreset_req          (rxreset_req),
+    .rxreset_ack          (rxreset_ack),
+    
+    .clk_phase_align_req  (clk_phase_align_req), // output wire 
+    .clk_phase_align_ack  (clk_phase_align_ack), // input wire 
 
     // input data stream (if any data during OOB setting => ignored)
-    .txdata_in          (txdata_in),
-    .txcharisk_in       (txcharisk_in),
+    .txdata_in            (txdata_in),
+    .txcharisk_in         (txcharisk_in),
     // output data stream to gtx
-    .txdata_out         (txdata),
-    .txcharisk_out      (txcharisk),
+    .txdata_out           (txdata),
+    .txcharisk_out        (txcharisk),
     // input data from gtx
-    .rxdata_in          (rxdata[31:0]),
-    .rxcharisk_in       (rxcharisk[3:0]),
+    .rxdata_in            (rxdata[31:0]),
+    .rxcharisk_in         (rxcharisk[3:0]),
     // bypassed data from gtx
-    .rxdata_out         (rxdata_out),
-    .rxcharisk_out      (rxcharisk_out),
+    .rxdata_out           (rxdata_out),
+    .rxcharisk_out        (rxcharisk_out),
 
     // receiving data is aligned
-    .rxbyteisaligned    (rxbyteisaligned),
+    .rxbyteisaligned      (rxbyteisaligned),
 
     // shows if channel is ready
-    .phy_ready          (phy_ready),
+    .phy_ready            (phy_ready),
     // To/from AHCI
-    .set_offline        (set_offline), // input
-    .comreset_send      (comreset_send) // input
+    .set_offline          (set_offline), // input
+    .comreset_send        (comreset_send) // input
     ,.debug_detected_alignp(debug_detected_alignp)
 );
 
@@ -313,18 +321,42 @@ always @ (posedge clk or posedge extrst)
 
 
 
-// issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
-reg [3:0]   txpcsreset_cnt;
-wire        txpcsreset_stop;
+// issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock cycles
+// Not enough or too early (after txelctidle?) txbufstatus shows overflow
+`ifdef OLD_TXPCSRESET
+    reg [3:0]   txpcsreset_cnt;
+    wire        txpcsreset_stop;
+    
+    assign  txpcsreset_stop = txpcsreset_cnt[3];
+    assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop & gtx_configured;
+    assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+    
+    always @ (posedge clk or posedge extrst)
+    //    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
+        if (extrst) txpcsreset_cnt <= 1;
+        else        txpcsreset_cnt <= rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
 
-assign  txpcsreset_stop = txpcsreset_cnt[3];
-assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop & gtx_configured;
-assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+`else // OLD_TXPCSRESET
+    localparam TXPCSRESET_CYCLES = 100;
+    reg       txpcsreset_r;
+    reg [7:0] txpcsreset_cntr;
+    reg       recal_tx_done_r;
+    assign    recal_tx_done = recal_tx_done_r;
+    assign    txpcsreset = txpcsreset_r;     
+    always @ (posedge clk) begin
+        if (rst || (txpcsreset_cntr == 0))     txpcsreset_r <= 0; 
+        else if (txpcsreset_req)               txpcsreset_r <= 1;
+        
+        if      (rst)                          txpcsreset_cntr <= 0;
+        else if (txpcsreset_req)               txpcsreset_cntr <= TXPCSRESET_CYCLES;
+        else if (txpcsreset_cntr != 0)         txpcsreset_cntr <= txpcsreset_cntr - 1;
+        
+        if (rst || txelecidle || txpcsreset_r) recal_tx_done_r <= 0;
+        else if (txresetdone)                  recal_tx_done_r <= 1;
+    end
+    
+`endif // OLD_TXPCSRESET    
 
-always @ (posedge clk or posedge extrst)
-//    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
-    if (extrst) txpcsreset_cnt <= 1;
-    else        txpcsreset_cnt <= rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
 
 // issue rx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
 reg [3:0]   rxreset_oob_cnt;
@@ -459,7 +491,11 @@ gtx_wrap
     .rxcominitdet       (rxcominitdet),    // output wire
     .rxelecidle         (rxelecidle),      // output wire
     .rxresetdone        (rxresetdone),     // output wire
-    .txreset            (txreset),         // input wire 
+    .txreset            (txreset),         // input wire
+
+    .clk_phase_align_req(clk_phase_align_req), // output wire 
+    .clk_phase_align_ack(clk_phase_align_ack), // input wire 
+     
     .txusrclk           (txusrclk),        // input wire 
     .txusrclk2          (txusrclk2),       // input wire 
     .txelecidle         (txelecidle),      // input wire 
@@ -481,7 +517,8 @@ gtx_wrap
     .dbg_rxphaligndone    (dbg_rxphaligndone),
     .dbg_rx_clocks_aligned(dbg_rx_clocks_aligned),
     .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
-    .dbg_rxdlysresetdone(dbg_rxdlysresetdone)
+    .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
+    .txbufstatus        (txbufstatus[1:0])
 );
 
 
@@ -542,6 +579,32 @@ always @ (posedge clk) begin
     else if (debug_error_r)                   debug_cntr6 <= debug_cntr6 + 1;
 end
 
+reg [15:0] dbg_clk_align_cntr;
+reg        dbg_clk_align_wait;
+//reg        dbg_rxphaligndone_down;
+//reg        dbg_rxphaligndone_second;
+
+
+always @ (posedge clk) begin
+    if      (rxelecidle || clk_phase_align_ack) dbg_clk_align_wait <= 0;
+    else if (clk_phase_align_req)                         dbg_clk_align_wait <= 1;
+
+    if      (rxelecidle)                                  dbg_clk_align_cntr <= 0;
+    else if (dbg_clk_align_wait)                          dbg_clk_align_cntr <= dbg_clk_align_cntr +1;
+
+/*
+
+    if      (rxelecidle || dbg_rxphaligndone_second)      dbg_clk_align_wait <= 0;
+    else if (clk_phase_align_req)                         dbg_clk_align_wait <= 1;
+
+
+    if      (rxelecidle)                                  dbg_rxphaligndone_down <= 0;
+    else if (dbg_rx_clocks_aligned && !dbg_rxphaligndone) dbg_rxphaligndone_down <= 1;
+    
+    if      (rxelecidle)                                  dbg_rxphaligndone_second <= 0;
+    else if (dbg_rxphaligndone_down && dbg_rxphaligndone) dbg_rxphaligndone_second <= 1;
+*/    
+end
 /*
 assign debug_sata[ 3: 0] = debug_cntr1;
 assign debug_sata[ 7: 4] = debug_cntr2;
@@ -555,9 +618,17 @@ assign debug_sata[17] =    txreset;
 assign debug_sata[18] =    txpcsreset;
 assign debug_sata[19] =    txelecidle;
 assign debug_sata[23:20] = debug_cntr4;
+    .clk_phase_align_req(clk_phase_align_req), // output wire 
+    .clk_phase_align_ack(clk_phase_align_ack), // input wire 
+
+
 */
 //assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
 //assign debug_sata = {debug_cntr6,debug_cntr5};
-assign debug_sata = {25'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
+//assign debug_sata = {8'b0, dbg_clk_align_cntr, 1'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
+assign debug_sata = {8'b0, dbg_clk_align_cntr, txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
+
+
+
  
 endmodule

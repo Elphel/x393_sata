@@ -3008,9 +3008,9 @@ localparam RXCDRLOCK_DELAY = 10; // Refclk periods
 localparam RXDLYSRESET_MIN_DURATION = 50; // ns 
 localparam RXDLYSRESETDONE_DELAY = 10;
 localparam RXDLYSRESETDONE_DURATION = 7; // 100ns
-localparam RXPHALIGNDONE_DELAY1 = 15;
+localparam RXPHALIGNDONE_DELAY1 = 15;    // 0.45 usec from the end of reset (measured)
 localparam RXPHALIGNDONE_DURATION1 = 7;
-localparam RXPHALIGNDONE_DELAY2 = 10;
+localparam RXPHALIGNDONE_DELAY2 = 311;    // 4.9 usec from the end of reset (measured)
 
 initial forever @ (posedge (reset || RXELECIDLE)) begin
     rxcdrlock <= 1'b0;

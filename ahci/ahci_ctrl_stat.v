@@ -467,7 +467,8 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         else if (pfsm_started)        pfsm_started_r <= 1;                  
         
         if (!pfsm_started_r)          pcmd_st_cleared <= 0;
-        else if (swr_HBA_PORT__PxCMD) pcmd_st_cleared <= |(HBA_PORT__PxCMD__ST__MASK & PxCMD_r & ~soft_write_data);
+//        else if (swr_HBA_PORT__PxCMD) pcmd_st_cleared <= |(HBA_PORT__PxCMD__ST__MASK & PxCMD_r & ~soft_write_data);
+        else                          pcmd_st_cleared <= swr_HBA_PORT__PxCMD && (|(HBA_PORT__PxCMD__ST__MASK & PxCMD_r & ~soft_write_data));
                           
     end
     
@@ -487,7 +488,7 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
                      ({32{update_HBA_PORT__PxCMD}}  & PxCMD_r) |
                      ({32{update_HBA_PORT__PxCI}}   & {31'b0, pxci0});
                      
-        regs_we <=   update_GHC__IS || update_HBA_PORT__PxIS || update_HBA_PORT__PxSSTS || update_HBA_PORT__PxSERR | update_HBA_PORT__PxCMD;
+        regs_we <=   update_GHC__IS || update_HBA_PORT__PxIS || update_HBA_PORT__PxSSTS || update_HBA_PORT__PxSERR | update_HBA_PORT__PxCMD || update_HBA_PORT__PxCI;
         
         // pending updates
         if      (mrst)                                         pxci_changed <= 1; //0;

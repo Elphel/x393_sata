@@ -274,6 +274,7 @@ module  ahci_fsm
     reg                      [1:0] async_pend_r; // waiting to process cominit_got
     reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
     wire                           asynq_rq = cominit_got || pcmd_st_cleared;
+                                   // OK to wait for some time fsm_act_busy is supposed to never hang up
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
 //    reg                            x_rdy_collision_pend;
     reg                            syncesc_send_pend; // waiting for 'syncesc_send' confiramtion 'syncesc_send_done'
@@ -358,7 +359,8 @@ module  ahci_fsm
         else if   (asynq_rq) async_from_st <= 0;
         
         if (hba_rst) async_pend_r <= 0;
-        else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  
+///        else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  
+        else async_pend_r <= {async_pend_r[0], (asynq_rq | async_pend_r[0]) & ~async_ackn};  
         
         
 //        if (hba_rst || pcmd_cr_set) x_rdy_collision_pend <= 0;

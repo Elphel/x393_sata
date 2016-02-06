@@ -1059,6 +1059,17 @@ initial begin //Host
 /// setup_pio_read_identify_command_multi4(1,27,64,83); // prdt interrupt for entry 0
     setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+`ifdef TEST_ABORT_COMMAND    
+// Abort command by clearing ST    
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, 0-> ST
+    maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+    repeat (300)  @(posedge CLK);
+//    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, 0-> ST
+    maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+//    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, 0-> ST
+    maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+`endif     
+    
     
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
@@ -1069,6 +1080,15 @@ initial begin //Host
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
     wait (~IRQ);
+// Print datascope - contents of the last CFIS sent
+    maxigp1_print        ('h1000,"DATASCOPE 0"); // 
+    maxigp1_print        ('h1004,"DATASCOPE 1"); // 
+    maxigp1_print        ('h1008,"DATASCOPE 2"); // 
+    maxigp1_print        ('h100c,"DATASCOPE 3"); // 
+    maxigp1_print        ('h1010,"DATASCOPE 4"); // 
+    maxigp1_print        ('h1014,"DATASCOPE 5"); // 
+    maxigp1_print        ('h1018,"DATASCOPE 6"); // 
+    maxigp1_print        ('h101c,"DATASCOPE 7"); // 
     
 //    sysmem_print ('h1e81,'h180); // for shifted
     sysmem_print ('h1e80,'h180); // Compact dump of "system memory" in hex word format
@@ -1087,6 +1107,17 @@ initial begin //Host
     TESTBENCH_TITLE = "DMA transfer to device completed";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     repeat (50)  @(posedge CLK);
+
+// Print datascope - contents of the last CFIS sent
+    maxigp1_print        ('h1000,"DATASCOPE 0"); // 
+    maxigp1_print        ('h1004,"DATASCOPE 1"); // 
+    maxigp1_print        ('h1008,"DATASCOPE 2"); // 
+    maxigp1_print        ('h100c,"DATASCOPE 3"); // 
+    maxigp1_print        ('h1010,"DATASCOPE 4"); // 
+    maxigp1_print        ('h1014,"DATASCOPE 5"); // 
+    maxigp1_print        ('h1018,"DATASCOPE 6"); // 
+    maxigp1_print        ('h101c,"DATASCOPE 7"); // 
+    
 /*
 // Reset port
     maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
