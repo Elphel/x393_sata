@@ -43,6 +43,8 @@ class X393Mem(object):
     MAXI0_BASE=0x40000000
     MAXI1_BASE=0x80000000
     MAXI_BASE = MAXI0_BASE
+    USE_NEGATIVE = True # Old versions of Python (2.7.3) required mmap offset to fit into 32 bits, so upper half had to be negative
+                        # 2.7.11 does not need subtraction(and reports error if negative)
 
     def __init__(self, debug_mode=1,dry_mode=False, maxi_port=0):
         if maxi_port:
@@ -64,7 +66,27 @@ class X393Mem(object):
         else:
             maxi_port = (0,1)[self.MAXI_BASE == self.MAXI1_BASE]
         print ("MAXI port = %d (0x%08x)"%(maxi_port, self.MAXI_BASE))       
-                
+
+    def wrap_mm (self, f, page_addr):
+        if page_addr>=0x80000000:
+            if (self.USE_NEGATIVE):
+                try:
+                    return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr - (1<<32))
+                except:
+                    self.USE_NEGATIVE = False
+                    print ("Turning OFF use of negative offsets in mmap")
+                    return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr)
+            else:
+                try:
+                    return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr)
+                except:
+                    print ("Turning ON use of negative offsets in mmap")
+                    self.USE_NEGATIVE = True
+                    return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr - (1<<32))
+        else:
+             return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr)
+         
+                        
     def write_mem (self,addr, data,quiet=1):
         """
         Write 32-bit word to physical memory
@@ -78,9 +100,10 @@ class X393Mem(object):
         with open("/dev/mem", "r+b") as f:
             page_addr=addr & (~(self.PAGE_SIZE-1))
             page_offs=addr-page_addr
-            if (page_addr>=0x80000000):
-                page_addr-= (1<<32)
-            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+            mm = self.wrap_mm(f, page_addr)
+#            if (page_addr>=0x80000000):
+#                page_addr-= (1<<32)
+#            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
             packedData=struct.pack(self.ENDIAN+"L",data)
             d=struct.unpack(self.ENDIAN+"L",packedData)[0]
             mm[page_offs:page_offs+4]=packedData
@@ -108,9 +131,10 @@ class X393Mem(object):
         with open("/dev/mem", "r+b") as f:
             page_addr=addr & (~(self.PAGE_SIZE-1))
             page_offs=addr-page_addr
-            if (page_addr>=0x80000000):
-                page_addr-= (1<<32)
-            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+            mm = self.wrap_mm(f, page_addr)
+#            if (page_addr>=0x80000000):
+#                page_addr-= (1<<32)
+#            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
             data=struct.unpack(self.ENDIAN+"L",mm[page_offs:page_offs+4])
             d=data[0]
             if quiet < 1:
@@ -149,9 +173,10 @@ class X393Mem(object):
                 for addr in range (start_addr,end_addr+byte_mode,byte_mode):
                     page_addr=addr & (~(self.PAGE_SIZE-1))
                     page_offs=addr-page_addr
-                    if (page_addr>=0x80000000):
-                        page_addr-= (1<<32)
-                    mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+                    mm = self.wrap_mm(f, page_addr)
+        #            if (page_addr>=0x80000000):
+        #                page_addr-= (1<<32)
+        #            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
                     data=struct.unpack_from(self.ENDIAN+frmt_bytes[byte_mode],mm, page_offs)
                     rslt.append(data[0])
                     
@@ -202,9 +227,10 @@ class X393Mem(object):
                 if page_num == last_page:
                     end_offset = start_addr + length - self.PAGE_SIZE * page_num
                 page_addr = page_num * self.PAGE_SIZE 
-                if (page_addr>=0x80000000):
-                    page_addr-= (1<<32)
-                mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+                mm = self.wrap_mm(f, page_addr)
+    #            if (page_addr>=0x80000000):
+    #                page_addr-= (1<<32)
+    #            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
                 bf.write(mm[start_offset:end_offset])
 
     def mem_clear (self, start_addr, length, word32):
@@ -229,9 +255,10 @@ class X393Mem(object):
                 if page_num == last_page:
                     end_offset = start_addr + length - self.PAGE_SIZE * page_num
                 page_addr = page_num * self.PAGE_SIZE 
-                if (page_addr>=0x80000000):
-                    page_addr-= (1<<32)
-                mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+                mm = self.wrap_mm(f, page_addr)
+    #            if (page_addr>=0x80000000):
+    #                page_addr-= (1<<32)
+    #            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
                 mm[start_offset:end_offset] = patt[start_offset:end_offset]
 
 
@@ -273,9 +300,10 @@ class X393Mem(object):
                     data = (start_data + ((addr-start_addr) // byte_mode)*inc_data) & data_mask
                     page_addr=addr & (~(self.PAGE_SIZE-1))
                     page_offs=addr-page_addr
-                    if (page_addr>=0x80000000):
-                        page_addr-= (1<<32)
-                    mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
+                    mm = self.wrap_mm(f, page_addr)
+        #            if (page_addr>=0x80000000):
+        #                page_addr-= (1<<32)
+        #            mm = mmap.mmap(f.fileno(), self.PAGE_SIZE, offset=page_addr)
                     struct.pack_into(self.ENDIAN+frmt_bytes[byte_mode],mm, page_offs, data)
     
     '''

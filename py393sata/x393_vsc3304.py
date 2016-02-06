@@ -32,9 +32,10 @@ import os
 from x393_mem import X393Mem
 #from time import sleep
 #import shutil
-VSC_DIR="/sys/devices/amba.0/e0004000.ps7-i2c/i2c-0/0-0001"
+VSC_DIR_OLD="/sys/devices/amba.0/e0004000.ps7-i2c/i2c-0/0-0001"
+VSC_DIR_NEW="/sys/devices/soc0/amba@0/e0004000.ps7-i2c/i2c-0/0-0001"
 # 10389 rev "0"
-
+VSC_DIR = None
 class x393_vsc3304(object):
     DRY_MODE= True # True
     DEBUG_MODE=1
@@ -88,17 +89,31 @@ class x393_vsc3304(object):
     PCB_REV = "10389"
     current_mode = "ESATA<->SSD"
     def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
+        global VSC_DIR
         self.DEBUG_MODE=debug_mode
         if not dry_mode:
             if not os.path.exists("/dev/xdevcfg"):
                 dry_mode=True
                 print("Program is forced to run in SIMULATED mode as '/dev/xdevcfg' does not exist (not a camera)")
+            else:
+                if os.path.exists(VSC_DIR_OLD):
+                    print ('x393_vsc3304: Running on OLD system')
+                    VSC_DIR = VSC_DIR_OLD
+                elif os.path.exists(VSC_DIR_NEW):    
+                    print ('x393_vsc3304: Running on NEW system')
+                    VSC_DIR = VSC_DIR_NEW
+                else:
+                    print ("Does not seem to be a known system - both %s (old) and %s (new) are not found"%(VSC_DIR_OLD, VSC_DIR_NEW))
+                    return
+                    
+                    
         self.DRY_MODE=dry_mode
         self.x393_mem=X393Mem(debug_mode,dry_mode, 1)
         if not pcb_rev in self.PCB_CONNECTIONS:
             print ("Unknown PCB/rev: %s (defined: %s), using %s"%(pcb_rev, str(self.PCB_CONNECTIONS.keys()),self.PCB_REV))
         else:    
             self.PCB_REV = pcb_rev
+            
     def echo(self, what, where):
         if self.DRY_MODE:
             print ("'%s' -> '%s'"%(str(what), VSC_DIR+"/"+where))
