@@ -183,7 +183,8 @@ module  ahci_top#(
 
     output             irq, // CPU interrupt request
     
-    input       [31:0] debug_in
+    input       [31:0] debug_in_phy,
+    input       [31:0] debug_in_link
     
     
 );
@@ -265,6 +266,11 @@ module  ahci_top#(
     wire                    dma_prd_irq_pend;  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
     wire                    dma_cmd_busy; // output reg (DMA engine is processing PRDs)
     wire                    dma_cmd_done; // output (last PRD is over)
+
+    wire                    dma_abort_busy;
+    wire                    dma_abort_done;
+    wire                    axi_mismatch;
+    
     wire             [31:0] dma_dout;    // output[31:0] 
     wire                    dma_dav; // output
     wire                    dma_re;      // input
@@ -448,6 +454,8 @@ module  ahci_top#(
     wire                          pxci0;             // pxCI current value
     
     wire                    [9:0] last_jump_addr;
+    wire                   [31:0] debug_dma;
+    wire                   [31:0] debug_dma1;
     // Async FF
     always @ (posedge mrst or posedge mclk) begin
         if (mrst) en_port <= 0;
@@ -561,81 +569,79 @@ module  ahci_top#(
         .dma_cmd_busy             (dma_cmd_busy),       // input
 ///        .dma_cmd_done             (dma_cmd_done),       // input
         .dma_cmd_abort            (dma_cmd_abort_fsm),  // output
+        .dma_abort_done           (dma_abort_done),     // input
+        .fis_first_invalid        (frcv_first_invalid),// input
+        .fis_first_flush          (frcv_first_flush),  // output
         
-        .fis_first_invalid (frcv_first_invalid),// input
-        .fis_first_flush   (frcv_first_flush),  // output
-        
-        .fis_first_vld   (frcv_first_vld),     // input
-        .fis_type        (d2h_data[7:0]),      // input[7:0] FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
-        .bist_bits       (d2h_data[23:16]),    // bits that define built-in self test
+        .fis_first_vld            (frcv_first_vld),     // input
+        .fis_type                 (d2h_data[7:0]),      // input[7:0] FIS type (low byte in the first FIS DWORD), valid with  'fis_first_vld'
+        .bist_bits                (d2h_data[23:16]),    // bits that define built-in self test
 
-        .get_dsfis       (frcv_get_dsfis),     // output
-        .get_psfis       (frcv_get_psfis),     // output
-        .get_rfis        (frcv_get_rfis),      // output
-        .get_sdbfis      (frcv_get_sdbfis),    // output
-        .get_ufis        (frcv_get_ufis),      // output
-        .get_data_fis    (frcv_get_data_fis),  // output
-        .get_ignore      (frcv_get_ignore),    // output
-///        .get_fis_busy    (frcv_busy),          // input
-        .get_fis_done    (frcv_done),          // input
-        .fis_ok          (frcv_ok),            // input
-        .fis_err         (frcv_err),           // input
-        .fis_ferr        (frcv_ferr),          // input
-        .fis_extra       (frcv_extra || dma_extra_din), // input // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
+        .get_dsfis                (frcv_get_dsfis),     // output
+        .get_psfis                (frcv_get_psfis),     // output
+        .get_rfis                 (frcv_get_rfis),      // output
+        .get_sdbfis               (frcv_get_sdbfis),    // output
+        .get_ufis                 (frcv_get_ufis),      // output
+        .get_data_fis             (frcv_get_data_fis),  // output
+        .get_ignore               (frcv_get_ignore),    // output
+///     .get_fis_busy             (frcv_busy),          // input
+        .get_fis_done             (frcv_done),          // input
+        .fis_ok                   (frcv_ok),            // input
+        .fis_err                  (frcv_err),           // input
+        .fis_ferr                 (frcv_ferr),          // input
+        .fis_extra                (frcv_extra || dma_extra_din), // input // more data got from FIS than DMA can accept. Does not deny fis_ok. May have latency
         
-        .set_update_sig  (frcv_set_update_sig),// output
-///        .pUpdateSig      (frcv_pUpdateSig),    // input
-///        .sig_available   (frcv_sig_available), // input
-        .update_sig      (frcv_update_sig),    // output
+        .set_update_sig           (frcv_set_update_sig),// output
+///        .pUpdateSig            (frcv_pUpdateSig),    // input
+///        .sig_available         (frcv_sig_available), // input
+        .update_sig               (frcv_update_sig),    // output
         
-        .update_err_sts  (frcv_update_err_sts),// output
-        .update_pio      (frcv_update_pio),    // output 
-        .update_prdbc    (frcv_update_prdbc),  // output
-        .clear_bsy_drq   (frcv_clear_bsy_drq), // output
-        .clear_bsy_set_drq(frcv_clear_bsy_set_drq), //output
-        .set_bsy         (frcv_set_bsy),       // output
-        .set_sts_7f      (frcv_set_sts_7f),    // output
-        .set_sts_80      (frcv_set_sts_80),    // output
-        .clear_xfer_cntr (frcv_clear_xfer_cntr), //output Clear pXferCntr
-        .decr_dwcr       (frcv_decr_dwcr),     // output increment pXferCntr after transmit by data transmitted)
-        .decr_dwcw       (frcv_decr_dwcw),     // output increment pXferCntr after transmit by data transmitted)
+        .update_err_sts           (frcv_update_err_sts),// output
+        .update_pio               (frcv_update_pio),    // output 
+        .update_prdbc             (frcv_update_prdbc),  // output
+        .clear_bsy_drq            (frcv_clear_bsy_drq), // output
+        .clear_bsy_set_drq        (frcv_clear_bsy_set_drq), //output
+        .set_bsy                  (frcv_set_bsy),       // output
+        .set_sts_7f               (frcv_set_sts_7f),    // output
+        .set_sts_80               (frcv_set_sts_80),    // output
+        .clear_xfer_cntr          (frcv_clear_xfer_cntr), //output Clear pXferCntr
+        .decr_dwcr                (frcv_decr_dwcr),     // output increment pXferCntr after transmit by data transmitted)
+        .decr_dwcw                (frcv_decr_dwcw),     // output increment pXferCntr after transmit by data transmitted)
 //      .decr_DXC_dw     (data_out_dwords),    // output[11:2] **** Probably not needed
-        .pxcmd_fre       (pcmd_fre), // input
-        
-        .pPioXfer        (pPioXfer),           // input      
-         
-        .tfd_sts         (tfd_sts),            // input[7:0] 
-///        .tfd_err         (tfd_err),            // input[7:0] 
-        .fis_i           (fis_i),              // input
+        .pxcmd_fre                (pcmd_fre), // input
+        .pPioXfer                 (pPioXfer),           // input      
+        .tfd_sts                  (tfd_sts),            // input[7:0] 
+///        .tfd_err            (tfd_err),            // input[7:0] 
+        .fis_i                    (fis_i),              // input
 ///        .sdb_n           (sdb_n),              // input
-        .dma_a           (dma_a),              // input
+        .dma_a                    (dma_a),              // input
 ///        .dma_d           (dma_d),              // input
-        .pio_i           (pio_i),              // input
-        .pio_d           (pio_d),              // input
+        .pio_i                    (pio_i),              // input
+        .pio_d                    (pio_d),              // input
 ///        .sactive0        (sactive0),            // input
 ///        .pio_es          (pio_es),             // input[7:0] 
 ///        .xfer_cntr       (xfer_cntr[31:2]),    // input[31:2] 
-        .xfer_cntr_zero  (xfer_cntr_zero),     // input
+        .xfer_cntr_zero           (xfer_cntr_zero),     // input
         
-        .fetch_cmd       (fsnd_fetch_cmd),     // output
-        .cfis_xmit       (fsnd_cfis_xmit),     // output
-        .dx_xmit         (fsnd_dx_xmit),       // output
-        .atapi_xmit      (fsnd_atapi_xmit),    // output
-        .xmit_done       (fsnd_done),          // input
+        .fetch_cmd                (fsnd_fetch_cmd),     // output
+        .cfis_xmit                (fsnd_cfis_xmit),     // output
+        .dx_xmit                  (fsnd_dx_xmit),       // output
+        .atapi_xmit               (fsnd_atapi_xmit),    // output
+        .xmit_done                (fsnd_done),          // input
 ///        .xmit_busy       (fsnd_busy),          // input
-        .clearCmdToIssue (fsnd_clearCmdToIssue),// output // From CFIS:SUCCESS 
-        .pCmdToIssue     (fsnd_pCmdToIssue),   // input
-        .dx_err          (fsnd_dx_err),        // input[1:0] 
+        .clearCmdToIssue          (fsnd_clearCmdToIssue),// output // From CFIS:SUCCESS 
+        .pCmdToIssue              (fsnd_pCmdToIssue),   // input
+        .dx_err                   (fsnd_dx_err),        // input[1:0] 
 ///        .ch_prdtl        (prdtl),              // input[15:0] 
-        .ch_c            (fsnd_ch_c),          // input
-        .ch_b            (fsnd_ch_b),          // input
-        .ch_r            (fsnd_ch_r),          // input
-        .ch_p            (fsnd_ch_p),          // input
-        .ch_w            (fsnd_ch_w),          // input
-        .ch_a            (fsnd_ch_a),          // input
+        .ch_c                     (fsnd_ch_c),          // input
+        .ch_b                     (fsnd_ch_b),          // input
+        .ch_r                     (fsnd_ch_r),          // input
+        .ch_p                     (fsnd_ch_p),          // input
+        .ch_w                     (fsnd_ch_w),          // input
+        .ch_a                     (fsnd_ch_a),          // input
 ///        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
 ///        .dwords_sent     (data_out_dwords)     // input[11:0] ????
-        .last_jump_addr (last_jump_addr)
+        .last_jump_addr           (last_jump_addr)
     );
 
 
@@ -697,8 +703,11 @@ module  ahci_top#(
         .afi_rcache       (axi_rd_cache_mode),// output[3:0] reg 
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
-        .was_port_rst     (was_port_rst),     // output 
-        .debug_in         ({2'b0, last_jump_addr[9:0], debug_in[19:0]})
+        .was_port_rst     (was_port_rst),    // output 
+        .debug_in0        (debug_dma),       // input[31:0]
+        .debug_in1        (debug_dma1), // debug_in_link),   // input[31:0]
+        .debug_in2        (debug_in_phy),   // input[31:0]     // debug from phy/link
+        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
 `ifdef USE_DATASCOPE
         ,.datascope_clk   (datascope_clk),   // input
         .datascope_waddr  (datascope_waddr), // input[9:0] 
@@ -823,6 +832,9 @@ module  ahci_top#(
         
         .cmd_busy              (dma_cmd_busy), // dma_cmd_busy),  // output reg Some data to transmit!
         .cmd_done              (dma_cmd_done),  // output
+        .abort_busy            (dma_abort_busy),
+        .abort_done            (dma_abort_done),
+        .axi_mismatch          (axi_mismatch),  // handled, but may report as an error - axi counters are 0, but calculated ones are not
         .sys_out               (dma_dout),      // output[31:0] 
         .sys_dav               (dma_dav),       // output
         .sys_re                (dma_re),        // input
@@ -874,7 +886,9 @@ module  ahci_top#(
         .afi_rresp         (afi_rresp),         // input[1:0] 
         .afi_rcount        (afi_rcount),        // input[7:0] 
         .afi_racount       (afi_racount),       // input[2:0] 
-        .afi_rdissuecap1en (afi_rdissuecap1en)  // output
+        .afi_rdissuecap1en (afi_rdissuecap1en), // output
+        .debug_out         (debug_dma),          // output[31:0]
+        .debug_out1        (debug_dma1)          // output[31:0]
     );
 
     ahci_fis_receive #(
@@ -1023,15 +1037,31 @@ wire [9:0] xmit_dbg_01;
     localparam DATASCOPE_CFIS_START=0;
     reg    [ADDRESS_BITS-1:0] datascope_waddr_r;
     reg                 [1:0] datascope_run;
-    reg                 [8:0] datascope_cntr;
-    reg                       datascope_was_busy;  
+///    reg                 [8:0] datascope_cntr;
+///    reg                       datascope_was_busy;  
     assign datascope_clk = mclk;
-//    assign datascope_di = datascope_run[0]? {h2d_type, dma_dav, datascope_was_busy, xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
-    assign datascope_di = datascope_run[0]? {h2d_type,  xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
-    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2);
     assign datascope_waddr = datascope_waddr_r;
+//    assign datascope_di = datascope_run[0]? {h2d_type, dma_dav, datascope_was_busy, xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
+///    assign datascope_di = datascope_run[0]? {h2d_type,  xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
 
-    always @(posedge mclk) begin
+// Datascope provides just outgoing data, followed by the dword counter with 16'hffff in the high word    
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2);
+//    assign datascope_di = datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r};
+
+    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2) || d2h_ready;
+    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
+///    assign datascope_we = |datascope_run;
+/*
+    assign datascope_di = datascope_run[0]? {h2d_type,            // 2 bits
+                                             dma_ct_re[0],        // 1 bit
+                                             dma_ct_addr[4:0],    // 5 bits
+                                             //------
+                                             dma_ct_data[7:0],    //8 bits (lower)       
+                                             datascope_cntr[3:0], // 4 bits
+                                             h2d_data[11:0]} :    // 12 bits
+                                             {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
+
+*/  always @(posedge mclk) begin
         if      (mrst)                                      datascope_run[0] <= 0;
         else if (fsnd_cfis_xmit)                            datascope_run[0] <= 1;
         else if (h2d_valid && h2d_ready && (h2d_type == 2)) datascope_run[0] <= 0;
@@ -1041,12 +1071,17 @@ wire [9:0] xmit_dbg_01;
         if (fsnd_cfis_xmit)    datascope_waddr_r <= DATASCOPE_CFIS_START;
         else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
         
-        if (fsnd_cfis_xmit) datascope_cntr <= 0;
-        else                datascope_cntr <= datascope_cntr  + 1;
+///        if (fsnd_cfis_xmit) datascope_cntr <= 0;
+///        else                datascope_cntr <= datascope_cntr  + 1;
         
-        if (fsnd_cfis_xmit) datascope_was_busy <= ahci_fis_transmit_busy;
+///        if (fsnd_cfis_xmit) datascope_was_busy <= ahci_fis_transmit_busy;
     end
-    
+/*
+        .ct_addr           (dma_ct_addr),          // output[4:0] reg 
+        .ct_re             (dma_ct_re),            // output[1:0]
+        .ct_data           (dma_ct_data),          // input[31:0] 
+
+*/    
     
 `endif    
 

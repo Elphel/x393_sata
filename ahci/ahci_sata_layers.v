@@ -92,7 +92,9 @@ module  ahci_sata_layers #(
     input   wire        rxp_in,
     input   wire        rxn_in,
     
-    output       [31:0] debug_sata
+    output       [31:0] debug_phy,
+    output       [31:0] debug_link
+    
     
 );
     localparam PHY_SPEED = 2; // SATA2
@@ -169,8 +171,8 @@ module  ahci_sata_layers #(
     wire                           d2h_fifo_wr = ll_d2h_valid || fis_over_r; // fis_over_r will push FIS end to FIFO
     reg                            h2d_pending;    // HBA started sending FIS to fifo
     
-    wire                    [31:0] debug_phy;
-    wire                    [31:0] debug_link;
+ //   wire                    [31:0] debug_phy;
+ //   wire                    [31:0] debug_link;
 
     wire                           rxelsfull; 
     wire                           rxelsempty; 
@@ -184,7 +186,7 @@ module  ahci_sata_layers #(
     
 //    assign debug_sata = {debug_link[31:4],debug_phy[3:0]} ; // 
 //    assign debug_sata = {debug_link[31:8],debug_phy[7:0]} ; // 
-    assign debug_sata = {debug_link[27:20],debug_phy[23:0]} ; // 
+//    assign debug_sata = {debug_link[27:20],debug_phy[23:0]} ; // 
     
     assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
     assign d2h_valid = d2h_nempty;
@@ -260,7 +262,7 @@ module  ahci_sata_layers #(
         .link_reset       (ll_link_reset),         // input wire  // oob sequence is reinitiated and link now is not established or rxelecidle
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
-        .incom_stop_req   (pcmd_st_cleared),          // input wire  // TL demands to stop current recieving session
+        .incom_stop_req   (pcmd_st_cleared),       // input wire  // TL demands to stop current recieving session
         .link_established (link_established),
         // inputs from phy
         .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established

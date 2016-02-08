@@ -115,7 +115,10 @@ module  axi_ahci_regs#(
     output                    afi_cache_set,
     output                    was_hba_rst,    // last reset was hba reset (not counting system reset)
     output                    was_port_rst,    // last reset was port reset
-    input              [31:0] debug_in
+    input              [31:0] debug_in0,
+    input              [31:0] debug_in1,
+    input              [31:0] debug_in2,
+    input              [31:0] debug_in3
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
    ,input                     datascope_clk,
@@ -188,6 +191,7 @@ module  axi_ahci_regs#(
     reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
     wire                   any_access = bram_wen_r || bram_ren[0];
     reg                    debug_rd_r;
+    reg             [31:0] debug_r;
     
 
     assign bram_addr =     bram_ren[0] ? bram_raddr[ADDRESS_BITS-1:0] : (bram_wen_r ? bram_waddr_r : bram_waddr[ADDRESS_BITS-1:0]);
@@ -198,7 +202,6 @@ module  axi_ahci_regs#(
     assign was_hba_rst =   was_hba_rst_r[0]; 
     assign was_port_rst =  was_port_rst_r[0];
     
-    
     always @(posedge aclk) begin
        
         if      (arst)              write_busy_r <= 0;
@@ -207,7 +210,7 @@ module  axi_ahci_regs#(
 
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
-        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_in : bram_rdata;
+//        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_in : bram_rdata;
         
         bram_wstb_r <= {4{bram_wen}} & bram_wstb;
         
@@ -215,7 +218,16 @@ module  axi_ahci_regs#(
         
         if (bram_wen) bram_waddr_r <= bram_waddr[ADDRESS_BITS-1:0];
         
+        if (bram_ren[0])            debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs (With AXIBRAM_BITS will be duplicated)
+
+        if (bram_ren[0])            debug_r <= bram_raddr[1]? (bram_raddr[0] ? debug_in3: debug_in2):
+                                                              (bram_raddr[0] ? debug_in1: debug_in0);
+        
+        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_r : bram_rdata;
+
     end
+
+    //debug_rd_r    
 
     generate
         genvar i;
@@ -281,10 +293,6 @@ module  axi_ahci_regs#(
         if (pgm_fsm_set_w) pgm_ad <= ahci_regs_di[17:0];
     end
     
-    always @(posedge aclk) begin
-        if (bram_ren[0])   debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs (With AXIBRAM_BITS will be duplicated)
-    end
-    //debug_rd_r    
 
 
 /*

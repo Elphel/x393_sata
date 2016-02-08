@@ -762,15 +762,35 @@ localparam SYS_MEM_SIZE =  16384; // bytes - size of system memory
 localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the system memory
 localparam IDENTIFY_BUF =  32'h3d00; // 512 bytes for a command table in the system memory
 localparam PRD_OFFSET = 'h80;        // start of PRD table - 128-th byte in command table
-localparam ATA_IDFY = 'hec; // Identify command
-localparam ATA_WDMA = 'hca; // Identify command
+localparam ATA_IDFY =     'hec; // Identify command
+localparam ATA_WDMA =     'hca; // Write to device in DMA mode
+localparam ATA_WBUF_PIO = 'he8; // Write 512 bytes to device buffer in PIO mode   @SuppressThisWarning VEditor - not yet used
+localparam ATA_WBUF_DMA = 'heb; // Write 512 bytes to device buffer in DMA mode   @SuppressThisWarning VEditor - not yet used
+localparam ATA_RDMA =     'hc8; // Read from device in DMA mode                   @SuppressThisWarning VEditor - not yet used
+localparam ATA_RBUF_PIO = 'he4; // Read  512 bytes from device buffer in PIO mode @SuppressThisWarning VEditor - not yet used
+localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mode @SuppressThisWarning VEditor - not yet used
 
     reg  [31:0] sysmem[0:4095]; 
 
     // connect system memory ty AXI_NP RD and WR channels
 //  assign HCLK = dut.ps7_i.SAXIHP3ACLK; // shortcut name
 // afi loopback
-    assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
+    // This is for no-delay memory
+//    assign #1 afi_sim_rd_valid = afi_sim_rd_ready;
+    // Make long delay for the first memory read, zero - for the next
+    reg afi_sim_rd_ready_r;
+    integer read_system_delay;
+    localparam SYSTEM_MEMORY_READ_LATENCY = 10; // HCLK cycles
+    always @ (posedge HCLK) begin
+        if      (!afi_sim_rd_ready)      read_system_delay <= SYSTEM_MEMORY_READ_LATENCY;
+        else if (read_system_delay != 0) read_system_delay <= read_system_delay - 1;
+        
+        afi_sim_rd_ready_r <= afi_sim_rd_ready && (read_system_delay == 0); 
+    end
+    assign #1 afi_sim_rd_valid = afi_sim_rd_ready && afi_sim_rd_ready_r;
+    
+    
+    
     assign #1 afi_sim_rd_resp = afi_sim_rd_ready?2'b0:2'bx;
     assign #1 afi_sim_wr_ready = 1; // afi_sim_wr_valid;
     assign #1 afi_sim_bresp_latency=4'h5; 
@@ -809,7 +829,9 @@ localparam ATA_WDMA = 'hca; // Identify command
     
     
     task setup_pio_read_identify_command_simple;
+        input integer data_len;
         input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+
         integer i;
         begin
             // clear system memory for command
@@ -822,7 +844,7 @@ localparam ATA_WDMA = 'hca; // Identify command
             // All other 4 DWORDs are 0 for this command
             // Set PRDT (single item) TODO: later check multiple small ones
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 0] = SYS_MEM_START + IDENTIFY_BUF;
-            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 31) | 511; // 512 bytes in this PRDT
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 3] = (prd_int[0] << 31) | (data_len-1); // 512 bytes in this PRDT
             // Setup command header
             maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
                                                          (0 <<  5) | // 'A' Not ATAPI
@@ -939,7 +961,7 @@ localparam ATA_WDMA = 'hca; // Identify command
             // fill ATA command 
             sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
                                                ('h80 << 8) |      // set C = 1
-                                               (ATA_WDMA << 16) | // Command = 0xEC (IDFY)
+                                               (ATA_WDMA << 16) | // Command = 0xCA
                                               ( 0 << 24);         // features = 0 ?
             sysmem[(COMMAND_TABLE >> 2) + 1] = lba & 'hffffff;    // 24 LSBs of LBA (48-bit require different ATA command)
             sysmem[(COMMAND_TABLE >> 2) + 3] = 1;                 // 1 logical sector (0 means 256)
@@ -1053,11 +1075,12 @@ initial begin //Host
     
     maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
     
-//  setup_pio_read_identify_command_simple(1); // prdt interrupt for entry 0
-//  setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
+//  setup_pio_read_identify_command_simple(512,1); // prdt interrupt for entry 0
+  setup_pio_read_identify_command_simple(2560,1); // intentionally too long
+///  setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
 /// setup_pio_read_identify_command_multi4(1,27,71,83); // prdt interrupt for entry 0
 /// setup_pio_read_identify_command_multi4(1,27,64,83); // prdt interrupt for entry 0
-    setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0
+///    setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0 // last used
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
 `ifdef TEST_ABORT_COMMAND    
 // Abort command by clearing ST    
@@ -1080,6 +1103,15 @@ initial begin //Host
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
     wait (~IRQ);
+    
+// Reset command with abort_dma
+
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); //  ST: 1 -> 0
+    repeat (50)  @(posedge CLK);
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK |HBA_PORT__PxCMD__ST__MASK); // ST: 0 -> 1 
+
+    
+    
 // Print datascope - contents of the last CFIS sent
     maxigp1_print        ('h1000,"DATASCOPE 0"); // 
     maxigp1_print        ('h1004,"DATASCOPE 1"); // 
@@ -1092,6 +1124,28 @@ initial begin //Host
     
 //    sysmem_print ('h1e81,'h180); // for shifted
     sysmem_print ('h1e80,'h180); // Compact dump of "system memory" in hex word format
+
+// Second time read identify:
+
+    // Prepare for D2H register FIS with interrupt bit set (expected to be sent after all data will be written to the device)
+    maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear DHR (D2H register FIS with "I" bit) interrupt
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow only D2H Register interrupts
+    maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts for port 0 (the only one)
+    wait (~IRQ);
+
+    setup_pio_read_identify_command_simple(512,1);                                         // prdt interrupt for entry 0
+    maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
+    wait (IRQ);
+    TESTBENCH_TITLE = "Got second Identify";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
+    maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
+    wait (~IRQ);
+
+// end of the second identify insertion
 
     // Prepare for D2H register FIS with interrupt bit set (expected to be sent after all data will be written to the device)
     maxigp1_writep       (HBA_PORT__PxIS__DHRS__ADDR << 2, HBA_PORT__PxIS__DHRS__MASK); // clear DHR (D2H register FIS with "I" bit) interrupt

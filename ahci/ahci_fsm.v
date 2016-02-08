@@ -144,7 +144,7 @@ module  ahci_fsm
     input                         dma_cmd_busy,      // output reg (DMA engine is processing PRDs)
 ///    input                         dma_cmd_done,   // output (last PRD is over)
     output                        dma_cmd_abort,     // try to abort a command
-    
+    input                         dma_abort_done,    // if abort is not needed, will generate dma_abort_done just next cycle
     
     // Communication with ahci_fis_receive (some are unused)
     // Debug features
@@ -257,15 +257,20 @@ module  ahci_fsm
 //    reg                            jump_r; 
     reg                      [2:0] fsm_jump;
     wire                           fsm_next;
-    reg                            fsm_next_r;
+//    reg                            fsm_next_r;
     reg                            fsm_actions;     // processing actions
     reg                            fsm_act_busy;
     reg                      [1:0] fsm_transitions; // processing transitions
     reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
 //    wire                     [7:0] precond_w = pgm_data[17:10];   // select what to use - cond_met_w valis after precond_w, same time as conditions
 //    reg                      [7:0] conditions;
-    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : |(cond_met_w & fsm_transitions[1]);
-    wire                           fsm_act_done = get_fis_done || xmit_done || (syncesc_send_pend && syncesc_send_done);
+//    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : |(cond_met_w & fsm_transitions[1]);
+    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
+    wire                           fsm_act_done = get_fis_done ||
+                                                  xmit_done ||
+                                                  (syncesc_send_pend && syncesc_send_done) ||
+                                                  dma_abort_done ||
+                                                  asynq_rq; // cominit_got || pcmd_st_cleared
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];
 
@@ -282,6 +287,14 @@ module  ahci_fsm
     reg                            phy_ready_chng_r;  // pulse when phy_ready changes
     wire                           phy_ready_chng_w = !hba_rst && !was_rst && (phy_ready != phy_ready_prev);
     reg                            was_last_action_r; // delay last action if it was fsm_wait_act;
+    
+    wire                           fsm_transitions_w =  // next will be transitions processing
+                                       (fsm_last_act_w && fsm_actions && fsm_next && !fsm_wait_act_w) ||
+                                       (fsm_act_busy && fsm_act_done && was_last_action_r);
+    
+    wire                           conditions_ce =  // copy all conditions to the register so they will not change while iterating through them
+                                       !fsm_transitions_w && !fsm_transitions[0];
+    
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
     assign update_all = fsm_jump[0];
@@ -344,8 +357,9 @@ module  ahci_fsm
         if (fsm_actions && fsm_next)                        was_last_action_r <= fsm_last_act_w;
         
         if      (hba_rst || pre_jump_w)                                fsm_transitions <= 0;
-        else if ((fsm_last_act_w && fsm_actions && fsm_next && !fsm_wait_act_w) ||
-                 (fsm_act_busy && fsm_act_done && was_last_action_r) ) fsm_transitions <= 1;
+        else if (fsm_transitions_w)                                    fsm_transitions <= 1; 
+//        else if ((fsm_last_act_w && fsm_actions && fsm_next && !fsm_wait_act_w) ||
+//                 (fsm_act_busy && fsm_act_done && was_last_action_r) ) fsm_transitions <= 1;
         else                                                           fsm_transitions <= {fsm_transitions[0],fsm_transitions[0]};
         
         if (hba_rst) fsm_preload <= 0;
@@ -460,6 +474,7 @@ module  ahci_fsm
 // Condition inputs may be registered if needed
     condition_mux condition_mux_i (
         .clk                   (mclk),                                    // input
+        .ce                    (conditions_ce),                           // input
         .sel                   (pgm_data[17:10]),                         // input[7:0]
         .condition             (cond_met_w),                              // output
     //COMPOSITE

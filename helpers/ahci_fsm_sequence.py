@@ -53,7 +53,7 @@ actions = ['NOP',
     # FIS_TRANSMIT
     'CLEAR_CMD_TO_ISSUE',
     # DMA
-    'DMA_ABORT', 'DMA_PRD_IRQ_CLEAR',
+    'DMA_ABORT*', 'DMA_PRD_IRQ_CLEAR',
     # SATA TRANSPORT/LINK/PHY
     'XMIT_COMRESET', 'SEND_SYNC_ESC*', 'SET_OFFLINE', 'R_OK', 'R_ERR',
     # FIS TRANSMIT/WAIT DONE
@@ -158,7 +158,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'P:NotRunning'},
             
             {LBL:'P:StartBitCleared',   ACT: 'PXCI0_CLEAR'},         # pxci0_clear
-            {                           ACT: 'DMA_ABORT'},           # dma_cmd_abort (should eventually clear PxCMD.CR)?
+            {                           ACT: 'DMA_ABORT*'},          # dma_cmd_abort (should eventually clear PxCMD.CR)?
             {                           ACT: 'PCMD_CR_CLEAR'},       # pcmd_cr_reset
             {                           ACT: 'XFER_CNTR_CLEAR'},     # clear_xfer_cntr
             
@@ -477,6 +477,7 @@ def condition_mux_verilog(conditions, condition_vals, module_name, fanout, file=
 
 module %s (
     input        clk,
+    input        ce,  // enable recording all conditions
     input [%2d:0] sel,
     output       condition,"""
     v=max(condition_vals.values())
@@ -485,15 +486,14 @@ module %s (
         num_inputs += 1
         v >>= 1
     maximal_length = max([len(n) for n in conditions])
-#    numregs = (len(conditions) + fanout - 1) // fanout
     numregs = (len(conditions) + fanout) // fanout # one more bit for 'always' (sel == 0)
     header = header_template%(module_name, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
     print(header,file=file)
     for input_name in conditions[:len(conditions)-1]:
-        print("    input        %s,"%(input_name),file=file)
-    print("    input        %s);\n"%(conditions[-1]),file=file)
-#    print("    wire [%2d:0] masked;"%(len(conditions)-1),file=file)
-    print("    wire [%2d:0] masked;"%(len(conditions)),file=file)
+        print("    input        %s,"%(input_name),            file=file)
+    print("    input        %s);\n"%(conditions[-1]),         file=file)
+    print("    wire [%2d:0] masked;"%(len(conditions)),       file=file)
+    print("    reg  [%2d:0] registered;"%(len(conditions) -1),file=file)
     if numregs > 1:
         print("    reg  [%2d:0] cond_r;\n"%(numregs-1),file=file)
     else:
@@ -505,7 +505,8 @@ module %s (
         print("    assign condition = cond_r;\n",file=file)
 
     for b in range (len(conditions)):
-        print("    assign masked[%2d] = %s %s"%(b, conditions[b] , " "*(maximal_length - len(conditions[b]))),end="",file=file)
+#       print("    assign masked[%2d] = %s %s"%(b, conditions[b] , " "*(maximal_length - len(conditions[b]))),end="",file=file)
+        print("    assign masked[%2d] = registered[%2d] "%(b, b),end="",file=file)
         d = condition_vals[conditions[b]]
         
         for nb in range(num_inputs-1,-1,-1):
@@ -514,7 +515,13 @@ module %s (
         print (";", file=file)
     print("    assign masked[%2d] = !(|sel); // always TRUE condition (sel ==0)"%(len(conditions)), file=file)
         
-    print ("\n    always @(posedge clk) begin", file=file)
+    print  ("\n    always @(posedge clk) begin", file=file)
+    print    ("        if (ce) begin", file=file)
+    for b in range (len(conditions)):
+        print("            registered[%2d] <= %s;"%(b, conditions[b]),file=file)
+    print    ("        end", file=file)        
+
+    
     for nb in range (numregs):
         ll = nb * fanout
 #        hl = min(ll + fanout, len(conditions)) -1

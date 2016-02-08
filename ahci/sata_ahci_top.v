@@ -224,7 +224,8 @@
     reg          [2:0] nhrst_r;
     wire               hrst = !nhrst_r[2];
     
-    wire        [31:0] debug_sata;
+    wire        [31:0] debug_phy;
+    wire        [31:0] debug_link;
     
     always @ (posedge hclk or posedge arst) begin
         if (arst) nhrst_r <= 0;
@@ -365,7 +366,8 @@
         .sctl_ipm          (sctl_ipm),          // output[3:0] 
         .sctl_spd          (sctl_spd),          // output[3:0] 
         .irq               (irq),               // output
-        .debug_in          (debug_sata)         // input[31:0]
+        .debug_in_phy      (debug_phy),         // input[31:0]
+        .debug_in_link     (debug_link)         // input[31:0]
     );
 
     ahci_sata_layers #(
@@ -424,7 +426,8 @@
         .txn_out           (TXN),               // output wire 
         .rxp_in            (RXP),               // input wire 
         .rxn_in            (RXN),               // input wire 
-        .debug_sata        (debug_sata)         // output[31:0]
+        .debug_phy         (debug_phy),         // output[31:0]
+        .debug_link        (debug_link)         // output[31:0]
     );
 
 

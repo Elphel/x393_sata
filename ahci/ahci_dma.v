@@ -47,7 +47,8 @@ module  ahci_dma (
     input                         dev_wr,       // write to device (valid at start)
     input                         cmd_start,     // start processing command table, reset prdbc
     input                         prd_start,     // at or after cmd_start - enable reading PRD/data (if any)
-    input                         cmd_abort,     // try to abort a command TODO: Implement
+    input                         cmd_abort,     // try to abort a command: Will keep afi_rready on until RD FIFO is empty and
+                                                 // afi_awvalid (slowly one by one?) until afi_wacount is empty, keeping afi_wlast on
 
 // Optional control of the AXI cache mode, default will be set to 4'h3, 4'h3 at mrst
     input                  [3:0]  axi_wr_cache_mode, 
@@ -70,6 +71,9 @@ module  ahci_dma (
     output reg                    prd_irq_pend,  // prd interrupt pending. This is just a condition for irq - actual will be generated after FIS OK
     output reg                    cmd_busy,     // all commands
     output                        cmd_done,     // @ mclk
+    output                        abort_busy,
+    output                        abort_done,
+    output                        axi_mismatch, // axi hp counters where empty when calculated counters were not (handled, but seems to be a bug - catch it)
     
     // Data System memory -> HBA interface @ mclk
     output                 [31:0] sys_out,      // 32-bit data from the system memory to HBA (dma data)
@@ -137,7 +141,11 @@ module  ahci_dma (
     // PL extra (non-AXI) signals
     input   [ 7:0] afi_rcount,
     input   [ 2:0] afi_racount,
-    output         afi_rdissuecap1en
+    output         afi_rdissuecap1en,
+    
+    output  [31:0] debug_out,
+    output  [31:0] debug_out1
+    
 );
 
 
@@ -180,7 +188,8 @@ module  ahci_dma (
     reg     [21:1] wcount;  // Word count
     reg            wcount_set; 
     reg     [22:1] qwcount; // only [21:3] are used ([22] - carry from subtraction )
-    
+    reg            qwcount_done;
+        
     reg     [21:3] qw_datawr_left;
     reg     [ 3:0] qw_datawr_burst;
     reg            qw_datawr_last; 
@@ -244,6 +253,33 @@ module  ahci_dma (
     wire           fifo_nempty_mclk;
     reg            en_extra_din_r;
     reg     [31:0] ct_data_reg;
+//    reg            abort_busy_hclk;
+    reg            hrst_r;
+    wire           abort_or_reset = cmd_abort_hclk || (hrst_r && !hrst);
+//    reg            axi_dirty_r; // afi_wacount of afi_rcount are non-zero (assuming afi_wcount should be zero as addresses are posted first
+    
+    wire           afi_dirty;
+    reg            afi_dirty_mclk;
+    wire           abort_done_hclk;
+    wire           abort_done_mclk;
+    reg            abort_done_unneeded;
+    wire           aborting;
+    wire           afi_wvalid_data;
+    wire           afi_wvalid_abort;
+    wire     [5:0] afi_wid_abort;
+    wire           afi_rready_abort;
+    wire           afi_wlast_abort;
+//    wire           abort_done;
+    reg            abort_rq_mclk;         
+    reg            abort_busy_mclk;
+    wire    [21:0] abort_debug;
+      
+    assign afi_wvalid = aborting ? afi_wvalid_abort:  afi_wvalid_data;
+    assign afi_wid =    aborting ? afi_wid_abort:     afi_id;
+    assign afi_rready = aborting ? afi_rready_abort : (afi_rd_ctl[0] || data_afi_re);
+    assign afi_wlast =  aborting ? afi_wlast_abort:   qw_datawr_last;
+    assign abort_done = abort_done_mclk || abort_done_unneeded;
+    assign abort_busy = abort_busy_mclk; 
     
       
 //    assign prd_done = done_dev_wr || done_dev_rd;
@@ -262,12 +298,12 @@ module  ahci_dma (
     assign afi_awlen  = afi_alen;
     assign afi_arvalid = axi_set_raddr_r;
     assign afi_awvalid = axi_set_waddr_r;
-    assign afi_rready = afi_rd_ctl[0] || data_afi_re;
+///    assign afi_rready = afi_rd_ctl[0] || data_afi_re;
     assign afi_wstrb = {{2{afi_wstb4[3]}},{2{afi_wstb4[2]}},{2{afi_wstb4[1]}},{2{afi_wstb4[0]}}};
-    assign afi_wlast = qw_datawr_last;
+///    assign afi_wlast = qw_datawr_last;
 
     assign afi_awid = afi_id;
-    assign afi_wid =  afi_id;
+//    assign afi_wid =  afi_id;
     assign afi_arid = afi_id;
 
 // Unused or static output signals
@@ -290,6 +326,16 @@ module  ahci_dma (
     assign extra_din = en_extra_din_r && fifo_nempty_mclk;
 //    reg             [31:0] ct_data_reg;
     always @ (posedge mclk) begin
+    
+        if (mrst) afi_dirty_mclk <= 0;
+        afi_dirty_mclk <=afi_dirty;
+    
+        abort_rq_mclk <= cmd_abort && afi_dirty_mclk;
+        
+        abort_done_unneeded <= cmd_abort && !afi_dirty_mclk;
+        if (mrst || abort_done) abort_busy_mclk <= 0;
+        else if (cmd_abort)     abort_busy_mclk <= 1;
+    
         if (ct_re[0]) ct_data_reg <=  ct_data_ram[ct_addr];
         if (ct_re[1]) ct_data <=      ct_data_reg;
         
@@ -332,12 +378,19 @@ module  ahci_dma (
     wire [21:1] wcount_plus_data_addr = wcount[21:1] + data_addr[2:1];
     
     always @ (posedge hclk) begin
+        hrst_r <= hrst;
+
+//        axi_dirty_r <= (|afi_wacount) || (|afi_rcount); // afi_wacount of afi_rcount are non-zero (assuming afi_wcount should be zero as addresses are posted first
+        
+//        if (abort_or_reset && axi_dirty_r) abort_busy_hclk <= 1'b1;
+    
+    
         addr_data_rq_r <= addr_data_rq_w;
         
         prd_start_hclk_r <= prd_start_hclk;
         
-        if      (hrst || cmd_abort_hclk) prd_enabled <= 0;
-        else if (prd_start_hclk_r)       prd_enabled <= 1; // presedence over  cmd_start_hclk
+        if      (hrst || abort_or_reset) prd_enabled <= 0;
+        else if (prd_start_hclk_r)       prd_enabled <= 1; // precedence over  cmd_start_hclk
         else if (cmd_start_hclk)         prd_enabled <= 0;
     
     
@@ -388,17 +441,21 @@ module  ahci_dma (
 ///     if (addr_data_rq)   data_len <= ((|qwcount[21:7]) || (&qwcount[6:3]))? 4'hf: qwcount[6:3];       // early calculate
         if (addr_data_rq_r) data_len <= ((|qwcount[21:7]) || (&qwcount[6:3]))? 4'hf: qwcount[6:3];       // early calculate
 
-///     if      (wcount_set)          qwcount[21:1] <= wcount[21:1] + data_addr[2:1]; //minus 1
-///     else if (axi_set_addr_data_w) qwcount[21:7] <= qwcount[21:7] - 1; // may get negative
 
-        if      (wcount_set)          qwcount[22:1] <= {1'b0,wcount_plus_data_addr[21:1]}; // wcount[21:1] + data_addr[2:1]; //minus 1
+        if      (wcount_set)          qwcount[22:7] <= {1'b0,wcount_plus_data_addr[21:7]}; // wcount[21:1] + data_addr[2:1]; //minus 1
         else if (axi_set_addr_data_w) qwcount[22:7] <= qwcount[22:7] - 1; // may get negative
+
+        if      (wcount_set)          qwcount[ 6:1] <= wcount_plus_data_addr[6:1]; // wcount[21:1] + data_addr[2:1]; //minus 1
+        
+        if      (wcount_set)                                qwcount_done <= 0;
+        else if (axi_set_addr_data_w && (qwcount[21:7]==0)) qwcount_done <= 1;
+        
+        
         
 //wcount_plus_data_addr        
         
-///     data_next_burst <= axi_set_addr_data_w && ((|qwcount[21:7]) || (&qwcount[6:3])); // same time as afi_awvalid || afi_arvalid
-///        data_next_burst <= !qwcount[22] && axi_set_addr_data_w && ((|qwcount[21:7]) || (&qwcount[6:3])); // same time as afi_awvalid || afi_arvalid
-        data_next_burst <= !qwcount[22] && axi_set_addr_data_w && (|qwcount[21:7]); // same time as afi_awvalid || afi_arvalid
+///        data_next_burst <= !qwcount[22] && axi_set_addr_data_w && (|qwcount[21:7]); // same time as afi_awvalid || afi_arvalid
+        data_next_burst <= !qwcount_done && axi_set_addr_data_w && (|qwcount[21:7]); // same time as afi_awvalid || afi_arvalid
 
 // Get PRD data
         // store data address from PRD, increment when needed
@@ -447,18 +504,15 @@ module  ahci_dma (
         
         // calculate afi_wlast - it is (qw_datawr_burst == 0), just use register qw_datawr_last
         
-        if      (prd_wr)     qw_datawr_last <= qwcount[21:3] == 0;
-///     else if (afi_wvalid) qw_datawr_last <= qw_datawr_burst == 1;        
-        else if (afi_wvalid) qw_datawr_last <= (qw_datawr_burst == 1) || (qw_datawr_last && (qw_datawr_left[21:3] == 16)); // last case - n*16 + 1 (last burst single)       
+        if      (prd_wr)          qw_datawr_last <= (qwcount[21:3] == 0);
+        else if (afi_wvalid_data) qw_datawr_last <= (qw_datawr_burst == 1) || (qw_datawr_last && (qw_datawr_left[21:3] == 16)); // last case - n*16 + 1 (last burst single)       
         
-        if      (prd_wr)                                                      qw_datawr_burst <= (|qwcount[21:7])? 4'hf: qwcount[6:3];
-///     else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
-///     else if (afi_wvalid &&                   (qw_datawr_left[21:7] == 0)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
-        else if (afi_wvalid && qw_datawr_last && (qw_datawr_left[21:7] == 1)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
-        else if (afi_wvalid)                                                  qw_datawr_burst <= qw_datawr_burst - 1;
+        if      (prd_wr)                                                           qw_datawr_burst <= (|qwcount[21:7])? 4'hf: qwcount[6:3];
+        else if (afi_wvalid_data && qw_datawr_last && (qw_datawr_left[21:7] == 1)) qw_datawr_burst <= qw_datawr_left[6:3]; // if not last roll over to 'hf
+        else if (afi_wvalid_data)                                                  qw_datawr_burst <= qw_datawr_burst - 1;
         
-        if      (prd_wr)                       qw_datawr_left[21:3] <= qwcount[21:3];
-        else if (afi_wvalid && qw_datawr_last) qw_datawr_left[21:7] <= qw_datawr_left[21:7] - 1; // can go negative - OK?
+        if      (prd_wr)                            qw_datawr_left[21:3] <= qwcount[21:3];
+        else if (afi_wvalid_data && qw_datawr_last) qw_datawr_left[21:7] <= qw_datawr_left[21:7] - 1; // can go negative - OK?
         
         // Count AXI IDs
         if      (hrst)             ct_id <= 0;
@@ -475,6 +529,44 @@ module  ahci_dma (
         
         
     end
+
+    // Flushing AXI HP - there is no easy way to reset it, so if there was an error in SATA communication we need to read any data
+    // that was already requested (over AXI read adderss channel) and send junk data (with appropriate afi_wlast bit) to the write
+    // channel. THis module is not reset and even bitsteram relaod will not work, so hrst input is used just as disable paying attention
+    // to other inputs, doe s not reset anything inside.
+    // FPGA should not be reset /reloaded if there are any outstanding transactions not aborted
+    // Current implementation counts all transactions and relies on it - not on afi_*count. TODO: Implement recovering from mismatch
+    
+    axi_hp_abort axi_hp_abort_i (
+        .hclk          (hclk),              // input
+        .hrst          (hrst),              // input
+        .abort         (abort_or_reset),    // input
+        .busy          (aborting),          // output
+        .done          (abort_done_hclk),   // output reg 
+        .afi_awvalid   (afi_awvalid),       // input
+        .afi_awready   (afi_awready),       // input
+        .afi_awid      (afi_awid),          // input[5:0] 
+        .afi_awlen     (afi_awlen),         // input[3:0] 
+        .afi_wvalid_in (afi_wvalid),        // input
+        .afi_wready    (afi_wready),        // input
+        .afi_wvalid    (afi_wvalid_abort),  // output
+        .afi_wid       (afi_wid_abort),     // output[5:0] reg 
+        .afi_arvalid   (afi_arvalid),       // input
+        .afi_arready   (afi_arready),       // input
+        .afi_arlen     (afi_arlen),         // input[3:0] 
+        .afi_rready_in (afi_rready),        // input
+        .afi_rvalid    (afi_rvalid),        // input
+        .afi_rready    (afi_rready_abort),  // output
+        .afi_wlast     (afi_wlast_abort),   // output
+        .afi_racount   (afi_racount),       // input[2:0] 
+        .afi_rcount    (afi_rcount),        // input[7:0]
+        .afi_wacount   (afi_wacount),       // input[5:0] 
+        .afi_wcount    (afi_wcount),        // input[7:0] 
+        .dirty         (afi_dirty),         // output reg 
+        .axi_mismatch  (axi_mismatch),      // output_reg
+        .debug         (abort_debug)        // output[21:0]  
+    );
+
     
     ahci_dma_rd_fifo #( // memory to device
         .WCNT_BITS    (21),
@@ -516,7 +608,7 @@ module  ahci_dma (
 //        .dout_av      (), // input
         .dout_av_many (afi_wcount_many),// input
         .last_prd     (last_prd),       // input
-        .dout_we      (afi_wvalid),     // output
+        .dout_we      (afi_wvalid_data),// output
         .dout_wstb    (afi_wstb4),      // output[3:0] reg 
         .done         (done_dev_rd),    // output reg 
         .busy         (), // output
@@ -544,8 +636,8 @@ module  ahci_dma (
         .rst       (mrst),            // input
         .src_clk   (mclk),            // input
         .dst_clk   (hclk),            // input
-        .in_pulse  (cmd_abort),       // input
-        .out_pulse (cmd_abort_hclk),    // output
+        .in_pulse  (abort_rq_mclk),   // input
+        .out_pulse (cmd_abort_hclk),  // output
         .busy()                       // output
     );
     pulse_cross_clock #(
@@ -595,8 +687,99 @@ module  ahci_dma (
         .busy()                       // output
     );
 
+    pulse_cross_clock #(
+        .EXTRA_DLY(0)
+    ) abort_done_i (
+        .rst       (hrst),            // input
+        .src_clk   (hclk),            // input
+        .dst_clk   (mclk),            // input
+        .in_pulse  (abort_done_hclk), // input
+        .out_pulse (abort_done_mclk), // output
+        .busy()                       // output
+    );
+    
+//abort_done_hclk    
+reg [7:0] dbg_afi_awvalid_cntr;
+reg [7:0] dbg_qwcount;
+reg [7:0] dbg_qwcount_cntr;
+reg [7:0] dbg_set_raddr_count;
+reg [7:0] dbg_set_waddr_count;
+reg       dbg_was_mismatch;
+//        if (axi_set_raddr_w || axi_set_waddr_w) begin
+//data_next_burst
+always @ (posedge hclk) begin
+    if      (hrst)            dbg_afi_awvalid_cntr <= 0;
+    else if (axi_set_waddr_r) dbg_afi_awvalid_cntr <= dbg_afi_awvalid_cntr + 1;
+    
+//    if      (hrst)            dbg_last_afi_len <= 0;
+    if (axi_set_raddr_w || axi_set_waddr_w) begin
+    end
+    if      (wcount_set)          dbg_qwcount <= wcount_plus_data_addr[14:7];
+//        if      (wcount_set)          qwcount[22:7] <= {1'b0,wcount_plus_data_addr[21:7]}; // wcount[21:1] + data_addr[2:1]; //minus 1
+    
+    if       (hrst)      dbg_qwcount_cntr <= 0;
+//    else if (wcount_set) dbg_qwcount_cntr <= dbg_qwcount_cntr + 1;
+//    else if (data_next_burst) dbg_qwcount_cntr <= dbg_qwcount_cntr + 1;
+    else if (!qwcount[22] && axi_set_addr_data_w && (|qwcount[21:7])) dbg_qwcount_cntr <= dbg_qwcount_cntr + 1;
+    
 
+    if       (hrst)           dbg_set_raddr_count <= 0;
+//    else if (axi_set_raddr_w) dbg_set_raddr_count <= dbg_set_raddr_count + 1;
+    else if (axi_set_raddr_ready && raddr_data_pend) dbg_set_raddr_count <= dbg_set_raddr_count + 1;
+    
 
+    if       (hrst)                                  dbg_set_waddr_count <= 0;
+//    else if (axi_set_waddr_w) dbg_set_waddr_count <= dbg_set_waddr_count + 1;
+//    else if (axi_set_waddr_ready && waddr_data_pend) dbg_set_waddr_count <= dbg_set_waddr_count + 1; //0x14
+    else if (addr_data_rq_w) dbg_set_waddr_count <= dbg_set_waddr_count + 1; //0x14
+    
+    if      (hrst)         dbg_was_mismatch <= 0;
+    else if (axi_mismatch) dbg_was_mismatch <= 1;
+    
+end
 
+assign debug_out =  {int_data_addr [3:0],
+                     qwcount_done, // prd_rd_busy,
+                     afi_racount   [2:0],
+                     //--
+                     afi_rcount    [7:0],
+                     //--
+                     ct_busy,
+                     cmd_busy,
+                     afi_wacount   [5:0],
+                     //--
+                     afi_wcount    [7:0]};
+/*
+assign debug_out =  {
+                     qwcount[22:7],
+                     dev_rd_id,
+                     dev_wr_id,
+                     prd_id,
+                     ct_id
+};
+
+assign debug_out =  {qwcount_done,
+                     2'b0,
+                     dev_wr_id,
+                     prd_id,
+                     wcount[21:1]
+};
+
+assign debug_out1 = { //dbg_set_raddr_count[7:0],
+                     qwcount_done,
+                     afi_rcount[6:0],
+                      //{qwcount[22], qwcount[13:7]},
+                     dbg_set_waddr_count[7:0],
+                     dbg_qwcount[3:0],
+                     afi_alen[3:0],
+                     dbg_qwcount_cntr[7:0]}; 
+*/                     
+assign debug_out1 = { //dbg_set_raddr_count[7:0]
+                     8'b0 ,
+                     dbg_was_mismatch,
+                     1'b0,
+                     abort_debug[21:0]}; //    {aw_count[5:0], w_count[7:0], r_count[7:0]};
+                     
+//
 endmodule
 
