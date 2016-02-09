@@ -345,13 +345,13 @@ module  ahci_dma (
         
         if (cmd_start) dev_wr_mclk <= dev_wr;
         
-        if      (mrst)      cmd_busy <= 0;
-        else if (cmd_start) cmd_busy <= 1; 
-        else if (cmd_done)  cmd_busy <= 0;
+        if      (mrst || cmd_abort) cmd_busy <= 0;
+        else if (cmd_start)         cmd_busy <= 1; 
+        else if (cmd_done)          cmd_busy <= 0;
 
-        if      (mrst)         ct_busy <= 0;
-        else if (cmd_start)    ct_busy <= 1; 
-        else if (ct_done_mclk) ct_busy <= 0;
+        if      (mrst || cmd_abort) ct_busy <= 0;
+        else if (cmd_start)         ct_busy <= 1; 
+        else if (ct_done_mclk)      ct_busy <= 0;
         
         if      (mrst)                  afi_arcache <= 4'h3;
         else if (set_axi_rd_cache_mode) afi_arcache <= axi_rd_cache_mode;
@@ -379,11 +379,6 @@ module  ahci_dma (
     
     always @ (posedge hclk) begin
         hrst_r <= hrst;
-
-//        axi_dirty_r <= (|afi_wacount) || (|afi_rcount); // afi_wacount of afi_rcount are non-zero (assuming afi_wcount should be zero as addresses are posted first
-        
-//        if (abort_or_reset && axi_dirty_r) abort_busy_hclk <= 1'b1;
-    
     
         addr_data_rq_r <= addr_data_rq_w;
         
@@ -400,21 +395,21 @@ module  ahci_dma (
         
         // overall sequencing makes sure that there will be no new requests until older served
         // additionally they are mutuially exclusive - only one may be pending at a time
-        if      (hrst)                raddr_ct_pend <= 0;
-        else if (raddr_ct_rq)         raddr_ct_pend <= 1;
-        else if (axi_set_raddr_ready) raddr_ct_pend <= 0;
+        if      (hrst || cmd_abort_hclk) raddr_ct_pend <= 0;
+        else if (raddr_ct_rq)            raddr_ct_pend <= 1;
+        else if (axi_set_raddr_ready)    raddr_ct_pend <= 0;
         
-        if      (hrst)                raddr_prd_pend <= 0;
-        else if (raddr_prd_rq)        raddr_prd_pend <= 1;
-        else if (axi_set_raddr_ready) raddr_prd_pend <= 0;
+        if      (hrst || cmd_abort_hclk) raddr_prd_pend <= 0;
+        else if (raddr_prd_rq)           raddr_prd_pend <= 1;
+        else if (axi_set_raddr_ready)    raddr_prd_pend <= 0;
         
-        if      (hrst)                raddr_data_pend <= 0;
-        else if (raddr_data_rq)       raddr_data_pend <= 1;
-        else if (axi_set_raddr_ready) raddr_data_pend <= 0;
+        if      (hrst || cmd_abort_hclk) raddr_data_pend <= 0;
+        else if (raddr_data_rq)          raddr_data_pend <= 1;
+        else if (axi_set_raddr_ready)    raddr_data_pend <= 0;
         
-        if      (hrst)                waddr_data_pend <= 0;
-        else if (waddr_data_rq)       waddr_data_pend <= 1;
-        else if (axi_set_waddr_ready) waddr_data_pend <= 0;
+        if      (hrst || cmd_abort_hclk) waddr_data_pend <= 0;
+        else if (waddr_data_rq)          waddr_data_pend <= 1;
+        else if (axi_set_waddr_ready)    waddr_data_pend <= 0;
         
         if (hrst)                                           {is_ct_addr, is_prd_addr, is_data_addr} <= 0;
         else if (raddr_ct_rq || raddr_prd_rq || wcount_set) {is_ct_addr, is_prd_addr, is_data_addr} <= {raddr_ct_rq, raddr_prd_rq, wcount_set};
@@ -572,8 +567,8 @@ module  ahci_dma (
         .WCNT_BITS    (21),
         .ADDRESS_BITS (3)
     ) ahci_dma_rd_fifo_i (
-        .mrst         (mrst),                        // input
-        .hrst         (hrst),                        // input
+        .mrst         (mrst || abort_busy_mclk),     // input
+        .hrst         (hrst || cmd_abort_hclk),      // input
         .mclk         (mclk),                        // input
         .hclk         (hclk),                        // input
         .wcnt         (wcount[21:1]),                // input[20:0] 
@@ -596,29 +591,27 @@ module  ahci_dma (
         .WCNT_BITS    (21),
         .ADDRESS_BITS (3)
     ) ahci_dma_wr_fifo_i (
-        .mrst         (mrst),           // input
-        .hrst         (hrst),           // input
-        .mclk         (mclk),           // input
-        .hclk         (hclk),           // input
-        .wcnt         (wcount[21:1]),   // input[20:0] 
-        .woffs        (data_addr[2:1]), // input[1:0] 
-        .init         (cmd_start_hclk), // input
-        .start        (prd_wr),         // input
-        .dout         (afi_wdata),      // output[63:0] reg 
+        .mrst         (mrst || abort_busy_mclk),     // input
+        .hrst         (hrst ||cmd_abort_hclk),       // input
+        .mclk         (mclk),                        // input
+        .hclk         (hclk),                        // input
+        .wcnt         (wcount[21:1]),                // input[20:0] 
+        .woffs        (data_addr[2:1]),              // input[1:0] 
+        .init         (cmd_start_hclk),              // input
+        .start        (prd_wr),                      // input
+        .dout         (afi_wdata),                   // output[63:0] reg 
 //        .dout_av      (), // input
-        .dout_av_many (afi_wcount_many),// input
-        .last_prd     (last_prd),       // input
-        .dout_we      (afi_wvalid_data),// output
-        .dout_wstb    (afi_wstb4),      // output[3:0] reg 
-        .done         (done_dev_rd),    // output reg 
-        .busy         (), // output
-        .fifo_nempty_mclk  (fifo_nempty_mclk), // output reg 
-        .din          (sys_in),         // input[31:0] 
-        .din_rdy      (sys_nfull),      // output
-        .din_avail    (sys_we)          // input
+        .dout_av_many (afi_wcount_many),             // input
+        .last_prd     (last_prd),                    // input
+        .dout_we      (afi_wvalid_data),             // output
+        .dout_wstb    (afi_wstb4),                   // output[3:0] reg 
+        .done         (done_dev_rd),                 // output reg 
+        .busy         (),                            // output
+        .fifo_nempty_mclk  (fifo_nempty_mclk),       // output reg 
+        .din          (sys_in),                      // input[31:0] 
+        .din_rdy      (sys_nfull),                   // output
+        .din_avail    (sys_we)                       // input
     );
-    
-    
     // mclk -> hclk cross-clock synchronization
     pulse_cross_clock #(
         .EXTRA_DLY(0)

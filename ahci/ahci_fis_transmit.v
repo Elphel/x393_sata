@@ -30,6 +30,7 @@ module  ahci_fis_transmit #(
 )(
     input                         hba_rst, // @posedge mclk - when port is reset (even COMINIT)?
     input                         mclk, // for command/status
+    input                         pcmd_st_cleared, // ~= hba_rst?
     // Command pulses to execute states
     input                         fetch_cmd,    // Enter p:FetchCmd, fetch command header (from the register memory, prefetch command FIS)
                                                 // wait for either fetch_cmd_busy == 0 or pCmdToIssue ==1 after fetch_cmd
@@ -232,45 +233,35 @@ module  ahci_fis_transmit #(
     always @ (posedge mclk) begin
         // Mutliplex between DMA and FIS output to the output routed to transmit FIFO
         // Count bypassing DMA dwords to generate FIS_last condition?
-        if      (hba_rst)                  todev_full_r <= 0;
-        else if (write_or_w)               todev_full_r <= 1; // do not fill the buffer if FIFO is not ready
-        else if (todev_ready)              todev_full_r <= 0;
+        if      (hba_rst || pcmd_st_cleared) todev_full_r <= 0;
+        else if (write_or_w)                 todev_full_r <= 1; // do not fill the buffer if FIFO is not ready
+        else if (todev_ready)                todev_full_r <= 0;
         
-        if (write_or_w)                    todev_data <= dma_en_r? dma_out: fis_data_out;
+        if (write_or_w)                      todev_data <= dma_en_r? dma_out: fis_data_out;
         
-        if      (hba_rst)                  todev_type <= 3; // invalid? - no, now first and last word in command FIS (impossible?)
-        else if (write_or_w)               todev_type <= dma_en_r? {dx_dma_last_w , 1'b0} : fis_data_type;
-//        else if (was_dma_ndav[1])          todev_type <=           {1'b1, 1'b0}; // type = last in FIS
-        
-//        if      (hba_rst)                  was_dma_ndav <= 0;
-//        else                               was_dma_ndav <= {was_dma_ndav[1:0], ~dma_dav & todev_full_r & watch_prd_end_w} ;
-        
-//        if      (hba_rst || dma_dav || !todev_full_r || !watch_prd_end_w) was_dma_ndav <= 0;
-//        else                                                              was_dma_ndav <= (was_dma_ndav << 1) | 1;        
-        
-//        if (hba_rst || dx_xmit || done_w)  watch_prd_end <= 0;
-//        else if (masked_last_h2d_data)     watch_prd_end <= 1;
+        if      (hba_rst)                    todev_type <= 3; // invalid? - no, now first and last word in command FIS (impossible?)
+        else if (write_or_w)                 todev_type <= dma_en_r? {dx_dma_last_w , 1'b0} : fis_data_type;
         // Read 3 DWORDs from the command header
         
-        if (hba_rst)                       fetch_chead_r <= 0; // running 1 
-        else                               fetch_chead_r <= {fetch_chead_r[2:0], fetch_cmd};
+        if (hba_rst)                         fetch_chead_r <= 0; // running 1 
+        else                                 fetch_chead_r <= {fetch_chead_r[2:0], fetch_cmd};
         
-        if      (hba_rst)                  fetch_chead_stb_r <= 0;
-        else                               fetch_chead_stb_r <= {fetch_chead_stb_r[2:0], pre_reg_stb && chead_bsy};        
+        if      (hba_rst)                    fetch_chead_stb_r <= 0;
+        else                                 fetch_chead_stb_r <= {fetch_chead_stb_r[2:0], pre_reg_stb && chead_bsy};        
 
-        if      (hba_rst)                  chead_bsy <= 0;
-        else if (fetch_cmd)                chead_bsy <= 1;
-        else if (chead_done_w)             chead_bsy <= 0;
+        if      (hba_rst)                    chead_bsy <= 0;
+        else if (fetch_cmd)                  chead_bsy <= 1;
+        else if (chead_done_w)               chead_bsy <= 0;
 
-        if      (hba_rst)                  chead_bsy_re <= 0;
-        else if (fetch_cmd)                chead_bsy_re <= 1;
-        else if (fetch_chead_r[1])         chead_bsy_re <= 0; // read 3 dwords
+        if      (hba_rst)                    chead_bsy_re <= 0;
+        else if (fetch_cmd)                  chead_bsy_re <= 1;
+        else if (fetch_chead_r[1])           chead_bsy_re <= 0; // read 3 dwords
         
-        if      (hba_rst)                  reg_re_r <= 0; // [0] -> reg_re output
-        else                               reg_re_r <= {reg_re[1:0], reg_re_w};
+        if      (hba_rst)                    reg_re_r <= 0; // [0] -> reg_re output
+        else                                 reg_re_r <= {reg_re[1:0], reg_re_w};
         
-        if      (fetch_cmd)                reg_addr <= CLB_OFFS32;   // there will be more conditions
-        else if (reg_re_r[0])              reg_addr <= reg_addr + 1;
+        if      (fetch_cmd)                  reg_addr <= CLB_OFFS32;   // there will be more conditions
+        else if (reg_re_r[0])                reg_addr <= reg_addr + 1;
         
         // save command header data to registers
         if (fetch_chead_stb_r[0]) begin
@@ -291,24 +282,21 @@ module  ahci_fis_transmit #(
        else if (chead_done_w)    pCmdToIssue_r <= 1;
        else if (clearCmdToIssue) pCmdToIssue_r <= 0;
        
-       if      (hba_rst)         fetch_cmd_busy_r <= 0;
-       else if (fetch_cmd)       fetch_cmd_busy_r <= 1;
-       else if (dma_start)       fetch_cmd_busy_r <= 0;
+       if      (hba_rst || pcmd_st_cleared) fetch_cmd_busy_r <= 0;
+       else if (fetch_cmd)                  fetch_cmd_busy_r <= 1;
+       else if (dma_start)                  fetch_cmd_busy_r <= 0;
        
        //CFIS/ATAPI common
-       
-//       if (hba_rst || cfis_xmit)  anc_fis_r <= 0;
-//       else if (atapi_xmit)       anc_fis_r <= 1;
 
        // fetch and send command/atapi FIS
-       if (hba_rst || acfis_xmit_start_w) acfis_xmit_pend_r <= 0;
-       else if (cfis_xmit || atapi_xmit)  acfis_xmit_pend_r <= 1;
+       if (hba_rst || acfis_xmit_start_w || pcmd_st_cleared) acfis_xmit_pend_r <= 0;
+       else if (cfis_xmit || atapi_xmit)                     acfis_xmit_pend_r <= 1;
         
        acfis_xmit_start_r <= !hba_rst && acfis_xmit_start_w;
 
-       if      (hba_rst)            acfis_xmit_busy_r <= 0;
-       else if (acfis_xmit_start_r) acfis_xmit_busy_r <= 1;
-       else if (acfis_xmit_end)     acfis_xmit_busy_r <= 0;
+       if      (hba_rst || pcmd_st_cleared) acfis_xmit_busy_r <= 0;
+       else if (acfis_xmit_start_r)         acfis_xmit_busy_r <= 1;
+       else if (acfis_xmit_end)             acfis_xmit_busy_r <= 0;
        
        if      (cfis_xmit)                        cfis_acmd_left_r <=   ch_cmd_len_r[ 4: 0];   // Will assume that there is room for ...
        else if (atapi_xmit)                       cfis_acmd_left_r <=  (|xfer_cntr[31:4]) ? 5'h4 : {3'b0,xfer_cntr[3:2]};
@@ -332,20 +320,18 @@ module  ahci_fis_transmit #(
        
        //TODO: update xfer length, prdtl (only after R_OK) - yes, do it outside
        
-//       if (dx_xmit) xfer_cntr_is_set <= !xfer_cntr_zero; // if it was zero - rely on PRDs
-       
        if   (dx_xmit)     dx_dwords_left[11:0] <= (xfer_cntr_zero || (|xfer_cntr[31:13])) ? 12'h800 : {1'b0,xfer_cntr[12:2]};
        else if (dma_re_w) dx_dwords_left[11:0] <= dx_dwords_left[11:0] - 1;
        
-       if   (dx_xmit)     dwords_sent <= 0;
+       if      (dx_xmit)  dwords_sent <= 0;
        else if (dma_re_w) dwords_sent <= dwords_sent + 1;
 
        // send FIS header
-       if (hba_rst || write_or_w) dx_fis_pend_r <= 0;
-       else if (dx_xmit)          dx_fis_pend_r <= 1;
+       if (hba_rst || write_or_w ||pcmd_st_cleared) dx_fis_pend_r <= 0;
+       else if (dx_xmit)                            dx_fis_pend_r <= 1;
        
-       if (hba_rst || dx_dma_last_w || (|dx_err_r)) dma_en_r  <= 0;
-       else if (dx_fis_pend_r &&  write_or_w)       dma_en_r  <= 1;
+       if (hba_rst || dx_dma_last_w || (|dx_err_r) || pcmd_st_cleared) dma_en_r  <= 0;
+       else if (dx_fis_pend_r &&  write_or_w)                          dma_en_r  <= 1;
        
        // Abort on transmit errors
        if (hba_rst || any_cmd_start) dx_err_r[0] <= 0;
@@ -357,9 +343,7 @@ module  ahci_fis_transmit #(
        if (hba_rst || any_cmd_start) dx_err_r[2] <= 0;
        else if (xrdy_collision)      dx_err_r[2] <= 1;
 
-       if      (hba_rst)                           dx_busy_r <= 0;   // sending CFIS, AFIS or data FIS (until error or R_OK)
-//       else if (dx_xmit)                  dx_busy_r <= 1;
-//       else if (dx_dma_last_w || (|dx_err_r)) dx_busy_r <= 0;
+       if      (hba_rst || pcmd_st_cleared)    dx_busy_r <= 0;   // sending CFIS, AFIS or data FIS (until error or R_OK)
        else if (dx_xmit || acfis_xmit_start_r) dx_busy_r <= 1;
        else if (xmit_ok || (|dx_err_r))        dx_busy_r <= 0;
 
@@ -369,14 +353,12 @@ module  ahci_fis_transmit #(
        if      (hba_rst)                      done <= 0;
        else                                   done <= done_w;
        
-       if      (hba_rst)                      busy <= 0;
+       if      (hba_rst || pcmd_st_cleared)   busy <= 0;
        else if (any_cmd_start)                busy <= 1;
        else if (done_w)                       busy <= 0;
        
        if      (hba_rst)                      xmit_ok_r <= 0;
        else                                   xmit_ok_r <= dx_busy_r && !(|dx_err_r) && xmit_ok;
-       
-       
 
        dma_cmd_abort <= done_w && (|dx_err_r);
 

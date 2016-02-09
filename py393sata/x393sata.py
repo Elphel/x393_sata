@@ -730,6 +730,20 @@ sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 
 
+sata.reset_ie()
+sata.dd_read_dma(0x100, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+
+sata.reset_ie()
+sata.dd_read_dma(0x81, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+
 
 
 mem.write_mem(0x80000118,0x10)

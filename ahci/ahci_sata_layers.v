@@ -138,6 +138,9 @@ module  ahci_sata_layers #(
     wire ll_incom_start;       // link -> // if started an incoming transaction    assuming this and next 2 are single-cycle
     wire ll_incom_done;        // link -> // if incoming transition was completed
     wire ll_incom_invalidate;  // link -> // if incoming transition had errors
+    reg ll_incom_invalidate_r; // error delayed by 1 clock - if eof was incorrect (because of earlier data error)
+                               // let last data dword to pass through
+    
 //    wire incom_ack_good = send_R_OK;    // -> link  // transport layer responds on a completion of a FIS
 //    wire incom_ack_bad = send_R_ERR;     // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle
     
@@ -176,6 +179,7 @@ module  ahci_sata_layers #(
 
     wire                           rxelsfull; 
     wire                           rxelsempty; 
+
     
     wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
     
@@ -262,7 +266,7 @@ module  ahci_sata_layers #(
         .link_reset       (ll_link_reset),         // input wire  // oob sequence is reinitiated and link now is not established or rxelecidle
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
-        .incom_stop_req   (pcmd_st_cleared),       // input wire  // TL demands to stop current recieving session
+        .incom_stop_req   (pcmd_st_cleared),       // input wire  // TL demands to stop current receiving session
         .link_established (link_established),
         // inputs from phy
         .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established
@@ -277,14 +281,15 @@ module  ahci_sata_layers #(
     );
     
     always @ (posedge clk) begin
+        ll_incom_invalidate_r <=                       ll_incom_invalidate;
         // FIS receive D2H
         // add head if ll_d2h_valid and  (d2h_type_in == D2H_TYPE_OK) || (d2h_type_in == D2H_TYPE_ERR)? Or signal some internal error 
         if (rst || ll_incom_start)                     d2h_type_in <= D2H_TYPE_FIS_HEAD; // FIS head
         else if (ll_d2h_valid)                         d2h_type_in <= D2H_TYPE_DMA;          // FIS BODY
-        else if (ll_incom_done || ll_incom_invalidate) d2h_type_in <= ll_incom_invalidate ? D2H_TYPE_ERR: D2H_TYPE_OK;
+        else if (ll_incom_done || ll_incom_invalidate_r) d2h_type_in <= ll_incom_invalidate_r ? D2H_TYPE_ERR: D2H_TYPE_OK;
         
         if (rst) fis_over_r <= 0;
-        else fis_over_r <= (ll_incom_done || ll_incom_invalidate) && (d2h_type_in == D2H_TYPE_DMA); // make sure it is only once
+        else fis_over_r <= (ll_incom_done || ll_incom_invalidate_r) && (d2h_type_in == D2H_TYPE_DMA); // make sure it is only once
         // Second - generate internal error?
         
         // FIS transmit H2D
@@ -342,7 +347,7 @@ module  ahci_sata_layers #(
         .WIDTH(9)
     ) fifo_h2d_control_i (
         .clk      (clk),                    // input
-        .rst      (rst),                    // input
+        .rst      (rst || pcmd_st_cleared), // input
         .wr       (h2d_fifo_wr),            // input
         .rd       (h2d_fifo_rd),            // input
         .nempty   (h2d_nempty),             // output
@@ -376,7 +381,7 @@ module  ahci_sata_layers #(
         .WIDTH(9)
     ) fifo_d2h_control_i (
         .clk      (clk),                    // input
-        .rst      (rst),                    // input
+        .rst      (rst || pcmd_st_cleared), // input
         .wr       (d2h_fifo_wr),            // input
         .rd       (d2h_fifo_rd),            // input
         .nempty   (d2h_nempty),             // output

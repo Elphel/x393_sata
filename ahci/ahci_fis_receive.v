@@ -34,6 +34,7 @@ module  ahci_fis_receive#(
 )(
     input                         hba_rst, // @posedge mclk - sync reset
     input                         mclk, // for command/status
+    input                         pcmd_st_cleared, // ~= hba_rst?
     // Control Interface
     output reg                    fis_first_vld,     // fis_first contains valid FIS header, reset by get_*
     // Debug features
@@ -241,8 +242,8 @@ localparam DATA_TYPE_ERR =      3;
     assign fis_first_invalid = fis_first_invalid_r;
     
     always @ (posedge mclk) begin
-        if (hba_rst || dma_in_stop) dma_in <= 0;
-        else if (dma_in_start)      dma_in <= 1;
+        if (hba_rst || dma_in_stop || pcmd_st_cleared) dma_in <= 0;
+        else if (dma_in_start)                         dma_in <= 1;
         
         if   (hba_rst) was_data_in <= 0;
         else           was_data_in <= {was_data_in[0], hba_data_in_ready};
@@ -254,7 +255,7 @@ localparam DATA_TYPE_ERR =      3;
         else if ((dma_in_valid && data_in_dwords_r[11]) ||
                   (wreg_we_r && dwords_over))             too_long_err <= 1;
                   
-        if      (hba_rst || dma_in_start)                                               fis_extra_r <= 0;
+        if      (hba_rst || dma_in_start || pcmd_st_cleared)                            fis_extra_r <= 0;
         else if (data_in_ready && (hba_data_in_type == DATA_TYPE_DMA) && dma_prds_done) fis_extra_r <= 1;
         
                   
@@ -294,13 +295,12 @@ localparam DATA_TYPE_ERR =      3;
            
         end
         
-        if      (hba_rst)                     fis_rec_run <= 0;
+        if      (hba_rst || pcmd_st_cleared)  fis_rec_run <= 0;
         else if (get_fis)                     fis_rec_run <= 1;
         else if (is_fis_end && data_in_ready) fis_rec_run <= 0;
         
-        if      (hba_rst ||get_fis)                           dwords_over <= 0;
+        if      (hba_rst ||get_fis || pcmd_st_cleared)        dwords_over <= 0;
         else if (wreg_we_r && !(|fis_dcount))                 dwords_over <= 1;
-///        else if (wreg_we_r && (!(|fis_dcount) || is_fis_end)) dwords_over <= 1;
         
         if (hba_rst) wreg_we_r <= 0;
         else         wreg_we_r <= fis_rec_run && data_in_ready && !is_fis_end && !dwords_over && (|fis_dcount || !wreg_we_r) &&
@@ -308,7 +308,7 @@ localparam DATA_TYPE_ERR =      3;
 
         fis_end_r <= {fis_end_r[0], fis_end_w};
         
-        if      (hba_rst)                     get_fis_busy_r[0] <= 0;
+        if      (hba_rst || pcmd_st_cleared)  get_fis_busy_r[0] <= 0;
         else if (get_fis)                     get_fis_busy_r[0] <= 1;
         else if (too_long_err || fis_end_w)   get_fis_busy_r[0] <= 0;
 
@@ -316,10 +316,8 @@ localparam DATA_TYPE_ERR =      3;
         
         get_fis_done <=  get_fis_busy_r[0] && (too_long_err || fis_end_w);
         
-///     if      (hba_rst || get_fis)          fis_first_vld <= 0;
-///     if      (hba_rst || fis_end_w)        fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
-        if      (hba_rst || (|get_fis_busy_r))fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
-        else if (is_FIS_HEAD)                 fis_first_vld <= 1;
+        if      (hba_rst || (|get_fis_busy_r) || pcmd_st_cleared) fis_first_vld <= 0; // is_FIS_HEAD stays on longer than just get_fis
+        else if (is_FIS_HEAD)                                     fis_first_vld <= 1;
         
         if      (hba_rst || get_fis)          fis_ok <= 0;
         else if (fis_end_w)                   fis_ok <= hba_data_in_type == DATA_TYPE_OK;
@@ -356,6 +354,7 @@ localparam DATA_TYPE_ERR =      3;
         else if (update_prdbc_r)              reg_addr <=  CLB_OFFS32 + 1; // location of PRDBC
         
         if (reg_d2h || reg_sdb[0] || reg_ds[0])  fis_i <=           hba_data_in[14];
+        
         if (reg_sdb)                          sdb_n <=           hba_data_in[15];
         if (reg_ds[0])                        {dma_a,dma_d}  <=  {hba_data_in[15],hba_data_in[13]};
 
@@ -381,7 +380,6 @@ localparam DATA_TYPE_ERR =      3;
         xfer_cntr_zero_r <=                     xfer_cntr_r[31:2] == 0;
         
         update_err_sts_r <= update_pio || update_err_sts || clear_bsy_drq || set_bsy || set_sts_7f || set_sts_80;
-//        update_pio_r <=  update_pio;
         update_prdbc_r <= update_prdbc; // same latency as update_err_sts
         update_sig_r <=   update_sig && pUpdateSig_r; // do not update if not requested
         
@@ -395,10 +393,9 @@ localparam DATA_TYPE_ERR =      3;
         else if (store_sig[3])         sig_available <= 1;
         
         // Maybe it is not needed if the fsm will send this pulse?
-//        data_in_words_apply <= dma_in_stop && (hba_data_in_type == DATA_TYPE_OK);
 
-        if (hba_rst || (|get_fis_busy_r)) fis_first_invalid_r <= 0;
-        else                              fis_first_invalid_r <= is_FIS_NOT_HEAD;
+        if (hba_rst || (|get_fis_busy_r) ||pcmd_st_cleared) fis_first_invalid_r <= 0;
+        else                                                fis_first_invalid_r <= is_FIS_NOT_HEAD;
         
         if (!fis_first_invalid_r)      fis_first_flushing_r <= 0;
         else if (fis_first_flush)      fis_first_flushing_r <= 1;

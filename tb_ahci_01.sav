@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Mon Feb  8 16:49:44 2016
+[*] Tue Feb  9 00:10:45 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160207225755387.fst"
-[dumpfile_mtime] "Mon Feb  8 05:59:18 2016"
-[dumpfile_size] 10376737
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160208143933526.fst"
+[dumpfile_mtime] "Mon Feb  8 21:40:58 2016"
+[dumpfile_size] 10386281
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
 [timestart] 0
 [size] 1823 1180
 [pos] 1917 0
-*-23.562601 38842258 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-23.562601 17391070 29549854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.linkMonitorFIS.
@@ -23,6 +23,7 @@
 [treeopen] tb_ahci.dut.
 [treeopen] tb_ahci.dut.axi_hp_clk_i.
 [treeopen] tb_ahci.dut.sata_top.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.crc.
@@ -1155,16 +1156,16 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
 @1401200
 -ahci_fsm
-@800200
+@c00200
 -ahci_fis_receive
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in[31:0]
-@c08029
+@c08028
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_type[1:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_type[1:0]
 (1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.hba_data_in_type[1:0]
-@1409201
+@1401200
 -group_end
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_addr[9:0]
@@ -1251,7 +1252,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
 (3)tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.fis_dcount[3:0]
 @1001200
 -group_end
-@1000200
+@1401200
 -ahci_fis_receive
 @c00200
 -ahci_fis_transmit
@@ -1413,9 +1414,17 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_addr[31:1]
 -group_end
 @1401200
 -ahci_fis_transmit
-@c00200
+@800200
 -ahci_sata_layers
 @28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_incom_start
+tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_incom_done
+tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_incom_invalidate
+@29
+tb_ahci.dut.sata_top.ahci_sata_layers_i.d2h_fifo_wr
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.d2h_type_in[1:0]
+tb_ahci.dut.sata_top.ahci_sata_layers_i.d2h_type[1:0]
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_ready
 @22
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_fill[9:0]
@@ -1462,6 +1471,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_control_i.rreg_full
 -
 @1401200
 -fifo_h2d_control
+@1000200
 -ahci_sata_layers
 @c00200
 -simul_axi_hp_wr
@@ -2663,7 +2673,7 @@ tb_ahci.simul_axi_hp_rd_i.rdata_i.out_full
 -
 @1401200
 -ahci_dma
-@c00200
+@800200
 -link
 @c00022
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.debug_out[31:0]
@@ -2756,7 +2766,10 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_send_data
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rst
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.clr_send_data
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.alignes_pair
-@c00200
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.incom_done
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.crc_good
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_rcvr_goodend
+@800200
 -states
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_align
@@ -2783,7 +2796,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_shold
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_send_sof
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_sync_esc
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_wait
-@1401200
+@1000200
 -states
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.link_reset
@@ -3039,7 +3052,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.alignes_pair
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_req
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_ack
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_busy
-@1401200
+@1000200
 -link
 @c00200
 -phy

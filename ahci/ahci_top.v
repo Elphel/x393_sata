@@ -246,7 +246,7 @@ module  ahci_top#(
     wire                    dma_cmd_start; // input
     wire                    dma_prd_start; // input
     wire                    dma_cmd_abort_xmit; // input
-    wire                    dma_cmd_abort_fsm; // abort from FSM (also from ahci_fis_transmit)
+    wire                    dma_cmd_abort_fsm;  // abort from FSM (also from ahci_fis_transmit)
         
 // Use some of the custom registers in the address space?    
     wire             [17:0] fsm_pgm_ad; // @aclk, address/data to program the AHCI FSM
@@ -896,7 +896,7 @@ module  ahci_top#(
     ) ahci_fis_receive_i (
         .hba_rst           (mrst),                   // input
         .mclk              (mclk),                   // input
-        
+        .pcmd_st_cleared   (pcmd_st_cleared),        // input
         .fis_first_vld     (frcv_first_vld),         // output reg 
         .fis_first_invalid (frcv_first_invalid),     // output
         .fis_first_flush   (frcv_first_flush),       // input
