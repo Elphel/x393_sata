@@ -62,7 +62,7 @@ COMMAND_BUFFER_OFFSET =     0x0 # Just at the beginning of available memory
 COMMAND_BUFFER_SIZE =     0x100 # 256 bytes - 128 before PRDT, 128+ - PRDTs (16 bytes each)
 PRD_OFFSET =               0x80 # Start of the PRD table
 FB_OFFS =                 0xc00 # Needs 0x100 bytes 
-
+DRP_OFFS =                0xfec # Read/Write DRP data [31] - write/ready, [30:16] - address/0, [15:0] - data to/data from
 DATAIN_BUFFER_OFFSET =  0x10000
 DATAIN_BUFFER_SIZE =    0x10000
 IDENTIFY_BUF =                0 # Identify receive buffer offset in  DATAIN_BUFFER, in bytes
@@ -78,6 +78,14 @@ BUFFER_LEN =          None # in bytes
 COMMAND_ADDRESS =     None # start of the command buffer (to be sent to device)
 DATAIN_ADDRESS  =     None # start of the the 
 DATAOUT_ADDRESS  =    None # start of the the 
+
+#DRP addresses (non-GTX)
+DRP_MASK_ADDR =      0x200 # ..0x207
+DRP_TIMER_ADDR =     0x208 # write timer value (how long to count early/late)
+DRP_EARLY_ADDR =     0x209 # write timer value (how long to count early/late)
+DRP_LATE_ADDR =      0x20a # write timer value (how long to count early/late)
+DRP_OTHERCTRL_ADDR = 0x20b # Now bit 0 - disable wait for phase align
+
 
 #FIS types
 FIS_H2DR = 0x27
@@ -650,6 +658,44 @@ class x393sata(object):
         #print("Memory read data:")    
         #print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(data_buf, count * 0x200))
         #self.x393_mem.mem_dump (data_buf, count * 0x200, 1)        
+
+    def drp_write (self, addr, data):
+        self.x393_mem.write_mem(MAXI1_ADDR + DRP_OFFS, (1 << 31) | ((addr & 0x7fff) << 16) | (data & 0xffff))
+        #         while (self.x393_mem.read_mem(MAXI1_ADDR + DRP_OFFS)) & (1 << 31): # No need to wait from Python
+        #                sleep(0.001)
+
+    def drp_read (self, addr):
+        self.x393_mem.write_mem(MAXI1_ADDR + DRP_OFFS, (0 << 31) | ((addr & 0x7fff) << 16))
+        d = self.x393_mem.read_mem(MAXI1_ADDR + DRP_OFFS)
+        while not d & (1 << 31) :
+            d = self.x393_mem.read_mem(MAXI1_ADDR + DRP_OFFS)
+        return int(d & 0xffff)
+    def drp (self, addr, data=None):
+        if data is None:
+            return self.drp_read(addr)
+        self.drp_write (addr, data)
+    
+    def read_sipo_meas(self, mask, duration):
+        self.drp_write (DRP_MASK_ADDR,             mask & 0xffff)
+        self.drp_write (DRP_MASK_ADDR + 1, (mask >> 16) & 0xffff)
+        self.drp_write (DRP_TIMER_ADDR,            duration)
+        early_count = self.drp_read(DRP_EARLY_ADDR)
+        while (early_count & (1 << 15)):
+            early_count = self.drp_read(DRP_EARLY_ADDR)
+        late_count = self.drp_read(DRP_LATE_ADDR)
+        print ("early_count = 0x%x, late_count = 0x%x, duration = 0x%x"%(early_count, late_count, duration))
+        return (1.0 * early_count/duration, 1.0 * late_count/duration)
+    
+    def drp_cbit (self, bit, value=None):
+        old_val = self.drp_read (DRP_OTHERCTRL_ADDR)
+        if value is None:
+            return (old_val >> bit ) & 1;
+        mask = (1 << bit)
+        if value:
+            new_val = mask
+        else:
+            new_val = 0
+        self.drp_write (DRP_OTHERCTRL_ADDR, ((old_val ^ new_val) & mask) ^ old_val)
         
     """
 ATA_IDFY =     0xec # Identify command
@@ -663,12 +709,29 @@ ATA_RBUF_DMA = 0xe9 # Read  512 bytes from device buffer in DMA mode
 _=mem.mem_dump(0xf800b000,10,4)
 
 _=mem.mem_dump (0x80000ff0, 4,4)
-
+sata.read_sipo_meas(0xfffff,0x7ffe)
     
     
 mem.write_mem(0x80000118,0x11) # ST & FRE
 
+Implement DRP read/write:
+mem.write_mem(0x80000fec, 0x550000)
+hex(mem.read_mem(0x80000fec))
+'0x8000001fL'
 
+sata.drp_write(0x20b,1) #disable wait for auto align
+sata.reset_device()
+_=mem.mem_dump (0x80000ff0, 4,4)
+sata.reg_status(
+sata.reset_ie(), sata.reg_status()
+sata.read_sipo_meas(0xfffff,0x7ffe)
+
+    drp_write ('h20b, 'h401); // bypass, clock align
+sata.reg_status(),sata.reset_ie()
+sata.read_sipo_meas(0xfffff,0x7ffe)
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+hex(sata.drp_read(0x55))
     
 cd /mnt/mmc/local/bin
 python    
@@ -678,14 +741,18 @@ import x393sata
 import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata()
+
 sata.bitstream()
+#sata.drp_write (0x20b,0x401) # bypass, clock align
+### sata.drp (0x20b,0x81) # bypass, clock align
+#sata.drp (0x20b,0x400) # bypass, clock align
+### sata.drp (0x59,0x8) # Use RXREC
+#sata.drp (0x59,0x48) 
 sata.reg_status()
 sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 
-mem.write_mem(0x80000118,0x11)
-
-sata.reset_ie(), sata.reg_status()
+sata.reg_status(),sata.reset_ie()
 _=mem.mem_dump (0x80000ff0, 4,4) 
 sata.setup_pio_read_identify_command()
 sata.reg_status()
@@ -737,8 +804,144 @@ sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 
 
+sata.reg_status()
 sata.reset_ie()
 sata.dd_read_dma(0x81, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x321, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x331, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x341, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x441, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x421, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x481, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x4c1, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x4f1, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x4ff, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x500, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x400, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x401, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x601, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x600, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x5ff, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x601, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x600, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x602, 1)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status()
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+
+sata.reg_status()
+sata.reset_ie()
+sata.dd_read_dma(0x5f0, 1)
 _=mem.mem_dump (0x80001000, 0x100,4)
 sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
@@ -766,7 +969,7 @@ hex(mem.read_mem(0x80000ff0))
 
 mem.write_mem(0x80000118,0x11)
 sata.setup_pio_read_identify_command()
-mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)
+#mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)
 _=mem.mem_dump (0x80001000, 0x20,4)
 
 mem.maxi_base()

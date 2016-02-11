@@ -82,6 +82,16 @@ module sata_phy #(
 
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
+`ifdef USE_DRP
+    input                                       drp_rst,
+    input                                       drp_clk,
+    input                                       drp_en, // @aclk strobes drp_ad
+    input                                       drp_we,
+    input                                [14:0] drp_addr,       
+    input                                [15:0] drp_di,
+    output                                      drp_rdy,
+    output                               [15:0] drp_do,
+`endif    
     output                               [31:0] debug_sata
     ,output debug_detected_alignp
     
@@ -519,6 +529,17 @@ gtx_wrap
     .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
     .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
     .txbufstatus        (txbufstatus[1:0])
+`ifdef USE_DRP
+       ,.drp_rst        (drp_rst),           // input
+        .drp_clk        (drp_clk),           // input
+        .drp_en         (drp_en),            // input
+        .drp_we         (drp_we),            // input
+        .drp_addr       (drp_addr),          // input[14:0] 
+        .drp_di         (drp_di),            // input[15:0] 
+        .drp_rdy        (drp_rdy),           // output
+        .drp_do         (drp_do)             // output[15:0] 
+`endif 
+    
 );
 
 

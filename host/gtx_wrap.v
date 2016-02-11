@@ -36,6 +36,7 @@
 //`include "gtx_comma_align.v"
 //`include "gtx_elastic.v"
 // All computations have been done in assumption of GTX interface being 20 bits wide!
+//`include "system_defines.v"
 module gtx_wrap #(
     parameter DATA_BYTE_WIDTH     = 4,
     parameter TXPMARESET_TIME     = 5'h1,
@@ -96,6 +97,17 @@ module gtx_wrap #(
     output  wire    dbg_rxdlysresetdone,
     
     output wire [1:0] txbufstatus
+`ifdef USE_DRP
+   ,input             drp_rst, 
+    input             drp_clk,
+    input             drp_en, // @aclk strobes drp_ad
+    input             drp_we,
+    input      [14:0] drp_addr,       
+    input      [15:0] drp_di,
+    output            drp_rdy,
+    output     [15:0] drp_do
+`endif
+    
 );
 
 wire    rxresetdone_gtx; 
@@ -139,6 +151,27 @@ assign  txchardispval_gtx   = {6'h0, txdata_enc_out[18], txdata_enc_out[8]};
 wire    txcominit_gtx; 
 wire    txcomwake_gtx;
 wire    txelecidle_gtx;
+
+`ifdef USE_DRP
+    wire  [1:0] drp_en_w; // [0] - select GTX, [1] - select sipo_to_xclk_measure 
+    wire  [1:0] drp_we_w; // [0] - select GTX, [1] - select sipo_to_xclk_measure 
+    reg   [1:0] drp_sel; // [0] - select GTX, [1] - select sipo_to_xclk_measure
+    wire [15:0] drp_do_gtx;
+    wire [15:0] drp_do_meas;
+    wire        drp_rdy_gtx;
+    wire        drp_rdy_meas;
+    wire [15:0] other_control; // control bits programmed over DRP interface
+    
+    assign drp_rdy =  (drp_sel[0] & drp_rdy_gtx) | (drp_sel[1] & drp_rdy_meas);
+    assign drp_do =   ({16{drp_sel[0]}} & drp_do_gtx) | ({16{drp_sel[1]}} & drp_do_meas);
+    assign drp_en_w = {2{drp_en & ~(|drp_addr[14:10])}} & {drp_addr[9],~drp_addr[9]};
+    assign drp_we_w = {2{drp_we & ~(|drp_addr[14:10])}} & {drp_addr[9],~drp_addr[9]};
+    
+    always @ (posedge drp_clk) drp_sel <= {2{~(|drp_addr[14:10])}} & {drp_addr[9],~drp_addr[9]};
+    
+`endif
+
+
 
 // insert resync if it's necessary
 generate 
@@ -237,7 +270,7 @@ gtx_8x10enc gtx_8x10enc(
     wire rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle?
     reg rxdlysreset = 0;
     wire rxphaligndone;
-    wire rxdlysresetdone; 
+    wire rxdlysresetdone;    // gtx output
     reg rx_clocks_aligned = 0;
     reg [2:0] rxdlysreset_cntr = 7;
     reg  rxdlysresetdone_r;
@@ -271,7 +304,7 @@ gtx_8x10enc gtx_8x10enc(
     reg    rxphaligndone1_r = 0;  // first time rxphaligndone gets active
     reg    rxphaligndone2_r = 0;  // rxphaligndone deasserted
     reg    rx_clocks_aligned = 0; // second time rxphaligndone gets active (and is supposed to stay)
-    reg    rxdlysresetdone_r;
+    reg    rxdlysresetdone_r;     // debug only
     wire   rxphaligndone;
     wire   rxdlysresetdone; 
     wire   rxcdrlock; // Marked as "reserved" - maybe not use it, only rxelecidle? (seems alternating 0/1 forever- SS?)
@@ -281,19 +314,26 @@ gtx_8x10enc gtx_8x10enc(
     assign dbg_rx_clocks_aligned = rx_clocks_aligned;
     assign dbg_rxcdrlock =         rxcdrlock;         //goes in/out (because of the SS ?
     assign dbg_rxdlysresetdone =   rxdlysresetdone_r;
-`ifdef ALIGN_CLOCKS    
+    wire bypass_aligned;
+    `ifdef USE_DRP    
+        assign bypass_aligned = other_control[0];
+    `else
+        assign bypass_aligned = 0;
+    `endif
+`ifdef ALIGN_CLOCKS
+    wire first_confirm = rxphaligndone || (bypass_aligned && clk_phase_align_req);
     always @ (posedge xclk) begin
-        if (rxelecidle)                              rxphaligndone1_r <= 0;
-        else if (rxphaligndone)                      rxphaligndone1_r <= 1;
+        if (rxelecidle)                                                 rxphaligndone1_r <= 0;
+        else if (first_confirm)                                         rxphaligndone1_r <= 1;
 
-        if (rxelecidle)                              rxphaligndone2_r <= 0;
-        else if (rxphaligndone1_r && !rxphaligndone) rxphaligndone2_r <= 1;
+        if (rxelecidle)                                                 rxphaligndone2_r <= 0;
+        else if (rxphaligndone1_r && !first_confirm)                    rxphaligndone2_r <= 1;
 
-        if (rxelecidle)                              rx_clocks_aligned <= 0;
-        else if (rxphaligndone2_r && rxphaligndone)  rx_clocks_aligned <= 1;
+        if (rxelecidle)                                                 rx_clocks_aligned <= 0;
+        else if (rxphaligndone2_r && (rxphaligndone || bypass_aligned)) rx_clocks_aligned <= 1;
 
-        if (rxelecidle || rxdlysreset)               rxdlysresetdone_r <= 0;
-        else if (rxdlysresetdone)                    rxdlysresetdone_r <= 1;
+        if (rxelecidle || rxdlysreset)                                  rxdlysresetdone_r <= 0; // debug only
+        else if (rxdlysresetdone)                                       rxdlysresetdone_r <= 1;
     end
 `else  // ALIGN_CLOCKS - just bypassing  
     always @ (posedge xclk) begin
@@ -328,11 +368,110 @@ gtx_8x10enc gtx_8x10enc(
 wire    xclk;
 // assuming GTX interface width = 20 bits
 // comma aligner
-reg     [19:0]  rxdata_comma_in;
 wire    [19:0]  rxdata_comma_out;
-always @ (posedge xclk) 
-    rxdata_comma_in <= {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata_gtx[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata_gtx[7:0]};
+wire    [19:0]  gtx_rx_data20 = {rxdisperr_gtx[1], rxcharisk_gtx[1], rxdata_gtx[15:8], rxdisperr_gtx[0], rxcharisk_gtx[0], rxdata_gtx[7:0]};
+wire    [19:0]  rxdata_comma_in;
+// TODO: Add timing constraints on gtx_rx_data20 to reduce spread between bits?
+//`ifndef USE_DRP
+//    `define USE_DRP
+//`endif
 
+    // asynchronous signals to be controlled by external programmable bits
+wire             RXPHDLYRESET; //  1 (1'b0), 
+wire             RXPHALIGN;    //  2 (1'b0),
+wire             RXPHALIGNEN;  //  3 (1'b0),
+wire             RXPHDLYPD;    //  4 (1'b0),
+wire             RXPHOVRDEN;   //  5 (1'b0),
+wire             RXDLYSRESET;  //  6 (rxdlysreset),
+wire             RXDLYBYPASS;  //  7 (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+wire             RXDLYEN;      //  8 (1'b0),
+wire             RXDLYOVRDEN;  //  9 (1'b0),
+wire             RXDDIEN;       // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+
+
+`ifdef USE_DRP
+    sipo_to_xclk_measure #(
+        .DATA_WIDTH        (20),
+        .DRP_ABITS          (8),
+        .DRP_MASK_ADDR      (0),
+        .DRP_MASK_BITS      (3),
+        .DRP_TIMER_ADDR     (8),
+        .DRP_EARLY_ADDR     (9),
+        .DRP_LATE_ADDR      (10),
+        .DRP_OTHERCTRL_ADDR (11)
+    ) sipo_to_xclk_measure_i (
+        .xclk          (xclk),            // input
+        .drp_rst       (drp_rst),         //
+        .sipo_di       (gtx_rx_data20),   // input[19:0] 
+        .sipo_do       (rxdata_comma_in), // output[19:0] //sipo_di registered @ (posedge xclk)
+        .drp_clk       (drp_clk),         // input
+        .drp_en        (drp_en_w[1]),     // input
+        .drp_we        (drp_we_w[1]),     // input
+        .drp_addr      (drp_addr[7:0]),   // input[7:0] 
+        .drp_di        (drp_di),          // input[15:0] 
+        .drp_rdy       (drp_rdy_meas),    // output reg 
+        .drp_do        (drp_do_meas),     // output[15:0] reg 
+        .other_control (other_control)    // output[15:0] reg
+    );
+    
+    assign RXPHDLYRESET = other_control[ 1]; //  1 (1'b0), 
+    assign RXPHALIGN =    other_control[ 2]; //  2 (1'b0),
+    assign RXPHALIGNEN =  other_control[ 3]; //  3 (1'b0),
+    assign RXPHDLYPD =    other_control[ 4]; //  4 (1'b0),
+    assign RXPHOVRDEN =   other_control[ 5]; //  5 (1'b0),
+    assign RXDLYSRESET =  other_control[ 6]; //  6 (rxdlysreset),
+    assign RXDLYBYPASS =  other_control[ 7]; //  7 (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+    assign RXDLYEN =      other_control[ 8]; //  8 (1'b0),
+    assign RXDLYOVRDEN =  other_control[ 9]; //  9 (1'b0),
+    assign RXDDIEN =      other_control[10]; // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+    
+`else
+    reg     [19:0]  rxdata_comma_in_r;
+    assign rxdata_comma_in = rxdata_comma_in_r;
+    always @ (posedge xclk) 
+        rxdata_comma_in_r <= gtx_rx_data20;
+    // VDT bug - considered USE_DRP undefined during closure, temporary including unconnected module     
+    sipo_to_xclk_measure #(
+        .DATA_WIDTH        (20),
+        .DRP_ABITS          (8),
+        .DRP_MASK_ADDR      (0),
+        .DRP_MASK_BITS      (3),
+        .DRP_TIMER_ADDR     (8),
+        .DRP_EARLY_ADDR     (9),
+        .DRP_LATE_ADDR      (10),
+        .DRP_OTHERCTRL_ADDR (11)
+    ) sipo_to_xclk_measure_i (
+        .xclk          (),            // input
+        .sipo_di       (),   // input[19:0] 
+        .sipo_do       (), // output[19:0] //sipo_di registered @ (posedge xclk)
+        .drp_clk       (),         // input
+        .drp_en        (),      // input
+        .drp_we        (),     // input
+        .drp_addr      (),   // input[7:0] 
+        .drp_di        (),          // input[15:0] 
+        .drp_rdy       (),    // output reg 
+        .drp_do        (),     // output[15:0] reg 
+        .other_control ()    // output[15:0] reg
+    );
+    assign RXPHDLYRESET =     1'b0;; //  1 (1'b0), 
+    assign RXPHALIGN =        1'b0;; //  2 (1'b0),
+    assign RXPHALIGNEN =      1'b0;; //  3 (1'b0),
+    assign RXPHDLYPD =        1'b0;; //  4 (1'b0),
+    assign RXPHOVRDEN =       1'b0;; //  5 (1'b0),
+    assign RXDLYSRESET =      1'b0;; //  6 (rxdlysreset),
+    `ifdef ALIGN_CLOCKS    
+        assign RXDLYBYPASS =  1'b0; //  7 (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+    `else    
+        assign RXDLYBYPASS =  1'b1; //  7 (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+    `endif        
+    assign RXDLYEN =          1'b0; //  8 (1'b0),
+    assign RXDLYOVRDEN =      1'b0; //  9 (1'b0),
+    `ifdef ALIGN_CLOCKS    
+        assign RXDDIEN =      1'b1; // Andrey: p.243: "Set high in RX buffer bypass mode"
+    `else    
+        assign RXDDIEN =      1'b0; // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+    `endif        
+`endif
 // aligner status generation
 // if we detected comma & there was 1st realign after non-aligned state -> triggered, we wait until the next comma
 // if no realign would be issued, assumes, that we've aligned to the stream otherwise go back to non-aligned state
@@ -604,7 +743,7 @@ BUFG bufg_txoutclk (.O(txoutclk),.I(txoutclk_gtx));
 //BUFR bufr_xclk  (.O(xclk),.I(xclk_mr),.CE(1'b1),.CLR(1'b0));
 //BUFMR bufmr_xclk  (.O(xclk_mr),.I(xclk_gtx));
 
-BUFG bug_xclk  (.O(xclk),.I(xclk_gtx));
+BUFG bug_xclk  (.O(xclk),.I(~xclk_gtx));
 
 gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),
@@ -713,14 +852,14 @@ gtxe2_channel_wrapper #(
     .RXPHDLY_CFG                            (24'h084020),
     .RXPH_MONITOR_SEL                       (5'b00000),
 `ifdef ALIGN_CLOCKS    
-    .RX_XCLK_SEL                            ("RXUSR"), // ("RXREC"), // Andrey: Now they are the same, just using p.247 "Using RX Buffer Bypass..."
+//    .RX_XCLK_SEL                            ("RXUSR"), // ("RXREC"), // Andrey: Now they are the same, just using p.247 "Using RX Buffer Bypass..."
+    .RX_XCLK_SEL                            ("RXREC"),    // Andrey: Does not align clocks if in this mode
 `else    
     .RX_XCLK_SEL                            ("RXREC"),    // Andrey: Does not align clocks if in this mode
 `endif    
     .RX_DDI_SEL                             (6'b000000),
     .RX_DEFER_RESET_BUF_EN                  ("TRUE"),
-/// .RXCDR_CFG                              (72'h03000023ff10200020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
-///    .RXCDR_CFG                              (72'h03800023ff10200008),// Guess for SS
+/// .RXCDR_CFG                              (72'h03_0000_23ff_1020_0020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
     .RXCDR_CFG                              (72'h03_8800_8BFF_4020_0008),// http://www.xilinx.com/support/answers/53364.html - SATA-2, div=2
     .RXCDR_FR_RESET_ON_EIDLE                (1'b0),
     .RXCDR_HOLD_DURING_EIDLE                (1'b0),
@@ -838,13 +977,23 @@ gtxe2_channel_wrapper(
     .GTREFCLK1                      (1'b0),
     .GTSOUTHREFCLK0                 (1'b0),
     .GTSOUTHREFCLK1                 (1'b0),
-    .DRPADDR                        (9'b0),
-    .DRPCLK                         (drpclk),
-    .DRPDI                          (16'b0),
-    .DRPDO                          (),
-    .DRPEN                          (1'b0),
-    .DRPRDY                         (),
-    .DRPWE                          (1'b0),
+`ifdef USE_DRP    
+        .DRPADDR                    (drp_addr[8:0]),
+        .DRPCLK                     (drp_clk),
+        .DRPDI                      (drp_di),
+        .DRPDO                      (drp_do_gtx),
+        .DRPEN                      (drp_en_w[0]),
+        .DRPRDY                     (drp_rdy_gtx),
+        .DRPWE                      (drp_we_w[0]),
+`else
+        .DRPADDR                        (9'b0),
+        .DRPCLK                         (drpclk),
+        .DRPDI                          (16'b0),
+        .DRPDO                          (),
+        .DRPEN                          (1'b0),
+        .DRPRDY                         (),
+        .DRPWE                          (1'b0),
+`endif    
     .GTREFCLKMONITOR                (),
     .QPLLCLK                        (1'b0/*gtrefclk*/),
     .QPLLREFCLK                     (1'b0/*gtrefclk*/),
@@ -893,23 +1042,23 @@ gtxe2_channel_wrapper(
     .RXBUFRESET                     (1'b0),
     .RXBUFSTATUS                    (),
 `ifdef ALIGN_CLOCKS    
-    .RXDDIEN                        (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
-    .RXDLYBYPASS                    (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
+    .RXDDIEN                   (RXDDIEN),             //      (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+    .RXDLYBYPASS               (RXDLYBYPASS),         //      (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
 `else
-    .RXDDIEN                        (1'b0),
-    .RXDLYBYPASS                    (1'b1),
+    .RXDDIEN                   (RXDDIEN),             //      (1'b0),
+    .RXDLYBYPASS               (RXDLYBYPASS),         //      (1'b1),
 `endif
-    .RXDLYEN                        (1'b0),
-    .RXDLYOVRDEN                    (1'b0),
-    .RXDLYSRESET                    (rxdlysreset),
+    .RXDLYEN                   (RXDLYEN),             //      (1'b0),
+    .RXDLYOVRDEN               (RXDLYOVRDEN),         //      (1'b0),
+    .RXDLYSRESET               (RXDLYSRESET || rxdlysreset),
     .RXDLYSRESETDONE                (rxdlysresetdone),
-    .RXPHALIGN                      (1'b0),
+    .RXPHALIGN                 (RXPHALIGN),           //      (1'b0),
     .RXPHALIGNDONE                  (rxphaligndone),
-    .RXPHALIGNEN                    (1'b0),
-    .RXPHDLYPD                      (1'b0),
-    .RXPHDLYRESET                   (1'b0),
+    .RXPHALIGNEN               (RXPHALIGNEN),         //      (1'b0),
+    .RXPHDLYPD                 (RXPHDLYPD),           //      (1'b0),
+    .RXPHDLYRESET              (RXPHDLYRESET),        //      (1'b0),
     .RXPHMONITOR                    (),
-    .RXPHOVRDEN                     (1'b0),
+    .RXPHOVRDEN                (RXPHOVRDEN),          //      (1'b0),
     .RXPHSLIPMONITOR                (),
     .RXSTATUS                       (),
     .RXBYTEISALIGNED                (),

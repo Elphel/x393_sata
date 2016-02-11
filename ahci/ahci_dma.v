@@ -273,6 +273,7 @@ module  ahci_dma (
     reg            abort_rq_mclk;         
     reg            abort_busy_mclk;
     wire    [21:0] abort_debug;
+    reg            rwaddr_rq_r; // next cycle after requesting waddr_data_rq, raddr_data_rq, raddr_ct_rq and raddr_prd_rq (*-pend is valid)
       
     assign afi_wvalid = aborting ? afi_wvalid_abort:  afi_wvalid_data;
     assign afi_wid =    aborting ? afi_wid_abort:     afi_id;
@@ -380,6 +381,9 @@ module  ahci_dma (
     always @ (posedge hclk) begin
         hrst_r <= hrst;
     
+        if (hrst) rwaddr_rq_r <= 0;
+        else      rwaddr_rq_r <= raddr_ct_rq || raddr_prd_rq || raddr_data_rq || waddr_data_rq;
+        
         addr_data_rq_r <= addr_data_rq_w;
         
         prd_start_hclk_r <= prd_start_hclk;
@@ -414,7 +418,9 @@ module  ahci_dma (
         if (hrst)                                           {is_ct_addr, is_prd_addr, is_data_addr} <= 0;
         else if (raddr_ct_rq || raddr_prd_rq || wcount_set) {is_ct_addr, is_prd_addr, is_data_addr} <= {raddr_ct_rq, raddr_prd_rq, wcount_set};
         
-        if (axi_set_raddr_w || axi_set_waddr_w) begin
+///        if (axi_set_raddr_w || axi_set_waddr_w) begin
+        if (rwaddr_rq_r) begin // first cycle one of the *_pend is set
+        
             if (raddr_data_pend || waddr_data_pend)  afi_addr <= {data_addr[31:3], 3'b0};
             else                                     afi_addr <= {ct_maddr[31:4],  4'b0};
 

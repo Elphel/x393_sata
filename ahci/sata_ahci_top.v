@@ -43,14 +43,14 @@
     parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
     parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
  )(
-    output  wire    sata_clk,
-    output  wire    sata_rst,
-    input   wire    arst, // extrst,
+    output  wire                sata_clk,
+    output  wire                sata_rst,
+    input   wire                arst, // extrst,
     
     // reliable clock to source drp and cpll lock det circuits
-    input   wire    reliable_clk,
+    input   wire                reliable_clk,
     
-    input   wire    hclk,
+    input   wire                hclk,
     
 /*
  * Commands interface
@@ -224,6 +224,16 @@
     reg          [2:0] nhrst_r;
     wire               hrst = !nhrst_r[2];
     
+`ifdef USE_DRP
+    wire               drp_en;
+    wire               drp_we;
+    wire        [14:0] drp_addr;       
+    wire        [15:0] drp_di;
+    wire               drp_rdy;
+    wire        [15:0] drp_do; 
+`endif    
+    
+    
     wire        [31:0] debug_phy;
     wire        [31:0] debug_link;
     
@@ -366,6 +376,14 @@
         .sctl_ipm          (sctl_ipm),          // output[3:0] 
         .sctl_spd          (sctl_spd),          // output[3:0] 
         .irq               (irq),               // output
+`ifdef USE_DRP
+        .drp_en           (drp_en),             // output reg 
+        .drp_we           (drp_we),             // output reg 
+        .drp_addr         (drp_addr),           // output[14:0] reg 
+        .drp_di           (drp_di),             // output[15:0] reg 
+        .drp_rdy          (drp_rdy),            // input
+        .drp_do           (drp_do),             // input[15:0] 
+`endif    
         .debug_in_phy      (debug_phy),         // input[31:0]
         .debug_in_link     (debug_link)         // input[31:0]
     );
@@ -425,7 +443,17 @@
         .txp_out           (TXP),               // output wire 
         .txn_out           (TXN),               // output wire 
         .rxp_in            (RXP),               // input wire 
-        .rxn_in            (RXN),               // input wire 
+        .rxn_in            (RXN),               // input wire
+`ifdef USE_DRP
+        .drp_rst           (arst),              // input
+        .drp_clk           (ACLK),              // input
+        .drp_en            (drp_en),            // input
+        .drp_we            (drp_we),            // input
+        .drp_addr          (drp_addr),          // input[14:0] 
+        .drp_di            (drp_di),            // input[15:0] 
+        .drp_rdy           (drp_rdy),           // output
+        .drp_do            (drp_do),            // output[15:0] 
+`endif 
         .debug_phy         (debug_phy),         // output[31:0]
         .debug_link        (debug_link)         // output[31:0]
     );

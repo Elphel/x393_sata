@@ -714,6 +714,9 @@ always #(CLKIN_PERIOD/2) CLK = ~CLK;
 `include "includes/ahci_localparams.vh" // SuppressThisWarning VEditor - many unused defines
 `include "includes/fis_types.vh"       // SuppressThisWarning VEditor - some unused defines
 localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ahci_localparams.vh offsets)
+localparam DRP_OFFSET = 'hfec;
+localparam DEBUG_OFFSET = 'hff0;
+
 
     task maxigp1_write_single; // address in bytes, not words
         input [31:0] address;
@@ -732,7 +735,47 @@ localparam MAXIGP1 = 32'h80000000; // Start of the MAXIGP1 address range (use ah
         end
     endtask
 
+    task drp_write;
+        input  [14:0] addr;
+        input  [15:0] data;
+        begin
+            $display ("[DRP]: %x <- %x @ %t",addr, data,$time);
+            maxigp1_write_single (DRP_OFFSET, {1'b1, addr, data});
+            maxigp1_read (DRP_OFFSET);
+            while (!registered_rdata[31]) maxigp1_read (DRP_OFFSET);
+        end
+    endtask
 
+    task drp_read;
+        input      [14:0] addr;
+        output reg [15:0] data;
+        begin
+            maxigp1_write_single (DRP_OFFSET, {1'b0, addr, 16'b0});
+            maxigp1_read (DRP_OFFSET);
+            while (!registered_rdata[31]) maxigp1_read (DRP_OFFSET);
+            data = registered_rdata[15:0];
+            $display ("[DRP]: %x -> %x @ %t",addr, data,$time);
+        end
+    endtask
+
+    task read_sipo_meas;
+        input      [31:0] mask;
+        input      [15:0] duration;
+        output reg [14:0] early_count;
+        output reg [14:0] late_count;
+        reg               running;
+//        wire       [15:0] data;
+        begin
+            drp_write ('h200, mask[15:0]);
+            drp_write ('h201, mask[31:16]);
+            drp_write ('h208, duration);
+            drp_read  ('h209, {running,early_count});
+            drp_read  ('h209, {running,early_count});
+            while (running) drp_read ('h209,{running, early_count});
+            drp_read  ('h20a, {running, late_count});             
+            $display ("[DRP] read_sipo_meas(): early:%x/%x, late: %x/%x @ %t",early_count,duration,late_count,duration,$time);
+        end
+    endtask
 
     task maxigp1_read;
     input [31:0] address;
@@ -999,7 +1042,9 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
     
     
     
-    
+reg [15:0] drp_read_data;    
+reg [14:0] early_count;
+reg [14:0] late_count;
 
 initial begin //Host
     NUM_WORDS_EXPECTED =0;
@@ -1010,6 +1055,21 @@ initial begin //Host
     repeat (10) @ (posedge CLK);
     axi_set_rd_lag(0);
     axi_set_b_lag(0);
+    
+    //simulate DRP write/read
+    // disable waiting for phase aligned:
+//  drp_write ('h20b, 'h400); // no-bypass, clock align
+    drp_write ('h20b, 'h401); // bypass, clock align
+
+    drp_write ('h10, 'h1234);
+    drp_write ('h11, 'h2345);
+    drp_write ('h12, 'h3456);
+
+    drp_read  ('h10, drp_read_data);
+    drp_read  ('h11, drp_read_data);
+    drp_read  ('h12, drp_read_data);
+    
+    drp_read  ('h20b, drp_read_data);
 
     maxigp1_writep       (PXSIG_OFFS32   << 2, 'h12345678); // 
     maxigp1_writep       (PXTFD_OFFS32   << 2, 'h87654321); // 
@@ -1045,6 +1105,17 @@ initial begin //Host
     wait (IRQ);
     TESTBENCH_TITLE = "Got D2H IRQ";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    
+    
+    maxigp1_print        (DEBUG_OFFSET +  0, "DEBUG0");
+    maxigp1_print        (DEBUG_OFFSET +  4, "DEBUG1");
+    maxigp1_print        (DEBUG_OFFSET +  8 ,"DEBUG2");
+    maxigp1_print        (DEBUG_OFFSET + 12, "DEBUG3");
+    
+    read_sipo_meas ('hfffff, 256,  early_count, late_count);
+    read_sipo_meas ('h00001, 256,  early_count, late_count);
+    
+    
     maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Should be 1 (port 0)
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear that interrupt
     maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Now it should be 0

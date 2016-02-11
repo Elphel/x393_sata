@@ -266,11 +266,12 @@ module  ahci_fsm
 //    reg                      [7:0] conditions;
 //    wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : |(cond_met_w & fsm_transitions[1]);
     wire                           pre_jump_w =   (|async_pend_r) ? async_ackn : (cond_met_w & fsm_transitions[1]);
-    wire                           fsm_act_done = get_fis_done ||
+    wire                           fsm_act_done_w = get_fis_done ||
                                                   xmit_done ||
                                                   (syncesc_send_pend && syncesc_send_done) ||
                                                   dma_abort_done ||
                                                   asynq_rq; // cominit_got || pcmd_st_cleared
+    reg                            fsm_act_done; // made later by 1 cycle so the new conditions are latched                                                
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];
 
@@ -339,6 +340,8 @@ module  ahci_fsm
         else if (fsm_transitions[0] && (!cond_met_w || !fsm_transitions[1])) pgm_jump_addr <= pgm_data[9:0];
         
         was_rst <= hba_rst;
+        
+        fsm_act_done <= fsm_act_done_w; // delay by 1 clock cycle
                
         fsm_jump <= {fsm_jump[1:0], pre_jump_w | (was_rst & ~hba_rst)};
         

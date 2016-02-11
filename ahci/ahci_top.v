@@ -182,6 +182,14 @@ module  ahci_top#(
     
 
     output             irq, // CPU interrupt request
+`ifdef USE_DRP
+    output                    drp_en, // @aclk strobes drp_ad
+    output                    drp_we,
+    output             [14:0] drp_addr,       
+    output             [15:0] drp_di,
+    input                     drp_rdy,
+    input              [15:0] drp_do, 
+`endif    
     
     input       [31:0] debug_in_phy,
     input       [31:0] debug_in_link
@@ -705,9 +713,19 @@ module  ahci_top#(
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),    // output 
         .debug_in0        (debug_dma),       // input[31:0]
-        .debug_in1        (debug_dma1), // debug_in_link),   // input[31:0]
-        .debug_in2        (debug_in_phy),   // input[31:0]     // debug from phy/link
+        .debug_in1        (debug_dma1),      // debug_in_link),   // input[31:0]
+        .debug_in2        (debug_in_phy),    // input[31:0]     // debug from phy/link
         .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
+`ifdef USE_DRP
+       ,.drp_en           (drp_en),          // output reg 
+        .drp_we           (drp_we),          // output reg 
+        .drp_addr         (drp_addr),        // output[14:0] reg 
+        .drp_di           (drp_di),          // output[15:0] reg 
+        .drp_rdy          (drp_rdy),         // input
+        .drp_do           (drp_do)           // input[15:0] 
+`endif    
+        
+        
 `ifdef USE_DATASCOPE
         ,.datascope_clk   (datascope_clk),   // input
         .datascope_waddr  (datascope_waddr), // input[9:0] 
@@ -977,7 +995,7 @@ wire [9:0] xmit_dbg_01;
 //        .hba_rst           (mrst),                 // input TODO: Reset when !PxCMD.ST? pcmd_st
         .hba_rst           (mrst || !pcmd_st),     // input TODO: Reset when !PxCMD.ST? pcmd_st
         .mclk              (mclk),                 // input
-
+        .pcmd_st_cleared   (pcmd_st_cleared),      // input
         .fetch_cmd         (fsnd_fetch_cmd),       // input
         .cfis_xmit         (fsnd_cfis_xmit),       // input
         .dx_xmit           (fsnd_dx_xmit),         // input

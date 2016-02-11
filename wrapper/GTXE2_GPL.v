@@ -2986,6 +2986,26 @@ assign RXCDRLOCK =        rxcdrlock;
 assign RXDLYSRESETDONE =  rxdlysresetdone;
 assign RXPHALIGNDONE =    rxphaligndone;
 
+localparam DRP_LATENCY = 5;
+integer      drp_latency_counter;
+reg          drp_rdy_r;
+reg   [15:0] drp_ram[0:511];
+reg   [ 8:0] drp_raddr;
+
+assign DRPDO = drp_rdy_r ? drp_ram[drp_raddr] : 16'bz;
+assign DRPRDY = drp_rdy_r;
+always @ (posedge DRPCLK) begin
+    if      (DRPEN)                    drp_latency_counter <= DRP_LATENCY;
+    else if (drp_latency_counter != 0) drp_latency_counter <= drp_latency_counter - 1;
+    
+    if (DRPEN && DRPWE) drp_ram[DRPADDR] <= DRPDI;
+    
+    drp_rdy_r <= (drp_latency_counter == 1);
+    
+    if (DRPEN) drp_raddr <= DRPADDR;
+end
+
+
 initial
 forever @ (posedge reset)
 begin

@@ -119,6 +119,14 @@ module  axi_ahci_regs#(
     input              [31:0] debug_in1,
     input              [31:0] debug_in2,
     input              [31:0] debug_in3
+`ifdef USE_DRP
+   ,output reg                drp_en, // @aclk strobes drp_ad
+    output reg                drp_we,
+    output reg         [14:0] drp_addr,       
+    output reg         [15:0] drp_di,
+    input                     drp_rdy,
+    input              [15:0] drp_do 
+`endif    
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
    ,input                     datascope_clk,
@@ -127,6 +135,12 @@ module  axi_ahci_regs#(
     input              [31:0] datascope_di
 `endif    
 );
+`ifdef USE_DRP
+    localparam DRP_ADDR =     'h3fb;
+    reg                [15:0] drp_read_data;
+    reg                       drp_read_r;
+    reg                       drp_ready_r;
+`endif
 `ifdef USE_DATASCOPE
     localparam AXIBRAM_BITS = ADDRESS_BITS + 1; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
     wire               [31:0] datascope_rdata;
@@ -202,7 +216,27 @@ module  axi_ahci_regs#(
     assign was_hba_rst =   was_hba_rst_r[0]; 
     assign was_port_rst =  was_port_rst_r[0];
     
+    
     always @(posedge aclk) begin
+`ifdef USE_DRP
+    if (bram_waddr == DRP_ADDR) begin
+        drp_di <=   bram_wdata[15: 0];
+        drp_addr <= bram_wdata[30:16];
+//        drp_we <=   bram_wdata[31];
+    end
+    
+    drp_en <= (bram_waddr == DRP_ADDR);
+    drp_we <= (bram_waddr == DRP_ADDR) && bram_wdata[31];
+    
+    if (arst || (bram_waddr == DRP_ADDR)) drp_ready_r <= 0;
+    else if (drp_rdy)                     drp_ready_r <= 1;
+    
+    if (drp_rdy)                          drp_read_data <= drp_do;
+    
+    if (bram_ren[0])                      drp_read_r <= (bram_raddr == DRP_ADDR);
+    
+`endif    
+
        
         if      (arst)              write_busy_r <= 0;
         else if (write_start_burst) write_busy_r <= 1;
@@ -210,21 +244,30 @@ module  axi_ahci_regs#(
 
         if (bram_wen)               bram_wdata_r <= bram_wdata;
         
-//        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_in : bram_rdata;
-        
         bram_wstb_r <= {4{bram_wen}} & bram_wstb;
         
         bram_wen_r <= bram_wen;
         
         if (bram_wen) bram_waddr_r <= bram_waddr[ADDRESS_BITS-1:0];
-        
-        if (bram_ren[0])            debug_rd_r <= &bram_raddr[ADDRESS_BITS-1:4]; // last 16 DWORDs (With AXIBRAM_BITS will be duplicated)
+`ifdef USE_DATASCOPE        
+        if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]) &&
+//                                                  (bram_raddr[3:2] == 0) &&
+                                                  !bram_raddr[ADDRESS_BITS]; // 
+`else
+        if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]); // &&
+//                                                  (bram_raddr[3:2] == 0); // 
+`endif                                                  
 
         if (bram_ren[0])            debug_r <= bram_raddr[1]? (bram_raddr[0] ? debug_in3: debug_in2):
                                                               (bram_raddr[0] ? debug_in1: debug_in0);
         
-        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_r : bram_rdata;
 
+`ifdef USE_DRP
+        if (bram_ren[1])            bram_rdata_r <= drp_read_r? {drp_ready_r, 15'b0,drp_read_data}:
+                                                                (debug_rd_r? debug_r : bram_rdata);
+`else
+        if (bram_ren[1])            bram_rdata_r <= debug_rd_r? debug_r : bram_rdata;
+`endif
     end
 
     //debug_rd_r    
@@ -415,12 +458,9 @@ sata_phy_rst_out will be released after the sata clock is stable
     ) ahci_regs_i (
         .clk_a        (aclk),                                  // input
         .addr_a       (bram_addr),                             // input[9:0] 
-///        .en_a         (bram_ren[0] || write_busy_w),           // input
         .en_a         (bram_ren[0] || bram_wen || bram_wen_r), // input
-///     .en_a         (bram_ren_w[0] || bram_wen || bram_wen_r), // input
         .regen_a      (1'b0),                                  // input
-//        .we_a         (write_busy_r && !nowrite),            // input
-        .we_a         (bram_wstb_r), //bram_wen_d),            // input[3:0]
+        .we_a         (bram_wstb_r),                           // input[3:0]
 //        
         .data_out_a   (bram_rdata),                            // output[31:0] 
         .data_in_a    (ahci_regs_di),                          // input[31:0] 
