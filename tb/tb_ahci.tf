@@ -1114,6 +1114,9 @@ initial begin //Host
     
     read_sipo_meas ('hfffff, 256,  early_count, late_count);
     read_sipo_meas ('h00001, 256,  early_count, late_count);
+
+
+    drp_write ('h20b, 'h8401); // bypass, clock align and invert xclk
     
     
     maxigp1_print        (GHC__IS__IPS__ADDR << 2,"GHC__IS__IPS__ADDR"); // Should be 1 (port 0)

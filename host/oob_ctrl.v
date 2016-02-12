@@ -66,7 +66,8 @@ module oob_ctrl #(
     input  wire                           rxbyteisaligned,// input wire        // obvious
     output wire                           phy_ready,      // output wire       // shows if channel is ready
     input                                 set_offline,    // input wire        // electrically idle // From
-    input                                 comreset_send   // input wire        // Not possible yet? // From
+    input                                 comreset_send,  // input wire        // Not possible yet? // From
+    output reg                            re_aligned      // re-aligned after alignment loss
     ,output debug_detected_alignp
 );
 
@@ -99,7 +100,7 @@ reg     link_state;
 // 1 - connection is being established OR already established, 0 - is not
 reg     oob_state;
 
-// Force offline from AHCI
+// Andrey: Force offline from AHCI
 reg             force_offline_r; // AHCI conrol need setting offline/sending comreset
 always @ (posedge clk) begin
     if (rst || comreset_send) force_offline_r <= 0;
@@ -107,7 +108,19 @@ always @ (posedge clk) begin
 end
 
 
-assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
+// Andrey: Make phy ready not go inactive during re-aligning
+///assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
+reg phy_ready_r;
+reg was_aligned_r;
+always @ (posedge clk) begin
+    if (!(link_state & gtx_ready)) phy_ready_r <= 0;
+    else if (rxbyteisaligned)     phy_ready_r <= 1;
+    
+    was_aligned_r <= rxbyteisaligned;
+    
+    re_aligned <= phy_ready_r && rxbyteisaligned && !was_aligned_r;
+end
+assign  phy_ready = phy_ready_r;
 
 always @ (posedge clk)
     link_state  <= (link_state | link_up) & ~link_down & ~rst & ~force_offline_r; 

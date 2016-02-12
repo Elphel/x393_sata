@@ -78,9 +78,10 @@ module link #(
     input   wire    sync_escape_req,                         // TL demands to brutally cancel current transaction
     output  wire    sync_escape_ack,                         // acknowlegement of a successful reception
     input   wire    incom_stop_req,                          // TL demands to stop current recieving session
-    output          link_established,                        // received 3 back-to-back non-align primitives.                  
+    output          link_established,                        // received 3 back-to-back non-align primitives.
+    output  reg     link_bad_crc,                            // got bad crc at EOF
     // inputs from phy
-    input   wire    phy_ready,                               // phy is ready - link is established: Not yet - need 3 non-align primitives
+    input   wire    phy_ready,                               // phy is ready - link is established
     input   wire    [DATA_BYTE_WIDTH*8 - 1:0] phy_data_in,   // data-primitives stream from phy
     input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_isk_in,    // charisk
     input   wire    [DATA_BYTE_WIDTH   - 1:0] phy_err_in,    // disperr | notintable
@@ -320,6 +321,9 @@ end
 ///assign  alignes_pair   = link_established_r && (alignes_pair_0 | alignes_pair_1);
 assign  alignes_pair   = phy_ready && (alignes_pair_0 | alignes_pair_1);
 
+always @ (posedge clk) begin
+    link_bad_crc <= state_rcvr_eof & crc_bad;
+end
 
 // Whole transitions table, literally from doc pages 311-328
 assign  set_sync_esc        = sync_escape_req;

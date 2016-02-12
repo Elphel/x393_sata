@@ -44,7 +44,10 @@ module gtx_wrap #(
     parameter RXCDRPHRESET_TIME   = 5'h1,
     parameter RXCDRFREQRESET_TIME = 5'h1,
     parameter RXDFELPMRESET_TIME  = 7'hf,
-    parameter RXISCANRESET_TIME   = 5'h1
+    parameter RXISCANRESET_TIME   = 5'h1,
+    
+    parameter ELASTIC_DEPTH = 4, //5,
+    parameter ELASTIC_OFFSET = 7 //  5 //10
 )
 (
     output  reg     debug = 0,
@@ -683,8 +686,8 @@ wire    rxcominitdet_gtx;
     
 `else // OLD_ELASTIC
     elastic1632 #(
-        .DEPTH_LOG2(4),
-        .OFFSET(5)
+        .DEPTH_LOG2 (ELASTIC_DEPTH),  // 16 //4),
+        .OFFSET     (ELASTIC_OFFSET)  // 10 //5)
     ) elastic1632_i (
         .wclk           (xclk),                               // input 150MHz, recovered
         .rclk           (rxusrclk2),                          // input 75 MHz, system
@@ -742,8 +745,51 @@ wire    xclk_gtx;
 BUFG bufg_txoutclk (.O(txoutclk),.I(txoutclk_gtx));
 //BUFR bufr_xclk  (.O(xclk),.I(xclk_mr),.CE(1'b1),.CLR(1'b0));
 //BUFMR bufmr_xclk  (.O(xclk_mr),.I(xclk_gtx));
+`ifdef USE_DRP
+    wire xclk_gtx_g;
+    
+    `ifdef STRAIGHT_XCLK
+        BUFH BUFH_i (
+            .O(), // output 
+            .I() // input 
+        );
+        /* Instance template for module clock_inverter */
+        clock_inverter clock_inverter_i (
+            .rst   (),
+            .clk_in (), // input
+            .invert (), // input
+            .clk_out() // output
+        );
+    
+        BUFG bug_xclk  (.O(xclk),.I(xclk_gtx));
+    `else
+        BUFH bufr_xclk  (.O        (xclk_gtx_g),
+                         .I        (xclk_gtx));
+                         
+        clock_inverter bug_xclk (
+                         .rst      (rxreset),
+                         .clk_in   (xclk_gtx_g),        // input
+                         .invert   (other_control[15]), // input other_control[15] inverts xclk phase
+                         .clk_out  (xclk));               // output
+    `endif
+    
+ 
+`else
+// VDT bug - incorrectly processes defines when calculating closure
+    BUFH BUFH_i (
+        .O(), // output 
+        .I() // input 
+    );
+    /* Instance template for module clock_inverter */
+    clock_inverter clock_inverter_i (
+        .rst   (),
+        .clk_in (), // input
+        .invert (), // input
+        .clk_out() // output
+    );
 
-BUFG bug_xclk  (.O(xclk),.I(~xclk_gtx));
+    BUFG bug_xclk  (.O(xclk),.I(xclk_gtx));
+`endif
 
 gtxe2_channel_wrapper #(
     .SIM_RECEIVER_DETECT_PASS               ("TRUE"),

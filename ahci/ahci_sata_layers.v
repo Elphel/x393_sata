@@ -225,8 +225,8 @@ module  ahci_sata_layers #(
 ///    assign serr_DS = phy_ready && (cominit_got);   // RWC: Link sequence error
 ///    assign serr_DC = phy_ready && (serr_DW);       // RWC: CRC error in Link layer
     assign serr_DT = phy_ready && (0); // RWC: Transport state transition error
-    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
-    assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
+//    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
+//    assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
     assign serr_DI = phy_ready && (rxelsfull);   // RWC: PHY Internal Error // just debugging
     assign serr_EP = phy_ready && (rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
@@ -277,7 +277,8 @@ module  ahci_sata_layers #(
         .sync_escape_req  (syncesc_send),          // input wire  // TL demands to brutally cancel current transaction
         .sync_escape_ack  (syncesc_send_done),     // output wire // acknowlegement of a successful reception?
         .incom_stop_req   (pcmd_st_cleared),       // input wire  // TL demands to stop current receiving session
-        .link_established (link_established),
+        .link_established (link_established),      // output wire
+        .link_bad_crc     (serr_DC),               // output wire // Bad CRC at EOF
         // inputs from phy
         .phy_ready        (phy_ready),             // input wire        // phy is ready - link is established
         // data-primitives stream from phy
@@ -348,6 +349,8 @@ module  ahci_sata_layers #(
 
         .cplllock_debug  (),
         .usrpll_locked_debug(),
+        .re_aligned      (serr_DS),           // output reg 
+        
 
 `ifdef USE_DRP
         .drp_rst           (drp_rst),           // input

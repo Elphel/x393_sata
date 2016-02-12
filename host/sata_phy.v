@@ -82,6 +82,8 @@ module sata_phy #(
 
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
+    output                                      re_aligned,      // re-aligned after alignment loss
+    
 `ifdef USE_DRP
     input                                       drp_rst,
     input                                       drp_clk,
@@ -152,53 +154,39 @@ wire dummy;
 
 
 oob_ctrl oob_ctrl(
-    // sata clk = usrclk2
-    .clk                  (clk),
-    // reset oob
-    .rst                  (rst),
-    // gtx is ready = all resets are done
-    .gtx_ready            (gtx_ready),
+    .clk                  (clk),                   // input wire         // sata clk = usrclk2
+    .rst                  (rst),                   // input wire         // reset oob
+    .gtx_ready            (gtx_ready),             // input wire         // gtx is ready = all resets are done
     .debug                ({dummy,debug_cnt[10:0]}),
     // oob responses
-    .rxcominitdet_in      (rxcominitdet),
-    .rxcomwakedet_in      (rxcomwakedet),
-    .rxelecidle_in        (rxelecidle),
+    .rxcominitdet_in      (rxcominitdet),          // input wire 
+    .rxcomwakedet_in      (rxcomwakedet),          // input wire 
+    .rxelecidle_in        (rxelecidle),            // input wire 
     // oob issues
-    .txcominit            (txcominit),
-    .txcomwake            (txcomwake),
-    .txelecidle           (txelecidle),
-
-    .txpcsreset_req       (txpcsreset_req),
-    .recal_tx_done        (recal_tx_done),
-
-    .rxreset_req          (rxreset_req),
-    .rxreset_ack          (rxreset_ack),
-    
-    .clk_phase_align_req  (clk_phase_align_req), // output wire 
-    .clk_phase_align_ack  (clk_phase_align_ack), // input wire 
-
-    // input data stream (if any data during OOB setting => ignored)
-    .txdata_in            (txdata_in),
-    .txcharisk_in         (txcharisk_in),
-    // output data stream to gtx
-    .txdata_out           (txdata),
-    .txcharisk_out        (txcharisk),
-    // input data from gtx
-    .rxdata_in            (rxdata[31:0]),
-    .rxcharisk_in         (rxcharisk[3:0]),
-    // bypassed data from gtx
-    .rxdata_out           (rxdata_out),
-    .rxcharisk_out        (rxcharisk_out),
-
-    // receiving data is aligned
-    .rxbyteisaligned      (rxbyteisaligned),
-
-    // shows if channel is ready
-    .phy_ready            (phy_ready),
+    .txcominit            (txcominit),             // output wire 
+    .txcomwake            (txcomwake),             // output wire 
+    .txelecidle           (txelecidle),            // output wire 
+    .txpcsreset_req       (txpcsreset_req),        // output wire 
+    .recal_tx_done        (recal_tx_done),         // input wire 
+    .rxreset_req          (rxreset_req),           // output wire 
+    .rxreset_ack          (rxreset_ack),           // input wire 
+    .clk_phase_align_req  (clk_phase_align_req),   // output wire 
+    .clk_phase_align_ack  (clk_phase_align_ack),   // input wire 
+    .txdata_in            (txdata_in),             // input[31:0] wire   // input data stream (if any data during OOB setting => ignored)
+    .txcharisk_in         (txcharisk_in),          // input[3:0] wire    // same
+    .txdata_out           (txdata),                // output[31:0] wire  // output data stream to gtx
+    .txcharisk_out        (txcharisk),             // output[3:0] wire   // same
+    .rxdata_in            (rxdata[31:0]),          // input[31:0] wire   // input data from gtx
+    .rxcharisk_in         (rxcharisk[3:0]),        // input[3:0] wire    // same
+    .rxdata_out           (rxdata_out),            // output[31:0] wire  // bypassed data from gtx
+    .rxcharisk_out        (rxcharisk_out),         // output[3:0]wire    // same
+    .rxbyteisaligned      (rxbyteisaligned),       // input wire         // receiving data is aligned
+    .phy_ready            (phy_ready),             // output wire        // shows if channel is ready
     // To/from AHCI
-    .set_offline          (set_offline), // input
-    .comreset_send        (comreset_send) // input
-    ,.debug_detected_alignp(debug_detected_alignp)
+    .set_offline          (set_offline),           // input
+    .comreset_send        (comreset_send),         // input
+    .re_aligned           (re_aligned)             // output reg 
+    ,.debug_detected_alignp(debug_detected_alignp) // output 
 );
 
 wire    cplllockdetclk; // TODO
@@ -293,10 +281,11 @@ always @ (posedge clk or  posedge sata_areset) begin
     else                   sata_reset_done_r <= {sata_reset_done_r[1:0], 1'b1};
 end
 
-
+reg cplllock_r;
 always @ (posedge gtrefclk) begin
-    rxreset_f <= ~cplllock | cpllreset | rxreset_oob & gtx_configured;
-    txreset_f <= ~cplllock | cpllreset;
+    cplllock_r <= cplllock;
+    rxreset_f <= ~cplllock_r | ~cplllock | cpllreset | rxreset_oob & gtx_configured;
+    txreset_f <= ~cplllock_r | ~cplllock | cpllreset;
 
 ///    rxreset_f <= ~cplllock | cpllreset | ~usrpll_locked | ~sata_reset_done | rxreset_oob & gtx_configured;
 ///    txreset_f <= ~cplllock | cpllreset | ~usrpll_locked;

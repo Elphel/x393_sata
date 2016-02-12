@@ -23,7 +23,7 @@
 module  elastic1632#(
     parameter DEPTH_LOG2 =  4,   // => 16 total rows x16 is for free in Xilinx, but keep it asymmetrical to reduce
                                  // latency
-    parameter OFFSET =  5        // distance between read and write pointers, = wr_ptr - rd_ptr 
+    parameter OFFSET =  7 // 5        // distance between read and write pointers, = wr_ptr - rd_ptr 
 )(
     input             wclk,
     input             rclk,
@@ -48,6 +48,7 @@ module  elastic1632#(
 localparam ALIGN_PRIM = 32'h7B4A4ABC;
 localparam FIFO_DEPTH = 1 << DEPTH_LOG2;
 localparam CORR_OFFSET = OFFSET - 0;
+
 reg            [15:0] data_in_r;
 reg             [1:0] charisk_in_r;
 reg             [1:0] notintable_in_r;
@@ -57,7 +58,9 @@ reg                   msb_in_r;      // input contains MSB
 reg                   inc_waddr;
 reg    [DEPTH_LOG2:0] waddr;
 wire [DEPTH_LOG2-1:0] waddr_minus = waddr[DEPTH_LOG2-1:0] - 1;
-reg    [DEPTH_LOG2:0] raddr;
+//reg    [DEPTH_LOG2:0] raddr;
+wire   [DEPTH_LOG2:0] raddr_w;
+reg    [DEPTH_LOG2:0] raddr_r;
 reg            [44:0] fifo_ram    [0: FIFO_DEPTH -1];
 reg             [0:0] prealign_ram[0: FIFO_DEPTH -1];
 reg  [FIFO_DEPTH-1:0] fill;
@@ -67,13 +70,15 @@ reg             [2:0] aligned_rclk;
 reg             [1:0] dav_rclk;
 wire                  skip_rclk;
 wire                  add_rclk;
-wire           [44:0] rdata = fifo_ram[raddr[DEPTH_LOG2-1:0]];
-wire                  align_out = rdata[44];
-wire                  pre_align_out = prealign_ram[raddr[DEPTH_LOG2-1:0]];
+//wire           [44:0] rdata = fifo_ram[raddr[DEPTH_LOG2-1:0]];
+reg            [44:0] rdata_r;
+//wire                  align_out = rdata[44];
+wire                  align_out = rdata_r[44];
+//wire                  pre_align_out = prealign_ram[raddr[DEPTH_LOG2-1:0]];
+reg                   pre_align_out_r;
 reg                   align_out_r;
 reg             [2:0] correct_r;
-wire                  correct = align_out && (!align_out_r || (pre_align_out && !correct_r[2]));
-
+wire                  correct = align_out && (!align_out_r || (pre_align_out_r && !correct_r[2]));
 
 reg             [1:0] full_0; // full at waddr = waddr
 reg             [1:0] full_1; // full at waddr = raddr+1
@@ -85,7 +90,7 @@ wire is_alignp_w = ({data_in,       data_in_r} ==       ALIGN_PRIM) &&
                    ({notintable_in, notintable_in_r} == 0) &&
                    ({disperror_in,  disperror_in_r} ==  0);
 
-wire  [DEPTH_LOG2:0] dbg_diff = waddr-raddr;
+wire  [DEPTH_LOG2:0] dbg_diff = waddr-raddr_r;
 wire                 dbg_dav1 = dav_rclk[1];
 wire                 dbg_full0 = full_0[1];
 wire                 dbg_full1 = full_1[1];
@@ -132,27 +137,44 @@ always @(posedge wclk) begin
 end
 
 // FIFO read clock domain - system synchronous, 75MHz for SATA2
+    localparam [DEPTH_LOG2:0] SIZED0 = 0;
+    localparam [DEPTH_LOG2:0] SIZED1 = 1;
+    localparam [DEPTH_LOG2:0] SIZED2 = 2;
+//    assign raddr_w = aligned_rclk[1]? ( raddr_r + (add_rclk? 0 : (skip_rclk ? 2 : 1))) : 0;
+    assign raddr_w = aligned_rclk[1]? ( raddr_r + (add_rclk? SIZED0 : (skip_rclk ? SIZED2 : SIZED1))) : SIZED0;
+
+
 always @(posedge rclk) begin
+
+    raddr_r <=         raddr_w;
+
+    rdata_r <=         fifo_ram[raddr_w[DEPTH_LOG2-1:0]];
+    
+    pre_align_out_r <= prealign_ram[raddr_w[DEPTH_LOG2-1:0]];
+    
     if (!aligned32_in_r) aligned_rclk <= 0;
     else                 aligned_rclk <= {aligned_rclk[1:0],fill[OFFSET-2] | aligned_rclk[0]};
 
     if (!aligned32_in_r) dav_rclk <= 0;
-    else                 dav_rclk <= {dav_rclk[0],fill_out[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+//    else                 dav_rclk <= {dav_rclk[0],fill_out[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+    else                 dav_rclk <= {dav_rclk[0],fill_out[raddr_r[DEPTH_LOG2-1:0]] ^ raddr_r[DEPTH_LOG2]};
     
     if (!aligned32_in_r) full_0 <= 1;
-    else                 full_0 <= {full_0[0], fill[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+//    else                 full_0 <= {full_0[0], fill[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+    else                 full_0 <= {full_0[0], fill[raddr_r[DEPTH_LOG2-1:0]] ^ raddr_r[DEPTH_LOG2]};
 
     if (!aligned32_in_r) full_1 <= 1;
-    else                 full_1 <= {full_1[0], fill_1[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+//    else                 full_1 <= {full_1[0], fill_1[raddr[DEPTH_LOG2-1:0]] ^ raddr[DEPTH_LOG2]};
+    else                 full_1 <= {full_1[0], fill_1[raddr_r[DEPTH_LOG2-1:0]] ^ raddr_r[DEPTH_LOG2]};
     
 
-    if (!aligned_rclk[1]) raddr <=0;
-    else if (!add_rclk)   raddr <= raddr + (skip_rclk ? 2 : 1);
+//    if (!aligned_rclk[1]) raddr <=0;
+//    else if (!add_rclk)   raddr <= raddr + (skip_rclk ? 2 : 1);
 
-    disperror_out <=  rdata[43:40];
-    notintable_out <= rdata[39:36];
-    charisk_out <=    rdata[35:32];
-    data_out <=       rdata[31: 0];
+    disperror_out <=  rdata_r[43:40];
+    notintable_out <= rdata_r[39:36];
+    charisk_out <=    rdata_r[35:32];
+    data_out <=       rdata_r[31: 0];
     
     align_out_r <= align_out;
 
@@ -164,7 +186,7 @@ end
 assign skip_rclk = correct &&  dav_rclk[1];
 assign add_rclk =  correct && !dav_rclk[1];
 assign isaligned_out = aligned_rclk[2];
-assign full =   full_1[1] && !full_0[1];
-assign empty = !full_1[1] &&  full_0[1];
+assign full =  aligned_rclk &&  full_1[1] && !full_0[1];
+assign empty = aligned_rclk && !full_1[1] &&  full_0[1];
 endmodule
 

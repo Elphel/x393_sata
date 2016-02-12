@@ -744,20 +744,50 @@ sata = x393sata.x393sata()
 
 sata.bitstream()
 #sata.drp_write (0x20b,0x401) # bypass, clock align
-### sata.drp (0x20b,0x81) # bypass, clock align
+sata.drp (0x20b,0x81) # bypass, clock align
 #sata.drp (0x20b,0x400) # bypass, clock align
-### sata.drp (0x59,0x8) # Use RXREC
+sata.drp (0x59,0x8) # Use RXREC
 #sata.drp (0x59,0x48) 
 sata.reg_status()
 sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 
 sata.reg_status(),sata.reset_ie()
-_=mem.mem_dump (0x80000ff0, 4,4) 
-sata.setup_pio_read_identify_command()
-sata.reg_status()
-_=mem.mem_dump (0x80000ff0, 4,4)
 
+sata.dd_read_dma(0x5ff, 1)
+_=mem.mem_dump (0x80000ff0, 4,4)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status(),sata.reset_ie()
+
+
+for block in range (1,255):
+    sata.dd_read_dma(block, 1)
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    _=mem.mem_dump (0x80001000, 0x100,4)
+    sata.reg_status(),sata.reset_ie()
+
+
+
+mem.write_mem(0x80000118,0x10)
+
+06b: 00104 #                CFIS:Xmit: do SET_BSY
+06c: 30060 #                           do CFIS_XMIT, WAIT DONE
+06d: 19039 #                           if X_RDY_COLLISION       goto P:Idle
+06e: 150f8 #                           if SYNCESC_ERR           goto ERR:SyncEscapeRecv
+06f: 0a471 #                           if FIS_OK                goto CFIS:Success
+070: 00102 #                           always                   goto ERR:Non-Fatal
+
+
+
+
+
+
+
+
+sata.setup_pio_read_identify_command()
+_=mem.mem_dump (0x80000ff0, 4,4)
+_=mem.mem_dump (0x80001000, 0x100,4)
+sata.reg_status(),sata.reset_ie()
 
 sata.reset_ie(), sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4) 

@@ -3,6 +3,7 @@
   `define SYSTEM_DEFINES
   `define USE_DRP
   `define ALIGN_CLOCKS
+  `define STRAIGHT_XCLK
   `define USE_DATASCOPE
   `define PRELOAD_BRAMS
   `define AHCI_SATA 1
