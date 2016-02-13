@@ -21,8 +21,13 @@
 `timescale 1ns/1ps
 
 module  ahci_sata_layers #(
-    parameter  BITS_TO_START_XMIT = 6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
-    parameter  DATA_BYTE_WIDTH = 4
+`ifdef USE_DATASCOPE
+    parameter ADDRESS_BITS =         10, //for datascope
+    parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+    parameter DATASCOPE_POST_MEAS =  16, // number of measurements to perform after event
+`endif        
+    parameter  BITS_TO_START_XMIT =   6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
+    parameter  DATA_BYTE_WIDTH =      4
 )(
     input              exrst,   // master reset that resets PLL and GTX
     input              reliable_clk, // use aclk that runs independently of the GTX
@@ -91,6 +96,14 @@ module  ahci_sata_layers #(
     output  wire        txn_out,
     input   wire        rxp_in,
     input   wire        rxn_in,
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+    output                    datascope_clk,
+    output [ADDRESS_BITS-1:0] datascope_waddr,
+    output                    datascope_we,
+    output             [31:0] datascope_di,
+`endif    
+    
 `ifdef USE_DRP
     input               drp_rst,
     input               drp_clk,
@@ -320,6 +333,11 @@ module  ahci_sata_layers #(
 
 
     sata_phy #(
+`ifdef USE_DATASCOPE
+        .ADDRESS_BITS        (ADDRESS_BITS),  // for datascope
+        .DATASCOPE_START_BIT (DATASCOPE_START_BIT),
+        .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS),
+`endif    
         .DATA_BYTE_WIDTH(4)
     ) phy (
         .extrst          (exrst),             // input wire 
@@ -350,7 +368,14 @@ module  ahci_sata_layers #(
         .cplllock_debug  (),
         .usrpll_locked_debug(),
         .re_aligned      (serr_DS),           // output reg 
-        
+
+`ifdef USE_DATASCOPE
+        .datascope_clk     (datascope_clk),     // output
+        .datascope_waddr   (datascope_waddr),   // output[9:0] 
+        .datascope_we      (datascope_we),      // output
+        .datascope_di      (datascope_di),      // output[31:0] 
+        .datascope_trig    (ll_frame_ackn),     // input datascope external trigger
+`endif        
 
 `ifdef USE_DRP
         .drp_rst           (drp_rst),           // input

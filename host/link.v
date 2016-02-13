@@ -728,7 +728,7 @@ assign  rcvd_dword0[CODE_OKP]    = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYT
 assign  rcvd_dword0[CODE_ERRP]   = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ERRP  ] == phy_data_in_r0);
 assign  rcvd_dword0[CODE_CONTP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP ] == phy_data_in_r0);
 
-reg [PRIM_NUM - 1:0] debug_rcvd_dword; // at least oce received after reset
+reg [PRIM_NUM - 1:0] debug_rcvd_dword; // at least once received after reset
 //reg [7:0]            debug_alignp_cntr;
 ///reg [7:0] debug_unknown_primitives;
 ///reg [7:0] debug_notaligned_primitives;
@@ -750,7 +750,6 @@ reg         other_prim_r;
 reg  [15:0] debug_num_other; // other primitives - not aligh, sync or cont
 reg  [31:0] debug_unknown_dword; 
 wire  debug_is_sync_p_w = phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SYNCP ] == phy_data_in_r0);
-
 
 wire [STATES_COUNT - 1:0] debug_states_concat = {
                            state_idle
@@ -777,6 +776,8 @@ wire [STATES_COUNT - 1:0] debug_states_concat = {
                          , state_rcvr_goodend
                          , state_rcvr_badend
                          };
+reg [4:0] debug_states_encoded;
+
 reg [STATES_COUNT - 1:0] debug_states_visited;
 
 always @ (posedge clk) begin
@@ -825,6 +826,16 @@ always @ (posedge clk) begin
     if (rst) debug_states_visited <= 0;
     else     debug_states_visited <= debug_states_visited | debug_states_concat;
     
+    
+    debug_states_encoded <= { |debug_states_concat[22:16],
+                              |debug_states_concat[15: 8],
+                             (|debug_states_concat[22:20]) | (|debug_states_concat[15:12]) | (|debug_states_concat[7:4]),
+                             debug_states_concat[22] | (|debug_states_concat[19:18]) | (|debug_states_concat[15:14]) | 
+                             (|debug_states_concat[11:10]) | (|debug_states_concat[7:6]) | (|debug_states_concat[3:2]),
+                             debug_states_concat[21] |  debug_states_concat[19] | debug_states_concat[17] | debug_states_concat[15] |
+                             debug_states_concat[13] |  debug_states_concat[11] | debug_states_concat[ 9] | debug_states_concat[7] |
+                             debug_states_concat[ 5] |  debug_states_concat[ 3] | debug_states_concat[ 1]};
+    
 /* 
     if      (rst)          debug_rcvd_dword <= 0;
     debug_alignp_r <= rcvd_dword[CODE_ALIGNP];
@@ -851,6 +862,35 @@ always @ (posedge clk) begin
     else if (debug_state_reset_r == 1)              debug_notaligned_primitives <= debug_notaligned_primitives + 1;
 */    
 end
+
+/*wire    state_idle;
+reg     state_sync_esc;     // SyncEscape
+reg     state_nocommerr;    // NoComErr
+reg     state_nocomm;       // NoComm
+reg     state_align;        // SendAlign - not used, handled by OOB
+reg     state_reset;        // RESET
+// tranmitter branch
+reg     state_send_rdy;     // SendChkRdy
+reg     state_send_sof;     // SendSOF
+reg     state_send_data;    // SendData
+reg     state_send_rhold;   // RcvrHold - hold initiated by current data reciever
+reg     state_send_shold;   // SendHold - hold initiated by current data sender
+reg     state_send_crc;     // SendCVC
+reg     state_send_eof;     // SendEOF
+reg     state_wait;         // Wait
+// receiver branch
+reg     state_rcvr_wait;    // RcvWaitFifo
+reg     state_rcvr_rdy;     // RcvChkRdy
+reg     state_rcvr_data;    // RcvData
+reg     state_rcvr_rhold;   // Hold     - hold initiated by current data reciever
+reg     state_rcvr_shold;   // RcvHold  - hold initiated by current data sender
+reg     state_rcvr_eof;     // RcvEOF
+reg     state_rcvr_goodcrc; // GoodCRC
+reg     state_rcvr_goodend; // GoodEnd
+reg     state_rcvr_badend;  // BadEnd
+*/
+
+
 ///assign debug_out[19: 0] =          debug_to_first_err;
 //assign debug_out[23:16] =          debug_num_aligns;
 //assign debug_out[31:20] =          debug_num_syncs[11:0];
@@ -858,7 +898,8 @@ end
 ///assign debug_out[31:20] =          debug_num_other[11:0];
 
 ///assign debug_out = debug_unknown_dword; // first unknown dword
-assign debug_out[15: 0] =            debug_to_first_err[19:4];
+assign debug_out[ 4: 0]  =            debug_states_encoded;
+assign debug_out[15: 5] =            debug_to_first_err[14:4];
 assign debug_out[31:16] =            debug_rcvd_dword;
 
 

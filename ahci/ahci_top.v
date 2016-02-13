@@ -182,6 +182,16 @@ module  ahci_top#(
     
 
     output             irq, // CPU interrupt request
+    
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+    input                    datascope1_clk,
+    input [ADDRESS_BITS-1:0] datascope1_waddr,      
+    input                    datascope1_we,
+    input             [31:0] datascope1_di,
+`endif    
+    
+    
 `ifdef USE_DRP
     output                    drp_en, // @aclk strobes drp_ad
     output                    drp_we,
@@ -715,7 +725,9 @@ module  ahci_top#(
         .debug_in0        (debug_dma),       // input[31:0]
         .debug_in1        (debug_dma1),      // debug_in_link),   // input[31:0]
         .debug_in2        (debug_in_phy),    // input[31:0]     // debug from phy/link
-        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
+//        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
+        .debug_in3        ({3'b0, debug_in_link[4:0], 14'b0,last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
+        
 `ifdef USE_DRP
        ,.drp_en           (drp_en),          // output reg 
         .drp_we           (drp_we),          // output reg 
@@ -730,7 +742,12 @@ module  ahci_top#(
         ,.datascope_clk   (datascope_clk),   // input
         .datascope_waddr  (datascope_waddr), // input[9:0] 
         .datascope_we     (datascope_we),    // input
-        .datascope_di     (datascope_di)     // input[31:0] 
+        .datascope_di     (datascope_di),    // input[31:0] 
+        
+        .datascope1_clk   (datascope1_clk),  // input
+        .datascope1_waddr (datascope1_waddr),// input[9:0] 
+        .datascope1_we    (datascope1_we),   // input
+        .datascope1_di    (datascope1_di)    // input[31:0] 
 `endif        
 ///        .debug_in         (debug_in[31:0])
     );

@@ -34,6 +34,11 @@
 //`include "oob_ctrl.v"
 //`include "gtx_wrap.v"
 module sata_phy #(
+`ifdef USE_DATASCOPE
+    parameter ADDRESS_BITS =         10, //for datascope
+    parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+    parameter DATASCOPE_POST_MEAS =  16, // number of measurements to perform after event
+`endif        
     parameter   DATA_BYTE_WIDTH = 4
 )
 (
@@ -83,6 +88,16 @@ module sata_phy #(
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
     output                                      re_aligned,      // re-aligned after alignment loss
+    
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+    output                                      datascope_clk,
+    output                   [ADDRESS_BITS-1:0] datascope_waddr,
+    output                                      datascope_we,
+    output                               [31:0] datascope_di,
+    input                                       datascope_trig, // external trigger event for the datascope     
+    
+`endif    
     
 `ifdef USE_DRP
     input                                       drp_rst,
@@ -462,6 +477,11 @@ ext_clock_buf(
 );
 
 gtx_wrap #(
+`ifdef USE_DATASCOPE
+    .ADDRESS_BITS        (ADDRESS_BITS),  // for datascope
+    .DATASCOPE_START_BIT (DATASCOPE_START_BIT),
+    .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS),
+`endif
     .DATA_BYTE_WIDTH        (DATA_BYTE_WIDTH),
     .TXPMARESET_TIME        (TXPMARESET_TIME),
     .RXPMARESET_TIME        (RXPMARESET_TIME),
@@ -518,6 +538,14 @@ gtx_wrap
     .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
     .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
     .txbufstatus        (txbufstatus[1:0])
+`ifdef USE_DATASCOPE
+       ,.datascope_clk     (datascope_clk),     // output
+        .datascope_waddr   (datascope_waddr),   // output[9:0] 
+        .datascope_we      (datascope_we),      // output
+        .datascope_di      (datascope_di),      // output[31:0] 
+        .datascope_trig    (datascope_trig)     // inpuit // external trigger event for the datascope     
+`endif
+    
 `ifdef USE_DRP
        ,.drp_rst        (drp_rst),           // input
         .drp_clk        (drp_clk),           // input
@@ -594,8 +622,13 @@ reg        dbg_clk_align_wait;
 //reg        dbg_rxphaligndone_down;
 //reg        dbg_rxphaligndone_second;
 
-
+reg [11:0] error_count;
 always @ (posedge clk) begin
+//    if (!phy_ready) error_count <= 0;
+    if      (rxelecidle)                 error_count <= 0;
+    else if (phy_ready && (|ll_err_out)) error_count <= error_count + 1;
+    
+
     if      (rxelecidle || clk_phase_align_ack) dbg_clk_align_wait <= 0;
     else if (clk_phase_align_req)                         dbg_clk_align_wait <= 1;
 
@@ -636,9 +669,14 @@ assign debug_sata[23:20] = debug_cntr4;
 //assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
 //assign debug_sata = {debug_cntr6,debug_cntr5};
 //assign debug_sata = {8'b0, dbg_clk_align_cntr, 1'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
-assign debug_sata = {8'b0, dbg_clk_align_cntr, txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
-
-
+`ifdef USE_DATASCOPE
+    assign debug_sata = {txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned,
+                         error_count,
+                         2'b0,
+                         datascope_waddr};
+`else
+    assign debug_sata = {8'b0, dbg_clk_align_cntr, txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
+`endif
 
  
 endmodule

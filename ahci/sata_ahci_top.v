@@ -40,6 +40,11 @@
 //    parameter READ_REG_LATENCY =      2, // 0 if  reg_rdata is available with reg_re/reg_addr, 2 with re/regen
 //    parameter READ_CT_LATENCY =       1, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =         10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
+`ifdef USE_DATASCOPE
+    parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+    parameter DATASCOPE_POST_MEAS = 256, // 16, // number of measurements to perform after event
+`endif
+    
     parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
     parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
  )(
@@ -223,6 +228,13 @@
     
     reg          [2:0] nhrst_r;
     wire               hrst = !nhrst_r[2];
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+    wire                     datascope_clk;
+    wire  [ADDRESS_BITS-1:0] datascope_waddr;      
+    wire                     datascope_we;
+    wire              [31:0] datascope_di;
+`endif    
     
 `ifdef USE_DRP
     wire               drp_en;
@@ -376,6 +388,14 @@
         .sctl_ipm          (sctl_ipm),          // output[3:0] 
         .sctl_spd          (sctl_spd),          // output[3:0] 
         .irq               (irq),               // output
+
+`ifdef USE_DATASCOPE
+        .datascope1_clk    (datascope_clk),     // input
+        .datascope1_waddr  (datascope_waddr),   // input[9:0] 
+        .datascope1_we     (datascope_we),      // input
+        .datascope1_di     (datascope_di),      // input[31:0] 
+`endif        
+        
 `ifdef USE_DRP
         .drp_en           (drp_en),             // output reg 
         .drp_we           (drp_we),             // output reg 
@@ -389,7 +409,12 @@
     );
 
     ahci_sata_layers #(
-        .BITS_TO_START_XMIT(6),
+`ifdef USE_DATASCOPE
+        .ADDRESS_BITS        (ADDRESS_BITS),  // for datascope
+        .DATASCOPE_START_BIT (DATASCOPE_START_BIT), // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+        .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS), // number of measurements to perform after event
+`endif    
+        .BITS_TO_START_XMIT (6),
         .DATA_BYTE_WIDTH(4)
     ) ahci_sata_layers_i (
         .exrst             (exrst),             // input
@@ -444,6 +469,12 @@
         .txn_out           (TXN),               // output wire 
         .rxp_in            (RXP),               // input wire 
         .rxn_in            (RXN),               // input wire
+`ifdef USE_DATASCOPE
+        .datascope_clk     (datascope_clk),     // output
+        .datascope_waddr   (datascope_waddr),   // output[9:0] 
+        .datascope_we      (datascope_we),      // output
+        .datascope_di      (datascope_di),      // output[31:0] 
+`endif        
 `ifdef USE_DRP
         .drp_rst           (arst),              // input
         .drp_clk           (ACLK),              // input

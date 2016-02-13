@@ -9,7 +9,9 @@ create_clock -name gtrefclk -period 6.666 -waveform {0.000 3.333} [get_nets sata
 create_clock -name txoutclk -period 6.666 -waveform {0.000 3.333} [get_nets sata_top/ahci_sata_layers_i/phy/txoutclk]
 
 # recovered sata parallel clock
-create_clock -name xclk -period 6.666 -waveform {0.000 3.333} [get_nets sata_top/ahci_sata_layers_i/phy/gtx_wrap/xclk]
+##create_clock -name xclk -period 6.666 -waveform {0.000 3.333} [get_nets sata_top/ahci_sata_layers_i/phy/gtx_wrap/xclk]
+create_clock -name xclk -period 6.666 -waveform {0.000 3.333} [get_nets sata_top/ahci_sata_layers_i/phy/gtx_wrap/xclk_gtx]
+###sata_top/ahci_sata_layers_i/phy/gtx_wrap/xclk_gtx sata_top/ahci_sata_layers_i/phy/gtx_wrap/gtxe2_channel_wrapper/xclk_gtx
 
 # txoutclk -> userpll, which gives us 2 clocks: userclk (150MHz) and userclk2 (75MHz) . The second one is sata host clk
 ###create_generated_clock -name usrclk [get_nets sata_top/ahci_sata_layers_i/phy/CLK]

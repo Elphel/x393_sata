@@ -63,6 +63,7 @@ COMMAND_BUFFER_SIZE =     0x100 # 256 bytes - 128 before PRDT, 128+ - PRDTs (16 
 PRD_OFFSET =               0x80 # Start of the PRD table
 FB_OFFS =                 0xc00 # Needs 0x100 bytes 
 DRP_OFFS =                0xfec # Read/Write DRP data [31] - write/ready, [30:16] - address/0, [15:0] - data to/data from
+DBG_OFFS =                0xff0 # and 3 next DWORDS
 DATAIN_BUFFER_OFFSET =  0x10000
 DATAIN_BUFFER_SIZE =    0x10000
 IDENTIFY_BUF =                0 # Identify receive buffer offset in  DATAIN_BUFFER, in bytes
@@ -85,6 +86,13 @@ DRP_TIMER_ADDR =     0x208 # write timer value (how long to count early/late)
 DRP_EARLY_ADDR =     0x209 # write timer value (how long to count early/late)
 DRP_LATE_ADDR =      0x20a # write timer value (how long to count early/late)
 DRP_OTHERCTRL_ADDR = 0x20b # Now bit 0 - disable wait for phase align
+DRP_RXDLY_CFG =      0x55
+DRP_LOGGER_BIT =       14 # bit number (in DRP_OTHERCTRL_ADDR) to control last-before-error data logger
+
+DATASCOPE0_OFFS =  0x1000 # start of the datascope0 relative to MAXI1_ADDR
+DATASCOPE0_SIZE =  0x1000 # datascope0 size in bytes
+DATASCOPE1_OFFS =  0x2000 # start of the datascope1 relative to MAXI1_ADDR
+DATASCOPE1_SIZE =  0x1000 # datascope0 size in bytes
 
 
 #FIS types
@@ -457,6 +465,8 @@ class x393sata(object):
         @param do_not_start - do not actually launch the command by writing 1 to command_issue (CI) bit in PxCI register
         @param prd_irqs - None or a tuple/list with per-PRD interrupts
         """
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
         # clear system memory for the command
         for a in range(64):
             self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
@@ -513,7 +523,22 @@ class x393sata(object):
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
         print("Command table data:")    
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
-        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)
+        #Wait interrupt
+        for r in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                break
+            sleep(0.1)
+        else:
+            print ("Failed to get interrupt")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            raise Exception("Failed to get interrupt")
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
@@ -533,6 +558,8 @@ class x393sata(object):
             raise ValueError ("This program supports only 24-bit LBA") 
         if count > 256:
             raise ValueError ("This program supports only 8 bit count") 
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
         # clear system memory for the command
         for a in range(64):
             self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
@@ -579,16 +606,30 @@ class x393sata(object):
             print("mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)")
         else:
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
-        print("Command table data:")    
+        print("Command table data:")
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        #Wait interrupt
+        for r in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                break
+            sleep(0.1)
+        else:
+            print ("Failed to get interrupt")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            raise Exception("Failed to get interrupt")
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
-        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
+        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
         print("Memory read data:")    
         print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
         self.x393_mem.mem_dump (DATAIN_ADDRESS, count * 0x200, 1)        
-
     def dd_write_dma(self, skip, count = 1, use_read_buffer = False, do_not_start = False, prd_irqs = None): #TODO: Add multi-PRD testing
         """
         Write device from memory, use single PRD table
@@ -598,6 +639,8 @@ class x393sata(object):
         @param do_not_start - do not actually launch the command by writing 1 to command_issue (CI) bit in PxCI register
         @param prd_irqs - None or a tuple/list with per-PRD interrupts
         """
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
         if skip > (1 << 24):
             raise ValueError ("This program supports only 24-bit LBA") 
         if count > 256:
@@ -651,7 +694,23 @@ class x393sata(object):
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
         print("Command table data:")    
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
-        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)
+        #Wait interrupt
+        for r in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                break
+            sleep(0.1)
+        else:
+            print ("Failed to get interrupt")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)
+            raise Exception("Failed to get interrupt")
+
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
@@ -697,7 +756,216 @@ class x393sata(object):
             new_val = 0
         self.drp_write (DRP_OTHERCTRL_ADDR, ((old_val ^ new_val) & mask) ^ old_val)
         
+    def err_count (self):
+        return (self.x393_mem.read_mem(MAXI1_ADDR + DBG_OFFS + (2 << 2)) >> 12) & 0xfff    
+    
+    def err_rate(self, dly = 0.1):
+        ec0 = self.err_count()
+        sleep(dly)
+        ec1 = self.err_count()
+        if ec1 < ec0:
+            ec1 += 1 << 12
+        return 1.0 * (ec1 - ec0) /dly    
+    def set_rxdly (self,rxdly):
+        self.drp (DRP_RXDLY_CFG, (rxdly << 6) | 0x1f) # 0x1f - default value in other bits
+        
+    def scan_rxdly(self, dly = 0.1, low = 0, high = 511, verbose = None):
+        if verbose is None:
+            verbose = self.DEBUG_MODE
+        rslt = []
+        for rxdly in range (low, high+1):
+            self.set_rxdly(rxdly)
+            er = self.err_rate(dly)
+            if verbose:
+                print ("dly = 0x%x -> %f err/s"%(rxdly, er))
+            rslt.append(er)    
+        return rslt
+    
+    def arm_logger(self):
+        d = self.drp(DRP_OTHERCTRL_ADDR);
+        d &= ~(1 << DRP_LOGGER_BIT)
+        self.drp(DRP_OTHERCTRL_ADDR, d & (~(1 << DRP_LOGGER_BIT)))
+        self.drp(DRP_OTHERCTRL_ADDR, d | ( 1 << DRP_LOGGER_BIT))
+
+    def stop_logger(self): # stop at will (w/o error), address pointer will be valid
+        d = self.drp(DRP_OTHERCTRL_ADDR);
+        d &= ~(1 << DRP_LOGGER_BIT)
+        self.drp(DRP_OTHERCTRL_ADDR, d & (~(1 << DRP_LOGGER_BIT)))
+    
+    def get_datascope1_poiner(self):
+        return (self.x393_mem.read_mem(MAXI1_ADDR + DBG_OFFS + (2 << 2)) >> 0) & ((DATASCOPE1_SIZE >> 2)-1)
+    
+    def read_datascope1(self):
+        offs = self.get_datascope1_poiner()
+        rslt = []
+        for i in range (DATASCOPE1_SIZE >> 2): # in dwords
+            a = (offs + i) & ((DATASCOPE1_SIZE >> 2)-1)
+            rslt.append(self.x393_mem.read_mem(MAXI1_ADDR + DATASCOPE1_OFFS + (a << 2)))
+        return rslt    
+  
+    def replace_p(self,dword,prev_dword, next_dword = None):
+        primitives = ((" ALIGNp ",0x7b4a4abc),
+                      (" CONTp  ",0x9999aa7c),
+                      (" DMATp  ",0x3636b57c),
+                      ("  EOFp  ",0xd5d5b57c),
+                      (" HOLDp  ",0xd5d5aa7c),
+                      (" HOLDAp ",0x9595aa7c),
+                      (" PMACKp ",0x9595957c),
+                      (" PMNAKp ",0xf5f5957c),
+                      ("PMREQ_Pp",0x1717b57c),
+                      ("PMREQ_Sp",0x7575957c),
+                      (" R_ERRp ",0x5656b57c),
+                      ("  R_IPp ",0x5555b57c),
+                      ("  R_OKp ",0x3535b57c),
+                      (" R_RDYp ",0x4a4a957c),
+                      ("  SOFp  ",0x3131b57c),
+                      (" SYNCp  ",0xb5b5957c),
+                      (" WTRMp  ",0x5858b57c),
+                      (" X_RDYp ",0x5757b57c))
+        k2 = (dword >> 16) & 0x3
+        d = dword & 0xffff
+        try:    
+            k2_next = (next_dword >> 16) & 0x3
+            d_next = next_dword & 0xffff
+        except:
+            k2_next = 3
+        if k2 == 1:
+            for pair in primitives:
+                if d == (pair[1] & 0xffff):
+                    print ("d = 0x%x, d_next = 0x%x, k2 = %d, k2_next = %d"%(d,d_next,k2,k2_next))
+                    if (k2_next == 3) or ((d_next == ((pair[1] >> 16) & 0xffff))):
+                        return  pair[0].replace('p','l')
+        elif k2==0:
+            if prev_dword: # None - OK
+                k2_prev = (prev_dword >> 16) & 0x3
+                d_prev = prev_dword & 0xffff
+                print ("d = 0x%x, d_prev = 0x%x, k2 = %d, k2_prev = %d"%(d,d_prev,k2,k2_prev))
+                if k2_prev == 1:
+                    for pair in primitives:
+                        print ("%s: %x<->%x %x<->%x"%(pair[0],d_prev,(pair[1] & 0xffff), d, (pair[1] >> 16) & 0xffff))
+                        if (d_prev == (pair[1] & 0xffff)) and ((d == ((pair[1] >> 16) & 0xffff))):
+                            return  pair[0].replace('p','h')
+        return None    
+
+            
+    def interpret_datascope1_dword(self, dword, prev_dword = None, next_dword = None):
+        
+        def replace_p(dword,prev_dword, next_dword = None):
+            primitives = ((" ALIGNp ",0x7b4a4abc),
+                          (" CONTp  ",0x9999aa7c),
+                          (" DMATp  ",0x3636b57c),
+                          ("  EOFp  ",0xd5d5b57c),
+                          (" HOLDp  ",0xd5d5aa7c),
+                          (" HOLDAp ",0x9595aa7c),
+                          (" PMACKp ",0x9595957c),
+                          (" PMNAKp ",0xf5f5957c),
+                          ("PMREQ_Pp",0x1717b57c),
+                          ("PMREQ_Sp",0x7575957c),
+                          (" R_ERRp ",0x5656b57c),
+                          ("  R_IPp ",0x5555b57c),
+                          ("  R_OKp ",0x3535b57c),
+                          (" R_RDYp ",0x4a4a957c),
+                          ("  SOFp  ",0x3131b57c),
+                          (" SYNCp  ",0xb5b5957c),
+                          (" WTRMp  ",0x5858b57c),
+                          (" X_RDYp ",0x5757b57c))
+            k2 = (dword >> 16) & 0x3
+            d = dword & 0xffff
+            try:
+                k2_next = (next_dword >> 16) & 0x3
+                d_next = next_dword & 0xffff
+            except:
+                k2_next = 3
+                d_next = -1
+            if k2 == 1:
+                for pair in primitives:
+                    if d == (pair[1] & 0xffff):
+                        if (k2_next == 3) or ((d_next == ((pair[1] >> 16) & 0xffff))):
+                            return  pair[0].replace('p','l')
+            elif k2==0:
+                if prev_dword: # None - OK
+                    k2_prev = (prev_dword >> 16) & 0x3
+                    d_prev = prev_dword & 0xffff
+                    if k2_prev == 1:
+                        for pair in primitives:
+                            if (d_prev == (pair[1] & 0xffff)) and ((d == ((pair[1] >> 16) & 0xffff))):
+                                return  pair[0].replace('p','h')
+            return None
+            
+        b =      ((dword >>  0) & 0xff, (dword >>  8) & 0xff)
+        k =      ((dword >> 16) & 0x1,  (dword >> 17) & 0x1)
+        d =      ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
+        t =      ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
+        aligned = (dword >> 22) & 0x1
+        comma =   (dword >> 24) & 0x1
+        realign = (dword >> 25) & 0x1
+        decor = []
+        for nb in range(2):
+            if k[nb]:
+                if d[nb]:
+                    if t[nb]:
+                        decor.append("==")
+                    else:
+                        decor.append("**")
+                else:
+                    if t[nb]:
+                        decor.append("{}")
+                    else:
+                        decor.append("[]")
+            else:
+                if d[nb]:
+                    if t[nb]:
+                        decor.append("!!")
+                    else:
+                        decor.append("++")
+                else:
+                    if t[nb]:
+                        decor.append("()")
+                    else:
+                        decor.append("__")
+        rslt =  " R"[realign]+" C"[comma]+"N "[aligned]
+        p = replace_p(dword, prev_dword, next_dword)
+        if p:
+            return rslt+"%8s"%(p)
+        else:
+            return rslt+decor[1][0]+"%02x"%(b[1])+decor[1][1]+decor[0][0]+"%02x"%(b[0])+decor[0][1]
+    
+    def datascope1(self, n = 0x400):
+        data = self.read_datascope1()
+        prev_dword = None
+        n >>= 3
+        if not n:
+            n = 1
+        for i in range(-n,0):
+            ha = (8 *i) & ((DATASCOPE1_SIZE >> 2)-1)
+            print("0x%03x:"%(ha),end="")
+            for j in range(8):
+                dword = data[8 * i + j]
+#                if (8 * i + j) < 0:
+                next_dword = data[8 * i + j +1]
+#                else:
+#                    next_dword = None    
+                print(" %s"%(self.interpret_datascope1_dword(dword,prev_dword,next_dword)),end="")
+                prev_dword = dword
+            print()
+                
+                 
     """
+    
+sata.drp (0x20b,0x221), sata.drp (0x20b,0x4221)
+    
+DRP_RXDLY_CFG    
+for i in range(0,0x4000,0x40): 
+     sata.drp (0x55,i+0x1f)
+#     sata.drp (0x20b,0x1)
+#     sata.drp (0x20b,0x221)     
+     print("0x%x: "%(i),end="")
+#     _=mem.mem_dump (0x80000ff0, 4,4)
+     _=mem.mem_dump (0x80000ff0, 4,4)
+
+(mem.read_mem(MAXI1_ADDR + DBG_OFFS + (2 << 2)) >> 12) & 0xfff    
+(mem.read_mem(0x80000ff8) >> 12) & 0xfff    
+
 ATA_IDFY =     0xec # Identify command
 ATA_WDMA =     0xca # Write to device in DMA mode
 ATA_WBUF_PIO = 0xe8 # Write 512 bytes to device buffer in PIO mode
@@ -732,6 +1000,14 @@ sata.read_sipo_meas(0xfffff,0x7ffe)
 _=mem.mem_dump (0x80000ff0, 4,4)
 
 hex(sata.drp_read(0x55))
+_=sata.scan_rxdly(0.1,0x00,0x00) # set good
+_=sata.scan_rxdly(0.1,0x80,0x80) # set bad
+_=sata.scan_rxdly() # scan all with measurement time 0.1
+_=sata.scan_rxdly(0.1, 0, 255) # scan half (full range is 2 periods) with measurement time 0.1
+
+
+reload (x393sata)
+sata = x393sata.x393sata()
     
 cd /mnt/mmc/local/bin
 python    
@@ -744,20 +1020,47 @@ sata = x393sata.x393sata()
 
 sata.bitstream()
 #sata.drp_write (0x20b,0x401) # bypass, clock align
-sata.drp (0x20b,0x81) # bypass, clock align
+sata.drp (0x20b,0x221) # bypass, clock align
+
+
+hex(sata.drp (0x20b))
 #sata.drp (0x20b,0x400) # bypass, clock align
 sata.drp (0x59,0x8) # Use RXREC
 #sata.drp (0x59,0x48) 
 sata.reg_status()
 sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
+sata.reg_status(),sata.reset_ie(),sata.err_count()
 
-sata.reg_status(),sata.reset_ie()
+sata.arm_logger()
+sata.setup_pio_read_identify_command()
+
+sata.datascope1()
+
+
 
 sata.dd_read_dma(0x5ff, 1)
 _=mem.mem_dump (0x80000ff0, 4,4)
 _=mem.mem_dump (0x80001000, 0x100,4)
-sata.reg_status(),sata.reset_ie()
+sata.reg_status(),sata.reset_ie(),sata.err_count()
+
+/// .RXCDR_CFG                              (72'h03_0000_23ff_1020_0020),// 1.6G - 6.25G, No SS, RXOUT_DIV=2
+    .RXCDR_CFG                              (72'h03_8800_8BFF_4020_0008),// http://www.xilinx.com/support/answers/53364.html - SATA-2, div=2
+
+
+>>> sata.drp(0xa9)
+16416
+>>> hex(sata.drp(0xa8))
+'0x8'
+>>> hex(sata.drp(0xa9))
+'0x4020'
+>>> hex(sata.drp(0xaa))
+'0x8bff'
+>>> hex(sata.drp(0xab))
+'0x8800'
+>>> hex(sata.drp(0xac))
+'0x3'
+
 
 
 for block in range (1,255):
@@ -766,9 +1069,26 @@ for block in range (1,255):
     _=mem.mem_dump (0x80001000, 0x100,4)
     sata.reg_status(),sata.reset_ie()
 
+for block in range (1,255):
+    sata.dd_read_dma(block, 1)
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    _=mem.mem_dump (0x80001000, 0x100,4)
+    sata.reg_status(),sata.reset_ie(),sata.err_count()
 
+
+
+#sata.drp (0x20b,0x81), sata.drp (0x20b,0x4081)
+sata.drp (0x20b,0x221), sata.drp (0x20b,0x4221)
+
+
+
+_=mem.mem_dump (0x80000ff0, 4,4)
+_=mem.mem_dump (0x80002000, 0x400,4)
 
 mem.write_mem(0x80000118,0x10)
+
+
+
 
 06b: 00104 #                CFIS:Xmit: do SET_BSY
 06c: 30060 #                           do CFIS_XMIT, WAIT DONE
@@ -777,9 +1097,24 @@ mem.write_mem(0x80000118,0x10)
 06f: 0a471 #                           if FIS_OK                goto CFIS:Success
 070: 00102 #                           always                   goto ERR:Non-Fatal
 
+0x201 - OK, 0x021 - out of sync
+0xa1 does not seem to change anything
 
+for i in range(0,0x800,0x40): 
+     sata.drp (0xa1,i)
+     sata.drp (0x20b,0x1)
+     sata.drp (0x20b,0x221)     
+     print("0x%x: "%(i),end="")
+     _=mem.mem_dump (0x80000ff0, 4,4)
+     _=mem.mem_dump (0x80000ff0, 4,4)
 
-
+for i in range(0,0x4000,0x40): 
+     sata.drp (0x55,i+0x1f)
+#     sata.drp (0x20b,0x1)
+#     sata.drp (0x20b,0x221)     
+     print("0x%x: "%(i),end="")
+#     _=mem.mem_dump (0x80000ff0, 4,4)
+     _=mem.mem_dump (0x80000ff0, 4,4)
 
 
 

@@ -132,7 +132,12 @@ module  axi_ahci_regs#(
    ,input                     datascope_clk,
     input  [ADDRESS_BITS-1:0] datascope_waddr,      
     input                     datascope_we,
-    input              [31:0] datascope_di
+    input              [31:0] datascope_di,
+    
+    input                     datascope1_clk,
+    input  [ADDRESS_BITS-1:0] datascope1_waddr,      
+    input                     datascope1_we,
+    input              [31:0] datascope1_di
 `endif    
 );
 `ifdef USE_DRP
@@ -142,11 +147,15 @@ module  axi_ahci_regs#(
     reg                       drp_ready_r;
 `endif
 `ifdef USE_DATASCOPE
-    localparam AXIBRAM_BITS = ADDRESS_BITS + 1; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
+//    localparam AXIBRAM_BITS = ADDRESS_BITS + 1; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
+    localparam AXIBRAM_BITS = ADDRESS_BITS + 2; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
     wire               [31:0] datascope_rdata;
     reg                [1:0]  datascope_sel;    // read datascope memory instead of the registers
+    wire               [31:0] datascope1_rdata;
+    reg                [1:0]  datascope1_sel;    // read datascope memory instead of the registers
     always @ (posedge aclk) begin
-        datascope_sel <= {datascope_sel[0], bram_raddr[ADDRESS_BITS]};
+        datascope_sel <=  {datascope_sel[0],  ~bram_raddr[ADDRESS_BITS+1] &  bram_raddr[ADDRESS_BITS]};
+        datascope1_sel <= {datascope1_sel[0],  bram_raddr[ADDRESS_BITS+1] & ~bram_raddr[ADDRESS_BITS]};
     end
 `else 
     localparam AXIBRAM_BITS =  ADDRESS_BITS; // number of axi address outputs (one more than ADDRESS_BITS when using datascope)
@@ -433,7 +442,9 @@ sata_phy_rst_out will be released after the sata clock is stable
         .bram_ren    (bram_ren[0]),              // output
         .bram_regen  (bram_ren[1]),              // output
 `ifdef USE_DATASCOPE        
-        .bram_rdata  (datascope_sel[1] ? datascope_rdata : bram_rdata_r)              // input[31:0] 
+        .bram_rdata  ((datascope_sel[1] | datascope1_sel[1]) ?
+                      (datascope1_sel[1]? datascope1_rdata : datascope_rdata) :
+                       bram_rdata_r)              // input[31:0] 
 `else
         .bram_rdata  (bram_rdata_r)              // input[31:0] 
 `endif        
@@ -509,6 +520,24 @@ sata_phy_rst_out will be released after the sata clock is stable
             .we           (datascope_we),               // input
             .web          (8'hff),                      // input[7:0] 
             .data_in      (datascope_di)                // input[31:0] 
+        );
+
+        ram_var_w_var_r #(
+            .REGISTERS    (0),
+            .LOG2WIDTH_WR (5),
+            .LOG2WIDTH_RD (5),
+            .DUMMY(0)
+        ) datascope1_mem_i (
+            .rclk         (aclk),                       // input
+            .raddr        (bram_raddr[9:0]),            // input[9:0] 
+            .ren          (bram_ren[0]),                // input
+            .regen        (bram_ren[1]),                // input
+            .data_out     (datascope1_rdata),           // output[31:0] 
+            .wclk         (datascope1_clk),             // input
+            .waddr        (datascope1_waddr),           // input[9:0] 
+            .we           (datascope1_we),              // input
+            .web          (8'hff),                      // input[7:0] 
+            .data_in      (datascope1_di)               // input[31:0] 
         );
 `endif
 

@@ -38,6 +38,11 @@
 // All computations have been done in assumption of GTX interface being 20 bits wide!
 //`include "system_defines.v"
 module gtx_wrap #(
+`ifdef USE_DATASCOPE
+    parameter ADDRESS_BITS =         10, // for datascope
+    parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+    parameter DATASCOPE_POST_MEAS =  16, // number of measurements to perform after event
+`endif
     parameter DATA_BYTE_WIDTH     = 4,
     parameter TXPMARESET_TIME     = 5'h1,
     parameter RXPMARESET_TIME     = 5'h11,
@@ -100,6 +105,15 @@ module gtx_wrap #(
     output  wire    dbg_rxdlysresetdone,
     
     output wire [1:0] txbufstatus
+`ifdef USE_DATASCOPE
+// Datascope interface (write to memory that can be software-read)
+   ,output                    datascope_clk,
+    output [ADDRESS_BITS-1:0] datascope_waddr,
+    output                    datascope_we,
+    output reg         [31:0] datascope_di,
+    input                     datascope_trig // external trigger event for the datascope     
+`endif    
+    
 `ifdef USE_DRP
    ,input             drp_rst, 
     input             drp_clk,
@@ -110,8 +124,11 @@ module gtx_wrap #(
     output            drp_rdy,
     output     [15:0] drp_do
 `endif
+
+
     
 );
+
 
 wire    rxresetdone_gtx; 
 wire    txresetdone_gtx;
@@ -389,8 +406,8 @@ wire             RXDLYSRESET;  //  6 (rxdlysreset),
 wire             RXDLYBYPASS;  //  7 (1'b0), // Andrey: p.243: "0: Uses the RX delay alignment circuit."
 wire             RXDLYEN;      //  8 (1'b0),
 wire             RXDLYOVRDEN;  //  9 (1'b0),
-wire             RXDDIEN;       // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
-
+wire             RXDDIEN;      // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
+wire             RXLPMEN;      // 11 (1'b0) 1 - enable LP, 0 - DXE 
 
 `ifdef USE_DRP
     sipo_to_xclk_measure #(
@@ -427,7 +444,7 @@ wire             RXDDIEN;       // 10 (1'b1), // Andrey: p.243: "Set high in RX 
     assign RXDLYEN =      other_control[ 8]; //  8 (1'b0),
     assign RXDLYOVRDEN =  other_control[ 9]; //  9 (1'b0),
     assign RXDDIEN =      other_control[10]; // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
-    
+    assign RXLPMEN =      other_control[11]; // 11 (1'b0) 1 - enable LP, 0 - DXE
 `else
     reg     [19:0]  rxdata_comma_in_r;
     assign rxdata_comma_in = rxdata_comma_in_r;
@@ -474,6 +491,7 @@ wire             RXDDIEN;       // 10 (1'b1), // Andrey: p.243: "Set high in RX 
     `else    
         assign RXDDIEN =      1'b0; // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
     `endif        
+    assign RXLPMEN =          1'b0; // 11 (1'b0) 1 - enable LP, 0 - DXE 
 `endif
 // aligner status generation
 // if we detected comma & there was 1st realign after non-aligned state -> triggered, we wait until the next comma
@@ -866,7 +884,8 @@ gtxe2_channel_wrapper #(
     .PMA_RSV4                               (32'h00000000),
     .RX_BIAS_CFG                            (12'b000000000100),
     .DMONITOR_CFG                           (24'h000A00),
-    .RX_CM_SEL                              (2'b11),
+//    .RX_CM_SEL                              (2'b11),
+    .RX_CM_SEL                              (2'b00), // Andrey
     .RX_CM_TRIM                             (3'b010),
     .RX_DEBUG_CFG                           (12'b000000000000),
     .RX_OS_CFG                              (13'b0000010000000),
@@ -1162,7 +1181,7 @@ gtxe2_channel_wrapper(
     .RXOOBRESET                     (1'b0),
     .RXPCSRESET                     (1'b0),
     .RXPMARESET                     (1'b0),//rxreset), // p78
-    .RXLPMEN                        (1'b0),
+    .RXLPMEN                        (RXLPMEN), // 1'b0),
     .RXCOMSASDET                    (),
     .RXCOMWAKEDET                   (rxcomwakedet_gtx),
     .RXCOMINITDET                   (rxcominitdet_gtx),
@@ -1251,6 +1270,57 @@ gtxe2_channel_wrapper(
     .TXQPISENN                      (),
     .TXQPISENP                      ()
 );
+
+
+`ifdef USE_DATASCOPE
+    reg [ADDRESS_BITS - 1:0 ] datascope_post_cntr;
+    reg [ADDRESS_BITS - 1:0 ] datascope_waddr_r;
+    reg                 [2:0] datascope_start_r;
+    wire                      datascope_event;
+    reg                       datascope_event_r;
+    reg                       datascope_run;
+    reg                       datascope_post_run;
+    wire                      datascope_start_w = other_control[DATASCOPE_START_BIT]; // datascope requires USE_DRP to be defined
+    wire                      datascope_stop =  (DATASCOPE_POST_MEAS == 0) ? datascope_event: (datascope_post_cntr == 0);
+    reg                 [2:0] datascope_trig_r;      
+    assign datascope_waddr =  datascope_waddr_r;
+    assign datascope_we =     datascope_run;
+    assign datascope_clk =    xclk;
+    assign datascope_event = (|rxnotintable_dec_out) || (|rxdisperr_dec_out) || realign || (datascope_trig_r[1] && !datascope_trig_r[2]) ;
+    
+    
+    always @ (posedge xclk) begin
+        datascope_trig_r <= {datascope_trig_r[1:0], datascope_trig};
+    
+        datascope_start_r <= {datascope_start_r[1:0],datascope_start_w};
+        
+        datascope_event_r <=datascope_event;
+        
+        if      (!datascope_start_r[1]) datascope_run <= 0;
+        else if (!datascope_start_r[2]) datascope_run <= 1;
+        else if (datascope_stop)        datascope_run <= 0; 
+
+        if      (!datascope_run)        datascope_post_run <= 0;
+        else if (datascope_event_r)     datascope_post_run <= 1;
+        
+        if (!datascope_post_run) datascope_post_cntr <= DATASCOPE_POST_MEAS;
+        else                     datascope_post_cntr <= datascope_post_cntr  - 1;  
+        
+        if (!datascope_start_r[1] && datascope_start_r[0]) datascope_waddr_r <= 0; // for simulator
+        else if (datascope_run)                            datascope_waddr_r <=  datascope_waddr_r + 1;
+        
+        if (datascope_start_r[1]) datascope_di <= {
+                                   6'b0,
+                                   realign,                   // 25  
+                                   comma,                     // 24
+                                   1'b0,                      // 23 
+                                   state_aligned,             // 22   
+                                   rxnotintable_dec_out[1:0], // 21:20
+                                   rxdisperr_dec_out[1:0],    // 19:18
+                                   rxcharisk_dec_out[1:0],    // 17:16
+                                   rxdata_dec_out[15:0]};     // 15: 0
+    end
+`endif
 
 always @ (posedge gtrefclk)
     debug <= ~rxelecidle | debug;
