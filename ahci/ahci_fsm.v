@@ -225,7 +225,7 @@ module  ahci_fsm
 //    output                        dmaCntrZero, // DMA counter is zero - would be a duplicate to the one in receive module and dwords_sent output
 //    input                         syncesc_recv, // These two inputs interrupt transmit
 //    input                         xmit_err,     // 
-    input                  [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err, 2 - X_RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
+    input                  [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - R_ERR (was xmit_err), 2 - X_RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
     
 ///    input                  [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     input                         ch_c,        // Clear busy upon R_OK for this FIS

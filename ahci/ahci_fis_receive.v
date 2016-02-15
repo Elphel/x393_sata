@@ -182,10 +182,10 @@ localparam DATA_TYPE_ERR =      3;
     wire                reg_we_w;
 
     reg           [3:0] store_sig;
-    reg           [5:0] reg_ds;
+    reg           [5:0] reg_ds;     //Unused?
     reg           [4:0] reg_ps;
-    reg                 reg_d2h;    
-    reg           [1:0] reg_sdb;    
+    reg                 reg_d2h;    //unused?
+    reg           [1:0] reg_sdb;    //unused?
     reg          [31:2] xfer_cntr_r;
     reg          [31:2] prdbc_r;
     

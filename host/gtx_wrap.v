@@ -51,8 +51,8 @@ module gtx_wrap #(
     parameter RXDFELPMRESET_TIME  = 7'hf,
     parameter RXISCANRESET_TIME   = 5'h1,
     
-    parameter ELASTIC_DEPTH = 4, //5,
-    parameter ELASTIC_OFFSET = 7 //  5 //10
+    parameter ELASTIC_DEPTH =       4, //5, With 4/7 got infrequent overflows!
+    parameter ELASTIC_OFFSET =      7 //  5 //10
 )
 (
     output  reg     debug = 0,
@@ -104,7 +104,10 @@ module gtx_wrap #(
     output  wire    dbg_rxcdrlock,
     output  wire    dbg_rxdlysresetdone,
     
-    output wire [1:0] txbufstatus
+    output wire [1:0] txbufstatus,
+    
+    output          xclk   //  just to measure frequency to set the local clock
+    
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
    ,output                    datascope_clk,
@@ -385,7 +388,7 @@ gtx_8x10enc gtx_8x10enc(
  * RX PCS part: comma detect + align module, 10/8 decoder, elastic buffer, interface resynchronisation
  * all modules before elastic buffer shall work on a restored clock - xclk
  */
-wire    xclk;
+// wire    xclk; make it output to measure frequency
 // assuming GTX interface width = 20 bits
 // comma aligner
 wire    [19:0]  rxdata_comma_out;

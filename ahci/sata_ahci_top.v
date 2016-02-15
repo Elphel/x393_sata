@@ -46,7 +46,12 @@
 `endif
     
     parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
-    parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
+    parameter RESET_TO_FIRST_ACCESS = 1, // keep port reset until first R/W any register by software
+    parameter BITS_TO_START_XMIT =    6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
+    parameter DATA_BYTE_WIDTH =       4,
+    parameter ELASTIC_DEPTH =         4, // 4, //5, With 4/7 got infrequent overflows!
+    parameter ELASTIC_OFFSET =        7, //  5 //10
+    parameter FREQ_METER_WIDTH =     16
  )(
     output  wire                sata_clk,
     output  wire                sata_rst,
@@ -228,6 +233,8 @@
     
     reg          [2:0] nhrst_r;
     wire               hrst = !nhrst_r[2];
+    
+    wire [FREQ_METER_WIDTH-1:0] xclk_period;
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
     wire                     datascope_clk;
@@ -261,7 +268,8 @@
 //        .READ_CT_LATENCY       (READ_CT_LATENCY),
         .ADDRESS_BITS          (ADDRESS_BITS),
         .HBA_RESET_BITS        (HBA_RESET_BITS),
-        .RESET_TO_FIRST_ACCESS (RESET_TO_FIRST_ACCESS)
+        .RESET_TO_FIRST_ACCESS (RESET_TO_FIRST_ACCESS),
+        .FREQ_METER_WIDTH      (FREQ_METER_WIDTH)
     ) ahci_top_i (
         .aclk              (ACLK),              // input
         .arst              (arst),              // input
@@ -403,7 +411,8 @@
         .drp_di           (drp_di),             // output[15:0] reg 
         .drp_rdy          (drp_rdy),            // input
         .drp_do           (drp_do),             // input[15:0] 
-`endif    
+`endif   
+        .xclk_period       (xclk_period),       // input[11:0] 
         .debug_in_phy      (debug_phy),         // input[31:0]
         .debug_in_link     (debug_link)         // input[31:0]
     );
@@ -414,8 +423,11 @@
         .DATASCOPE_START_BIT (DATASCOPE_START_BIT), // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
         .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS), // number of measurements to perform after event
 `endif    
-        .BITS_TO_START_XMIT (6),
-        .DATA_BYTE_WIDTH(4)
+        .BITS_TO_START_XMIT  (BITS_TO_START_XMIT),
+        .DATA_BYTE_WIDTH     (DATA_BYTE_WIDTH),
+        .ELASTIC_DEPTH       (ELASTIC_DEPTH),
+        .ELASTIC_OFFSET      (ELASTIC_OFFSET),
+        .FREQ_METER_WIDTH    (FREQ_METER_WIDTH)
     ) ahci_sata_layers_i (
         .exrst             (exrst),             // input
         .reliable_clk      (reliable_clk),      // input
@@ -485,8 +497,10 @@
         .drp_rdy           (drp_rdy),           // output
         .drp_do            (drp_do),            // output[15:0] 
 `endif 
+        .xclk_period       (xclk_period),       // output[11:0] 
         .debug_phy         (debug_phy),         // output[31:0]
         .debug_link        (debug_link)         // output[31:0]
+       ,.hclk(hclk)
     );
 
 

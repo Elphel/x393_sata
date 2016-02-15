@@ -139,6 +139,7 @@ always @ (posedge clk)
     else begin
         // got xxxx or 0000, both cases tell us addresses were bad
         $display("Error in %m: bad incoming data: 1) K = %h, Data = %h 2) K = %h, Data = %h", addr0_rr[8], addr0_rr[7:0], addr1_rr[8], addr1_rr[7:0]);
+        repeat (10) @(posedge clk);
         $finish;
     end
 `endif // CHECKERS_ENABLED

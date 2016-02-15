@@ -534,11 +534,15 @@ class x393sata(object):
                 break
             sleep(0.1)
         else:
-            print ("Failed to get interrupt")    
+            print ("\n ====================== Failed to get interrupt ============================")    
             self.reg_status()
             print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
             self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
             raise Exception("Failed to get interrupt")
+            
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
@@ -616,14 +620,28 @@ class x393sata(object):
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
                                     skip0 =       True,
                                     dword =       None)
+                if istat != 1: #DHRS interrupt (for PIO - 2)
+                    print ("\n ======================Got wrong interrupt ============================")    
+                    self.reg_status()
+                    print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+                    self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+                    print("Datascope (debug) data:")    
+                    print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+                    self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+                    raise Exception("Failed to get interrupt")
+                    
                 break
             sleep(0.1)
         else:
-            print ("Failed to get interrupt")    
+            print ("\n ====================== Failed to get interrupt ============================")    
             self.reg_status()
             print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
             self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
             raise Exception("Failed to get interrupt")
+            
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
@@ -705,12 +723,15 @@ class x393sata(object):
                 break
             sleep(0.1)
         else:
-            print ("Failed to get interrupt")    
+            print ("\n ====================== Failed to get interrupt ============================")    
             self.reg_status()
             print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
-            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
             raise Exception("Failed to get interrupt")
-
+            
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
@@ -1062,6 +1083,15 @@ sata.reg_status(),sata.reset_ie(),sata.err_count()
 '0x3'
 
 
+for block in range (38,255):
+    print("\n======== Reading block %d ==============="%block)
+    sata.arm_logger()
+    sata.dd_read_dma(block, 1)
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    sata.reg_status(),sata.reset_ie(),sata.err_count()
+
+
+
 
 for block in range (1,255):
     sata.dd_read_dma(block, 1)
@@ -1075,6 +1105,12 @@ for block in range (1,255):
     _=mem.mem_dump (0x80001000, 0x100,4)
     sata.reg_status(),sata.reset_ie(),sata.err_count()
 
+for block in range (45,255):
+    print("\n======== Reading block %d ==============="%block)
+    sata.arm_logger()
+    sata.dd_read_dma(block, 1)
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    sata.reg_status(),sata.reset_ie(),sata.err_count()
 
 
 #sata.drp (0x20b,0x81), sata.drp (0x20b,0x4081)

@@ -240,9 +240,12 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {IF: 'X_RDY_COLLISION',     GOTO:'P:Idle'},              # 2. x_rdy_collision_pend
             {IF: 'SYNCESC_ERR',         GOTO:'ERR:SyncEscapeRecv'},  # 4. dx_err[0] (reset by new command)
             
-            {IF: 'FIS_OK',              GOTO:'CFIS:Success'},        # 5. fis_ok
-            {                           GOTO:'ERR:Non-Fatal'},       # 6
+#            {IF: 'FIS_OK',              GOTO:'CFIS:Success'},       # 5. fis_ok - wrong, it was for received FISes
+#            {                           GOTO:'ERR:Non-Fatal'},      # 6
+            {IF: 'TX_ERR',              GOTO:'ERR:Non-Fatal'},       # dx_err[1] - R_ERR received - non-fatal, retransmit
+            {                           GOTO:'CFIS:Success'},        # No errors, R_OK received            
             
+                        
             {LBL:'CFIS:Success',        ACT: 'CLEAR_CMD_TO_ISSUE'},  # clearCmdToIssue
             {IF: 'CTBA_B',              GOTO:'BIST:TestOngoing'},    # 1. ch_b
             {IF: 'CTBA_C',              GOTO:'CFIS:ClearCI'},        # 2. ch_c

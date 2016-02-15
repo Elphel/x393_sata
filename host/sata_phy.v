@@ -39,7 +39,9 @@ module sata_phy #(
     parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
     parameter DATASCOPE_POST_MEAS =  16, // number of measurements to perform after event
 `endif        
-    parameter   DATA_BYTE_WIDTH = 4
+    parameter   DATA_BYTE_WIDTH =     4,
+    parameter ELASTIC_DEPTH =         4, //5, With 4/7 got infrequent overflows!
+    parameter ELASTIC_OFFSET =        7 //  5 //10
 )
 (
     // initial reset, resets PLL. After pll is locked, an internal sata reset is generated.
@@ -88,6 +90,7 @@ module sata_phy #(
     output                                      cplllock_debug,
     output                                      usrpll_locked_debug,
     output                                      re_aligned,      // re-aligned after alignment loss
+    output                                      xclk,            //  just to measure frequency to set the local clock
     
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
@@ -488,7 +491,10 @@ gtx_wrap #(
     .RXCDRPHRESET_TIME      (RXCDRPHRESET_TIME),
     .RXCDRFREQRESET_TIME    (RXCDRFREQRESET_TIME),
     .RXDFELPMRESET_TIME     (RXDFELPMRESET_TIME),
-    .RXISCANRESET_TIME      (RXISCANRESET_TIME)
+    .RXISCANRESET_TIME      (RXISCANRESET_TIME),
+    .ELASTIC_DEPTH          (ELASTIC_DEPTH), // with 4/7 infrequent full !
+    .ELASTIC_OFFSET         (ELASTIC_OFFSET)
+    
 )
 gtx_wrap
 (
@@ -537,7 +543,8 @@ gtx_wrap
     .dbg_rx_clocks_aligned(dbg_rx_clocks_aligned),
     .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
     .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
-    .txbufstatus        (txbufstatus[1:0])
+    .txbufstatus        (txbufstatus[1:0]),
+    .xclk               (xclk)             // output receive clock, just to measure frequency
 `ifdef USE_DATASCOPE
        ,.datascope_clk     (datascope_clk),     // output
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
@@ -671,9 +678,9 @@ assign debug_sata[23:20] = debug_cntr4;
 //assign debug_sata = {8'b0, dbg_clk_align_cntr, 1'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
 `ifdef USE_DATASCOPE
     assign debug_sata = {txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned,
-                         error_count,
+                         error_count[11:0],
                          2'b0,
-                         datascope_waddr};
+                         datascope_waddr[9:0]};
 `else
     assign debug_sata = {8'b0, dbg_clk_align_cntr, txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
 `endif

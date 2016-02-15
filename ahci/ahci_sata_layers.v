@@ -26,8 +26,12 @@ module  ahci_sata_layers #(
     parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
     parameter DATASCOPE_POST_MEAS =  16, // number of measurements to perform after event
 `endif        
-    parameter  BITS_TO_START_XMIT =   6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
-    parameter  DATA_BYTE_WIDTH =      4
+    parameter BITS_TO_START_XMIT =    6,   // wait H2D FIFO to have 1 << BITS_TO_START_XMIT to start FIS transmission (or all FIS fits)
+    parameter DATA_BYTE_WIDTH =       4,
+    parameter ELASTIC_DEPTH =         4, //5, With 4/7 got infrequent overflows!
+    parameter ELASTIC_OFFSET =        7, //  5 //10
+    parameter FREQ_METER_WIDTH =     12
+    
 )(
     input              exrst,   // master reset that resets PLL and GTX
     input              reliable_clk, // use aclk that runs independently of the GTX
@@ -114,9 +118,10 @@ module  ahci_sata_layers #(
     output              drp_rdy,
     output       [15:0] drp_do ,
 `endif    
-    
+    output  [FREQ_METER_WIDTH - 1:0] xclk_period,      // relative (to 2*clk) xclk period
     output       [31:0] debug_phy,
-    output       [31:0] debug_link
+    output       [31:0] debug_link,
+    input               hclk // just for testing
     
     
 );
@@ -202,11 +207,11 @@ module  ahci_sata_layers #(
 
     wire                           rxelsfull; 
     wire                           rxelsempty; 
-
+    wire                           xclk;             // output receive clock, just to measure frequency
+//    wire  [FREQ_METER_WIDTH - 1:0] xclk_period;      // relative (to 2*clk) xclk period
     
     wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
-    
-    
+    wire                    [31:0] debug_phy0;
 //    assign debug_sata = {link_established, phy_ready, debug_phy[29:16],debug_link[15:0]}; // 
 //    assign debug_sata = debug_link[31:0]; // 
 ///    assign debug_sata = debug_phy;
@@ -248,6 +253,24 @@ module  ahci_sata_layers #(
     assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
     assign serr_EI = phy_ready && (0);   // RWC: Recovered Data integrity Error
     
+    reg [1:0] debug_last_d2h_type_in;
+    always @ (posedge clk) begin
+        if (d2h_fifo_wr) debug_last_d2h_type_in<= d2h_type_in;
+    end
+    assign debug_phy = {h2d_type_out[1:0],h2d_type[1:0],
+                        ll_h2d_last,d2h_valid,  d2h_type[1:0],
+                        debug_last_d2h_type_in, d2h_type_in[1:0],
+                        debug_phy0[19:0]};
+    
+/*
+// Data/type FIFO, device -> host
+    output      [31:0] d2h_data,         // FIFO input  data
+    output      [ 1:0] d2h_mask,     // set to 2'b11
+    output      [ 1:0] d2h_type,    // 0 - data, 1 - FIS head, 2 - R_OK, 3 - R_ERR (last two - after data, so ignore data with R_OK/R_ERR)
+    output             d2h_valid,  // Data available from the transport layer in FIFO                
+    output             d2h_many,    // Multiple DWORDs available from the transport layer in FIFO           
+    input              d2h_ready,   // This module or DMA consumes DWORD
+*/    
 //        .comreset_send   (comreset_send),     // input
 //        .cominit_got     (cominit_got),       // output wire 
 //        .comwake_got     (serr_DW),            // output wire 
@@ -338,43 +361,46 @@ module  ahci_sata_layers #(
         .DATASCOPE_START_BIT (DATASCOPE_START_BIT),
         .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS),
 `endif    
-        .DATA_BYTE_WIDTH(4)
+        .DATA_BYTE_WIDTH     (DATA_BYTE_WIDTH),
+        .ELASTIC_DEPTH       (ELASTIC_DEPTH),
+        .ELASTIC_OFFSET      (ELASTIC_OFFSET)
     ) phy (
-        .extrst          (exrst),             // input wire 
-        .clk             (clk),               // output wire 
-        .rst             (rst),               // output wire 
-        .reliable_clk    (reliable_clk),      // input wire 
-        .phy_ready       (phy_ready),         // output wire 
-        .gtx_ready       (gtx_ready),         // output wire 
-        .debug_cnt       (), // output[11:0] wire 
-        .extclk_p        (extclk_p),          // input wire 
-        .extclk_n        (extclk_n),          // input wire 
-        .txp_out         (txp_out),           // output wire 
-        .txn_out         (txn_out),           // output wire 
-        .rxp_in          (rxp_in),            // input wire 
-        .rxn_in          (rxn_in),            // input wire 
-        .ll_data_out     (ph2ll_data_out),    // output[31:0] wire 
-        .ll_charisk_out  (ph2ll_charisk_out), // output[3:0] wire 
-        .ll_err_out      (ph2ll_err_out),     // output[3:0] wire 
-        .ll_data_in      (ll2ph_data_in),     // input[31:0] wire 
-        .ll_charisk_in   (ll2ph_charisk_in),  // input[3:0] wire
-        .set_offline     (set_offline),       // input
-        .comreset_send   (comreset_send),     // input
-        .cominit_got     (cominit_got),       // output wire 
-        .comwake_got     (serr_DW),           // output wire 
-        .rxelsfull       (rxelsfull),         // output wire 
-        .rxelsempty      (rxelsempty),        // output wire 
+        .extrst              (exrst),             // input wire 
+        .clk                 (clk),               // output wire 
+        .rst                 (rst),               // output wire 
+        .reliable_clk        (reliable_clk),      // input wire 
+        .phy_ready           (phy_ready),         // output wire 
+        .gtx_ready           (gtx_ready),         // output wire 
+        .debug_cnt           (), // output[11:0] wire 
+        .extclk_p            (extclk_p),          // input wire 
+        .extclk_n            (extclk_n),          // input wire 
+        .txp_out             (txp_out),           // output wire 
+        .txn_out             (txn_out),           // output wire 
+        .rxp_in              (rxp_in),            // input wire 
+        .rxn_in              (rxn_in),            // input wire 
+        .ll_data_out         (ph2ll_data_out),    // output[31:0] wire 
+        .ll_charisk_out      (ph2ll_charisk_out), // output[3:0] wire 
+        .ll_err_out          (ph2ll_err_out),     // output[3:0] wire 
+        .ll_data_in          (ll2ph_data_in),     // input[31:0] wire 
+        .ll_charisk_in       (ll2ph_charisk_in),  // input[3:0] wire
+        .set_offline         (set_offline),       // input
+        .comreset_send       (comreset_send),     // input
+        .cominit_got         (cominit_got),       // output wire 
+        .comwake_got         (serr_DW),           // output wire 
+        .rxelsfull           (rxelsfull),         // output wire 
+        .rxelsempty          (rxelsempty),        // output wire 
 
-        .cplllock_debug  (),
-        .usrpll_locked_debug(),
-        .re_aligned      (serr_DS),           // output reg 
+        .cplllock_debug      (),
+        .usrpll_locked_debug (),
+        .re_aligned          (serr_DS),           // output reg 
+        .xclk                (xclk),             // output receive clock, just to measure frequency
 
 `ifdef USE_DATASCOPE
         .datascope_clk     (datascope_clk),     // output
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
         .datascope_we      (datascope_we),      // output
         .datascope_di      (datascope_di),      // output[31:0] 
-        .datascope_trig    (ll_frame_ackn),     // input datascope external trigger
+        .datascope_trig    (ll_incom_invalidate), // ll_frame_ackn),     // input datascope external trigger
 `endif        
 
 `ifdef USE_DRP
@@ -387,7 +413,7 @@ module  ahci_sata_layers #(
         .drp_rdy           (drp_rdy),           // output
         .drp_do            (drp_do),            // output[15:0] 
 `endif 
-        .debug_sata      (debug_phy)  
+        .debug_sata      (debug_phy0)  
         ,.debug_detected_alignp(debug_detected_alignp)
     );
 
@@ -457,6 +483,16 @@ module  ahci_sata_layers #(
         .we       (d2h_fifo_wr),                                    // input
         .web      (4'hf),                                           // input[3:0] 
         .data_in  ({d2h_type_in, ll_d2h_mask_out, ll_d2h_data_out}) // input[35:0] 
+    );
+
+    freq_meter #(
+        .WIDTH    (FREQ_METER_WIDTH),
+        .PRESCALE (1)
+    ) freq_meter_i (
+        .rst   (rst),        // input
+        .clk   (clk),        // input
+        .xclk  (xclk), // hclk), //xclk),       // input
+        .dout  (xclk_period) // output[11:0] reg 
     );
 
 endmodule

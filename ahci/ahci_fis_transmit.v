@@ -53,7 +53,7 @@ module  ahci_fis_transmit #(
     input                         xmit_err,     // 
     input                         syncesc_recv, // These two inputs interrupt transmit
     input                         xrdy_collision, 
-    output                 [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - xmit_err, 2 - collision  (valid @ xmit_err and later, reset by new command)
+    output                 [ 2:0] dx_err,       // bit 0 - syncesc_recv, 1 - R_ERR (was xmit_err), 2 - collision  (valid @ xmit_err and later, reset by new command)
     
     output                 [15:0] ch_prdtl,    // Physical region descriptor table length (in entries, 0 is 0)
     output                        ch_c,        // Clear busy upon R_OK for this FIS

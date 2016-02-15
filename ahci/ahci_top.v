@@ -27,7 +27,9 @@ module  ahci_top#(
     parameter READ_CT_LATENCY =       2, // 0 if  ct_rdata is available with reg_re/reg_addr, 2 with re/regen
     parameter ADDRESS_BITS =         10, // number of memory address bits - now fixed. Low half - RO/RW/RWC,RW1 (2-cycle write), 2-nd just RW (single-cycle)
     parameter HBA_RESET_BITS =        9, // duration of HBA reset in aclk periods (9: ~10usec)
-    parameter RESET_TO_FIRST_ACCESS = 1 // keep port reset until first R/W any register by software
+    parameter RESET_TO_FIRST_ACCESS = 1, // keep port reset until first R/W any register by software
+    parameter FREQ_METER_WIDTH =     12
+    
 )(
     input             aclk,    // clock - should be buffered
     input             arst,    // @aclk sync reset, active high
@@ -200,7 +202,7 @@ module  ahci_top#(
     input                     drp_rdy,
     input              [15:0] drp_do, 
 `endif    
-    
+    input  [FREQ_METER_WIDTH - 1:0] xclk_period,      // relative (to 2*clk) xclk period
     input       [31:0] debug_in_phy,
     input       [31:0] debug_in_link
     
@@ -379,7 +381,7 @@ module  ahci_top#(
     wire                    fsnd_clearCmdToIssue; // From CFIS:SUCCESS 
     // State variables fsm <- ahc_fis_transmit 
     wire                    fsnd_pCmdToIssue; // AHCI port variable
-    wire             [ 2:0] fsnd_dx_err;       // bit 0 - syncesc_recv, 1 - xmit_err  2 - X-RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
+    wire             [ 2:0] fsnd_dx_err;       // bit 0 - syncesc_recv, 1 - R_ERR (was xmit_err)  2 - X-RDY/X_RDY collision (valid @ xmit_err and later, reset by new command)
     wire                    fsnd_ch_c;        // Clear busy upon R_OK for this FIS
     wire                    fsnd_ch_b;        // Built-in self test command
     wire                    fsnd_ch_r;        // reset - may need to send SYNC escape before this command
@@ -649,7 +651,7 @@ module  ahci_top#(
 ///        .xmit_busy       (fsnd_busy),          // input
         .clearCmdToIssue          (fsnd_clearCmdToIssue),// output // From CFIS:SUCCESS 
         .pCmdToIssue              (fsnd_pCmdToIssue),   // input
-        .dx_err                   (fsnd_dx_err),        // input[1:0] 
+        .dx_err                   (fsnd_dx_err),        // input[2:0] 
 ///        .ch_prdtl        (prdtl),              // input[15:0] 
         .ch_c                     (fsnd_ch_c),          // input
         .ch_b                     (fsnd_ch_b),          // input
@@ -723,10 +725,18 @@ module  ahci_top#(
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),    // output 
         .debug_in0        (debug_dma),       // input[31:0]
-        .debug_in1        (debug_dma1),      // debug_in_link),   // input[31:0]
+//        .debug_in1        ({xclk_period[7:0], // lower 8 bits of 12-bit value. Same frequency would be 0x800 (msb opposite to 3 next bits)
+//                            debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
+        .debug_in1        ({2'b0, 
+                            debug_in_link[13:8],
+                            debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
         .debug_in2        (debug_in_phy),    // input[31:0]     // debug from phy/link
 //        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
-        .debug_in3        ({3'b0, debug_in_link[4:0], 14'b0,last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
+        .debug_in3        ({3'b0, debug_in_link[4:0],
+                            frcv_busy,frcv_ok, // 2'b0,
+                             datascope_waddr[9:0],
+                            frcv_err,frcv_ferr, // 2'b0,
+                             last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
         
 `ifdef USE_DRP
        ,.drp_en           (drp_en),          // output reg 
@@ -1083,8 +1093,10 @@ wire [9:0] xmit_dbg_01;
 //    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2);
 //    assign datascope_di = datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r};
 
-    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2) || d2h_ready;
-    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2) || d2h_ready;
+//    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
+    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done || d2h_ready;
+    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {13'hffff,fsnd_dx_err[2:0],{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
 ///    assign datascope_we = |datascope_run;
 /*
     assign datascope_di = datascope_run[0]? {h2d_type,            // 2 bits
