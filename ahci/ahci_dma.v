@@ -146,6 +146,8 @@ module  ahci_dma (
     output  [31:0] debug_out,
     output  [31:0] debug_out1
     
+    ,output [31:0] debug_dma_h2d
+    
 );
 
 
@@ -591,6 +593,8 @@ module  ahci_dma (
         .dout_vld     (sys_dav),                     // output
         .dout_re      (sys_re),                      // input
         .last_DW      (last_h2d_data)                // output
+       ,.debug_dma_h2d(debug_dma_h2d)                // output[31:0] 
+        
     );
     
     ahci_dma_wr_fifo #( // device to memory

@@ -1067,6 +1067,17 @@ for block in range (1,1024):
     sata.reg_status(),sata.reset_ie(),sata.err_count()
 
 
+#############
+
+for i in range(128): 
+    mem.write_mem(x393sata.DATAOUT_ADDRESS + 4*i,2*i +  ((254-2*i)<<8) + ((2*i+1)<<16) + ((255-2*i) << 24))
+_=mem.mem_dump(x393sata.DATAOUT_ADDRESS,128,4)
+_=mem.mem_dump(x393sata.DATAOUT_ADDRESS,256,2)
+
+sata.dd_write_dma(9,1)
+_=mem.mem_dump (0x80000ff0, 4,4)
+
+_=mem.mem_dump (0x80001000, 0x200,4)
 
 
 
@@ -1426,6 +1437,17 @@ mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)
 _=mem.mem_dump (0x80001000, 0x20,4)
 
 mem.write_mem(0x80000118,0x10)
+
+for i in range(128): 
+    mem.write_mem(x393sata.DATAOUT_ADDRESS + 4*i,2*i + ((2*i+1)<<16))
+
+mem.mem_dump(x393sata.DATAOUT_ADDRESS,128,4)
+
+for i in range(128): 
+    mem.write_mem(x393sata.DATAOUT_ADDRESS + 4*i,2*i +  ((254-2*i)<<8) + ((2*i+1)<<16) + ((255-2*i) << 24))
+
+sata.dd_write_dma(9,1)
+
 
 
 idfy:

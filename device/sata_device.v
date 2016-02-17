@@ -840,7 +840,8 @@ task send_identify_data; // @SuppressThisWarning VEditor - Used in testbench
     reg   [15:0] identify_data[0:255]; // SuppressThisWarning VEditor : assigned in $readmem() system task
     integer i;
     begin
-        $readmemh("input_data/identify.dat",identify_data);
+//        $readmemh("input_data/identify.dat",identify_data);
+        $readmemh("input_data/test512.dat",identify_data);
         transmit_data[0] = FIS_DATA;
         for (i=0;i<128;i=i+1) begin
             transmit_data[i+1] = {identify_data[2 * i+1], identify_data[2 * i]};

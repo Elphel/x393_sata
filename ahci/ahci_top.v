@@ -476,6 +476,7 @@ module  ahci_top#(
     wire                    [9:0] last_jump_addr;
     wire                   [31:0] debug_dma;
     wire                   [31:0] debug_dma1;
+    wire                   [31:0] debug_dma_h2d;
     // Async FF
     always @ (posedge mrst or posedge mclk) begin
         if (mrst) en_port <= 0;
@@ -941,6 +942,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .afi_rdissuecap1en (afi_rdissuecap1en), // output
         .debug_out         (debug_dma),          // output[31:0]
         .debug_out1        (debug_dma1)          // output[31:0]
+        ,.debug_dma_h2d    (debug_dma_h2d)
     );
 
     ahci_fis_receive #(
@@ -1085,8 +1087,66 @@ wire [9:0] xmit_dbg_01;
     );
 
 // Datascope code
-`ifdef USE_DATASCOPE
+`define DATASCOPE_V2
 // Datascope interface (write to memory that can be software-read)
+`ifdef USE_DATASCOPE
+
+`ifdef DATASCOPE_V2
+    reg    [ADDRESS_BITS-1:0] datascope_waddr_r;
+    reg                 [1:0] datascope_run;
+//    reg                 [1:0] datascope_run;
+    
+    assign datascope_we = datascope_run[1];
+    assign datascope_clk = mclk;
+    assign datascope_waddr = datascope_waddr_r;
+    
+     assign datascope_di = {
+                             debug_dma_h2d[3], // done_flush_mclk,
+                             debug_dma_h2d[2], // dout_vld,
+                             debug_dma_h2d[1], // dout_re,
+                             debug_dma_h2d[0], // last_DW,
+                             
+                             dma_dout[27:16],
+                             debug_dma_h2d[19:4]
+     };
+     
+ //    dma_dout[
+    
+    always @ (posedge mclk) begin
+        if      (mrst)                  datascope_run[0] <= 0;
+        else if (dma_cmd_start)         datascope_run[0] <= 1;
+        else if (dma_cmd_done)          datascope_run[0] <= 0;
+        
+        if (mrst || !datascope_run[0])  datascope_run[1] <= 0;
+        else if (dma_dav)               datascope_run[1] <= 1;
+
+        if    (fsnd_cfis_xmit)          datascope_waddr_r <= 0;
+        else if (datascope_we)          datascope_waddr_r <= datascope_waddr_r + 1;
+
+        
+    end
+/*debug_dma_h2d
+    assign debug_dma_h2d = {
+                             14'b0,
+                 17          fifo_rd,
+                 16:12       raddr[4:0],
+                 11: 8       fifo_do_vld[3:0],
+    
+                 7           fifo_dav,
+                 6           fifo_dav2_w,
+                 5           fifo_dav2,
+                 4           flushing_mclk,
+                            
+                 3           done_flush_mclk,
+                 2           dout_vld,
+                 1           dout_re,
+                 0           last_DW
+    };
+
+*/
+`endif // DATASCOPE_V2
+
+`ifdef DATASCOPE_V1
     localparam DATASCOPE_CFIS_START=0;
     localparam DATASCOPE_INCOMING_POST=32;
     
@@ -1270,9 +1330,10 @@ assign debug_out[7: 5] =  {
         .ct_re             (dma_ct_re),            // output[1:0]
         .ct_data           (dma_ct_data),          // input[31:0] 
 
-*/    
+*/ 
+`endif // DATASCOPE_V1   
     
-`endif    
+`endif  // USE_DATASCOPE   
 
 
 
