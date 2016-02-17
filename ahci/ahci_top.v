@@ -664,6 +664,10 @@ module  ahci_top#(
         .last_jump_addr           (last_jump_addr)
     );
 
+wire debug_data_in_ready;       // output
+wire debug_fis_end_w;           // output
+wire[1:0] debug_fis_end_r;      // output[1:0] 
+wire[1:0] debug_get_fis_busy_r; // output[1:0] 
 
 
     axi_ahci_regs #(
@@ -724,15 +728,18 @@ module  ahci_top#(
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),    // output 
-        .debug_in0        (debug_dma),       // input[31:0]
+        .debug_in0        ({ debug_data_in_ready,       // output
+                             debug_fis_end_w,           // output
+                             debug_fis_end_r[1:0],      // output[1:0] 
+                             debug_get_fis_busy_r[1:0], // output[1:0] 
+                             debug_dma[25:0]}),       // input[31:0]
 //        .debug_in1        ({xclk_period[7:0], // lower 8 bits of 12-bit value. Same frequency would be 0x800 (msb opposite to 3 next bits)
 //                            debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
-        .debug_in1        ({2'b0, 
-                            debug_in_link[13:8],
+        .debug_in1        ({debug_in_link[15:8],
                             debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
         .debug_in2        (debug_in_phy),    // input[31:0]     // debug from phy/link
 //        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
-        .debug_in3        ({3'b0, debug_in_link[4:0],
+        .debug_in3        ({debug_in_link[7:0],
                             frcv_busy,frcv_ok, // 2'b0,
                              datascope_waddr[9:0],
                             frcv_err,frcv_ferr, // 2'b0,
@@ -1010,6 +1017,11 @@ module  ahci_top#(
         .hba_data_in_ready (d2h_ready),              // output
         .dma_in_ready      (dma_in_ready),           // input
         .dma_in_valid      (dma_we)                  // output
+        
+        ,.debug_data_in_ready (debug_data_in_ready), // output
+        .debug_fis_end_w      (debug_fis_end_w),     // output
+        .debug_fis_end_r      (debug_fis_end_r),     // output[1:0] 
+        .debug_get_fis_busy_r (debug_get_fis_busy_r) // output[1:0] 
     );
 wire ahci_fis_transmit_busy;
 wire [9:0] xmit_dbg_01;
@@ -1075,28 +1087,147 @@ wire [9:0] xmit_dbg_01;
 // Datascope code
 `ifdef USE_DATASCOPE
 // Datascope interface (write to memory that can be software-read)
-//   wire                     datascope_clk;
-//   wire  [ADDRESS_BITS-1:0] datascope_waddr;      
-//   wire                     datascope_we;
-//   wire              [31:0] datascope_di;
     localparam DATASCOPE_CFIS_START=0;
+    localparam DATASCOPE_INCOMING_POST=32;
+    
     reg    [ADDRESS_BITS-1:0] datascope_waddr_r;
     reg                 [1:0] datascope_run;
-///    reg                 [8:0] datascope_cntr;
-///    reg                       datascope_was_busy;  
+    
+    reg                       datascope_link_run;
+    wire                      dataskope_is_state_send_ready = (debug_in_link[4:0] == 16);
+    wire                      dataskope_is_state_idle =       (debug_in_link[4:0] == 22);
+    reg                       dataskope_was_state_send_ready;
+    reg                 [3:0] datascope_id;
+    
+    wire                      datascope_incoming_start = debug_in_link[22];  // set_rcvr_wait; // start logging
+    wire                      datascope_incoming_started = debug_in_phy[21:20] == 1;  // 
+    wire                      datascope_incomining_preend = debug_in_phy[21]; // d2h_type_in[1
+    reg                 [2:0] datascope_incoming_run;
+    reg                 [7:0] datascope_incoming_cntr;
+    reg                       datascope_receive_fis;
+    
+    always @(posedge mclk) begin
+        if      (mrst)                                                           datascope_receive_fis <= 0;
+        else if (datascope_incoming_start)                                       datascope_receive_fis <= 1;
+        else if (frcv_get_dsfis ||
+                 frcv_get_psfis ||
+                 frcv_get_rfis || 
+                 frcv_get_sdbfis ||
+                 frcv_get_ufis ||
+                 frcv_get_data_fis ||
+                 frcv_get_ignore)                                                datascope_receive_fis <= 0;
+
+        if      (mrst)                                                           datascope_incoming_run[0] <= 0;
+        else if (datascope_incoming_start || datascope_receive_fis)              datascope_incoming_run[0] <= 1;
+        else if (datascope_incoming_cntr == 0)                                   datascope_incoming_run[0] <= 0;
+
+        if      (mrst || datascope_incoming_start)                               datascope_incoming_run[1] <= 0;
+        else if (datascope_incoming_run[0] && datascope_incoming_started)        datascope_incoming_run[1] <= 1;
+        else if (datascope_incoming_run[2])                                      datascope_incoming_run[1] <= 0;
+        
+        if      (mrst || datascope_incoming_start)                               datascope_incoming_run[2] <= 0;
+        else if (datascope_incoming_run[1] && datascope_incomining_preend)       datascope_incoming_run[2] <= 1;
+        else if (datascope_incoming_cntr == 0)                                   datascope_incoming_run[2] <= 0;
+        
+        if      (mrst || !datascope_incoming_run[2] ||
+                          datascope_incoming_start ||
+                          datascope_receive_fis)                                 datascope_incoming_cntr <= DATASCOPE_INCOMING_POST;
+        else if (|datascope_incoming_cntr)                                       datascope_incoming_cntr <=  datascope_incoming_cntr - 1;
+        
+    end    
+    
     assign datascope_clk = mclk;
     assign datascope_waddr = datascope_waddr_r;
-//    assign datascope_di = datascope_run[0]? {h2d_type, dma_dav, datascope_was_busy, xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
-///    assign datascope_di = datascope_run[0]? {h2d_type,  xmit_dbg_01, datascope_cntr[3:0],  h2d_data[15:0]} : {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
 
-// Datascope provides just outgoing data, followed by the dword counter with 16'hffff in the high word    
-//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2);
-//    assign datascope_di = datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r};
 
-//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || (datascope_run == 2) || d2h_ready;
-//    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {16'hffff,{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
-    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done || d2h_ready;
-    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {13'hffff,fsnd_dx_err[2:0],{16-ADDRESS_BITS{1'b0}},datascope_waddr_r});
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done || d2h_ready || xmit_ok || xmit_err;
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || d2h_ready || datascope_link_run;
+    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || datascope_incoming_run[0] || datascope_link_run;
+//    
+    
+//    assign datascope_di = d2h_ready? {d2h_type,
+    assign datascope_di = datascope_incoming_run[0]? {d2h_type,
+                                      debug_in_link[26], // state idle
+                                      debug_in_link[4:0], // encoded state (1 cycle later)
+                                      d2h_ready,
+                                      d2h_valid,
+                                      debug_in_phy[21:20],
+                                      datascope_incoming_start,
+                                      datascope_incoming_run[2:0],
+                                      datascope_id[3:0],
+                                      d2h_type[1:0],
+                                      frcv_busy,
+                                      1'b0,
+                                      debug_in_phy[15:8]}:
+//                                      d2h_data[8:0]}:
+                                      (datascope_run[0]? {h2d_data[31:0]} : {// will appear for fsnd_done || xmit_ok || xmit_err
+                                                                                                       debug_in_link[7:0], 
+                                                                                                       debug_in_link[31], 
+                                                                                                       debug_in_link[30],
+                                                                                                       debug_in_link[29], // xmit_ok,
+                                                                                                       debug_in_link[28], //xmit_err,
+                                                                                                       debug_in_link[27], // 1'b0,
+                                                                                                       debug_in_link[26],
+                                                                                                       debug_in_link[25],
+                                                                                                       debug_in_link[24], // fsnd_dx_err[1], //fsnd_dx_err[2:0],
+                                                                                                       debug_in_link[23],
+                                                                                                       datascope_id[2:0], {12-ADDRESS_BITS{1'b0}}, datascope_waddr_r});
+/*
+assign debug_out[ 4: 0]  =            debug_states_encoded;
+assign debug_out[7: 5] =  {
+                           rcvd_dword[CODE_SYNCP],
+                           rcvd_dword[CODE_OKP],
+                           alignes_pair};
+assign debug_out[31]   =   rcvd_dword[CODE_ALIGNP];
+assign debug_out[30]   =   set_send_sof;
+assign debug_out[29]   =   clr_send_rdy;
+assign debug_out[28]   =   state_send_rdy;
+assign debug_out[27]   =   state_send_sof;
+assign debug_out[26]   =   state_idle;
+assign debug_out[25]   =   state_send_data;
+assign debug_out[24]   =   (state_send_sof     | set_send_sof     & ~alignes_pair);
+assign debug_out[23]   =   (clr_send_sof & ~alignes_pair);
+
+//assign debug_out[15: 5] =            debug_to_first_err[14:4];
+assign debug_out[22:16] =              debug_rcvd_dword[6:0];
+
+assign debug_out[15: 8] = {
+                           debug_was_wait,         // state was wait when last CODE_ERRP/CODE_OKP was received
+                           debug_was_idle,         // state was idle when last CODE_ERRP/CODE_OKP was received
+                           debug_was_OK_ERR[1:0],
+                           debug_was_state_wait,
+                           debug_was_frame_done,
+                           debug_was_got_escape,
+                           ~debug_CODE_SYNCP[1]};
+
+
+
+
+    assign datascope_di = d2h_ready? {d2h_type, d2h_data[29:0]}:(datascope_run[0]? {h2d_data[31:0]} : {// will appear for fsnd_done || xmit_ok || xmit_err
+                                                                                                       debug_in_link[7:0], 
+                                                                                                       debug_in_link[31], 
+                                                                                                       debug_in_link[30],
+                                                                                                       debug_in_link[29], // xmit_ok,
+                                                                                                       debug_in_link[28], //xmit_err,
+                                                                                                       debug_in_link[27], // 1'b0,
+                                                                                                       debug_in_link[26],
+                                                                                                       debug_in_link[25],
+                                                                                                       debug_in_link[24],//fsnd_dx_err[2:0],
+                                                                                                       debug_in_link[23],                                                                                      debug_in_link[25],
+                                                                                                       datascope_id[2:0], {12-ADDRESS_BITS{1'b0}}, datascope_waddr_r});
+
+
+assign debug_out[27]   =   state_send_sof;
+assign debug_out[26]   =   state_idle;
+_out[31]   =   rcvd_dword[CODE_ALIGNP];
+
+assign debug_out[ 4: 0]  =            debug_states_encoded;
+assign debug_out[7: 5] =  {
+                           rcvd_dword[CODE_SYNCP],
+                           rcvd_dword[CODE_OKP],
+                           alignes_pair};
+
+*/                                                                                                       
 ///    assign datascope_we = |datascope_run;
 /*
     assign datascope_di = datascope_run[0]? {h2d_type,            // 2 bits
@@ -1112,11 +1243,22 @@ wire [9:0] xmit_dbg_01;
         if      (mrst)                                      datascope_run[0] <= 0;
         else if (fsnd_cfis_xmit)                            datascope_run[0] <= 1;
         else if (h2d_valid && h2d_ready && (h2d_type == 2)) datascope_run[0] <= 0;
+
+        if      (mrst)                                                             datascope_link_run <= 0;
+        else if (dataskope_is_state_send_ready && !dataskope_was_state_send_ready) datascope_link_run <= 1; // state_send_sof
+        else if (dataskope_is_state_idle)                                          datascope_link_run <= 0; // state_idle
+        
+        dataskope_was_state_send_ready <= dataskope_is_state_send_ready;
+
         
         datascope_run[1] <= datascope_run[0];
         
-        if (fsnd_cfis_xmit)    datascope_waddr_r <= DATASCOPE_CFIS_START;
+        if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START;
         else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
+        
+        
+        if      (mrst)           datascope_id <= 0;
+        else if (fsnd_cfis_xmit) datascope_id <=  datascope_id + 1;
         
 ///        if (fsnd_cfis_xmit) datascope_cntr <= 0;
 ///        else                datascope_cntr <= datascope_cntr  + 1;

@@ -111,6 +111,11 @@ module  ahci_fis_receive#(
     // Forwarding data to the DMA engine
     input                         dma_in_ready,        // DMA engine ready to accept data
     output                        dma_in_valid         // Write data to DMA dev->memory channel
+    
+   ,output                       debug_data_in_ready,
+    output                       debug_fis_end_w,
+    output                 [1:0] debug_fis_end_r,
+    output                 [1:0] debug_get_fis_busy_r
 
 );
 //localparam FA_BITS =        6; // number of bits in received FIS address
@@ -240,6 +245,14 @@ localparam DATA_TYPE_ERR =      3;
     assign fis_extra = fis_extra_r;
     
     assign fis_first_invalid = fis_first_invalid_r;
+    
+//debug:
+    assign debug_data_in_ready =  data_in_ready;
+    assign debug_fis_end_w =      fis_end_w;
+    assign debug_fis_end_r =      fis_end_r;
+    assign debug_get_fis_busy_r = get_fis_busy_r;
+    
+    
     
     always @ (posedge mclk) begin
         if (hba_rst || dma_in_stop || pcmd_st_cleared) dma_in <= 0;

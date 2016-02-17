@@ -628,6 +628,12 @@ class x393sata(object):
                     print("Datascope (debug) data:")    
                     print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
                     self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+                    dd =0
+                    for a in range(0x80001000,0x80001014,4):
+                        dd |= self.x393_mem.read_mem(a)
+                    if dd == 0:
+                        print ("*** Probably got cache/write buffer problem, continuing ***")
+                        break    
                     raise Exception("Failed to get interrupt")
                     
                 break
@@ -638,13 +644,13 @@ class x393sata(object):
             print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
             self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
             print("Datascope (debug) data:")    
-            print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
-            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+            print("_=mem.mem_dump (0x%x, 0x100,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
             raise Exception("Failed to get interrupt")
             
         print("Datascope (debug) data:")    
-        print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
-        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+        print("_=mem.mem_dump (0x%x, 0x200,4)"%(DATASCOPE_ADDR))
+        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
         print("Memory read data:")    
         print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
         self.x393_mem.mem_dump (DATAIN_ADDRESS, count * 0x200, 1)        
@@ -886,7 +892,7 @@ class x393sata(object):
                           ("  R_IPp ",0x5555b57c),
                           ("  R_OKp ",0x3535b57c),
                           (" R_RDYp ",0x4a4a957c),
-                          ("  SOFp  ",0x3131b57c),
+                          ("  SOFp  ",0x3737b57c),
                           (" SYNCp  ",0xb5b5957c),
                           (" WTRMp  ",0x5858b57c),
                           (" X_RDYp ",0x5757b57c))
@@ -1052,6 +1058,17 @@ sata.reg_status()
 sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 sata.reg_status(),sata.reset_ie(),sata.err_count()
+
+for block in range (1,1024):
+    print("\n======== Reading block %d ==============="%block)
+    sata.arm_logger()
+    sata.dd_read_dma(block, 1)
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    sata.reg_status(),sata.reset_ie(),sata.err_count()
+
+
+
+
 
 sata.arm_logger()
 sata.setup_pio_read_identify_command()

@@ -36,7 +36,11 @@
 module link #(
     // 4 = dword. 4-bytes aligned data transfers TODO 2 = word - easy, 8 = qword - difficult
     parameter DATA_BYTE_WIDTH = 4,
+`ifdef SIMULATION
+    parameter ALIGNES_PERIOD =  10 // period of sending ALIGNp pairs
+`else
     parameter ALIGNES_PERIOD =  252 // period of sending ALIGNp pairs
+`endif    
 )
 (
     // TODO insert watchdogs
@@ -130,8 +134,9 @@ wire    [31:0] crc_dword;
 assign link_established = phy_ready;
 // send primitives variety count, including CRC and DATA as primitives
 localparam  PRIM_NUM = 16; // 15;
-wire    [PRIM_NUM - 1:0] rcvd_dword; // shows current processing primitive (or just data dword)
-wire                     dword_val;
+wire    [PRIM_NUM - 1:0] rcvd_dword;    // shows current processing primitive (or just data dword)
+wire                     dword_val;     // any valid primitive/data
+wire                     dword_val_na;  // any valid primitive but ALIGNp
 // list of bits of rcvd_dword
 localparam  CODE_DATA   = 0;  // DATA
 localparam  CODE_CRC    = 1;  // CRC
@@ -179,17 +184,17 @@ wire                     data_txing = data_txing_r & ~state_send_crc;
 // does not work with ALIGNp pair
 /*
 always @ (posedge clk) begin
-///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
+///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val_na & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
     if (rst ||
          (data_last_in && data_strobe_out)  ||
-         (dword_val && rcvd_dword[CODE_DMATP])) data_txing <= 0;
+         (dword_val_na && rcvd_dword[CODE_DMATP])) data_txing <= 0;
     else if (frame_req)                         data_txing <= 1;    
 end   
 */
 // Trying alternative, as SM sometimes got stuck in state_send_data, last was set 
 // Make it safe
 always @ (posedge clk) begin
-///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
+///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val_na & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
     if (rst)                                    data_txing_r <= 0;
     else if (frame_req)                         data_txing_r <= 1;    
     else if (state_send_crc)                    data_txing_r <= 0;
@@ -309,14 +314,24 @@ assign state_idle = ~state_sync_esc
                   & ~state_rcvr_badend;
 
 // got an escaping primitive = request to cancel the transmission
-wire    got_escape;
-assign got_escape = dword_val & rcvd_dword[CODE_SYNCP];
+// may be 1 cycle, need to extend over alignes_pair
+//wire    got_escape_w;
+//reg     got_escape_pend;
+//wire    got_escape = got_escape_w || got_escape_pend;
+//assign got_escape_w = dword_val & rcvd_dword[CODE_SYNCP];
+wire got_escape = dword_val & rcvd_dword[CODE_SYNCP]; // can wait over alignes pair
+reg     sync_escape_req_r;  // ahci sends 1 single-clock pulse, it may hit alignes_pair
+always @ (posedge clk) begin
+//    got_escape_pend <= alignes_pair && (got_escape_w || got_escape_pend);
+    sync_escape_req_r <= alignes_pair && (sync_escape_req || sync_escape_req_r);
+end
+//sync_escape_req
 
 // escaping is done
 assign  sync_escape_ack = state_sync_esc;
 
 
-wire    alignes_pair;   // pauses every state go give a chance to insert 2 align primitives on a line at least every 256 dwords due to spec
+reg           alignes_pair;   // pauses every state go give a chance to insert 2 align primitives on a line at least every 256 dwords due to spec
 //wire    alignes_pair_0; // time for 1st align primitive
 //wire    alignes_pair_1; // time for 2nd align primitive
 reg     [8:0] alignes_timer;
@@ -333,17 +348,20 @@ reg     [8:0] alignes_timer;
 //select_prim[CODE_ALIGNP]
 //ALIGNES_PERIOD
 reg    alignes_pair_0; // time for 1st align primitive
-reg    alignes_pair_1; // time for 2nd align primitive
+//reg    alignes_pair_1; // time for 2nd align primitive
 
 always @ (posedge clk) begin
 ///    if (!link_established_r || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
     if (!phy_ready || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
     else                                        alignes_timer <= alignes_timer -1;
     alignes_pair_0 <= alignes_timer == 0;
-    alignes_pair_1 <= alignes_pair_0;
+//    alignes_pair_1 <= alignes_pair_0;
+    
+    alignes_pair <= phy_ready && ((alignes_timer == 0) || alignes_pair_0);
+    
 end
 ///assign  alignes_pair   = link_established_r && (alignes_pair_0 | alignes_pair_1);
-assign  alignes_pair   = phy_ready && (alignes_pair_0 | alignes_pair_1);
+// assign  alignes_pair   = phy_ready && (alignes_pair_0 | alignes_pair_1);
 
 always @ (posedge clk) begin
     link_bad_crc <= state_rcvr_eof & crc_bad;
@@ -358,41 +376,60 @@ always @ (posedge clk) begin
 end
 
 // Whole transitions table, literally from doc pages 311-328
-assign  set_sync_esc        = sync_escape_req;
+assign  set_sync_esc        = sync_escape_req || sync_escape_req_r; // extended over alignes_pair
 assign  set_nocommerr       = ~phy_ready & ~state_nocomm & ~state_reset;
 assign  set_nocomm          = state_nocommerr;
 ///assign  set_align           = state_reset       & ~link_reset;
 ///assign  set_align           = state_reset       & ~link_reset & rcvd_dword[CODE_ALIGNP];
 assign  set_align  = 0; // never, as this state is handled by OOB
 assign  set_reset           = link_reset;
+
 assign  set_send_rdy        = state_idle        & frame_req;
-assign  set_send_sof        = state_send_rdy    & phy_ready  &                                dword_val &  rcvd_dword[CODE_RRDYP];
+
+assign  set_send_sof        = state_send_rdy    & phy_ready  &                                dword_val      &  rcvd_dword[CODE_RRDYP];
+
 assign  set_send_data       = state_send_sof    & phy_ready 
-                            | state_send_rhold  & data_txing & ~dec_err &                     dword_val & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP] & ~rcvd_dword[CODE_DMATP]
-                            | state_send_shold  & data_txing &  data_val_in &                 dword_val & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP];
-assign  set_send_rhold      = state_send_data   & data_txing &  data_val_in & ~data_last_in & dword_val &  rcvd_dword[CODE_HOLDP]
-                            | state_send_shold  & data_txing &  data_val_in &                 dword_val &  rcvd_dword[CODE_HOLDP];
-assign  set_send_shold      = state_send_data   & data_txing & ~data_val_in &                 dword_val & ~rcvd_dword[CODE_SYNCP];
-assign  set_send_crc        = state_send_data   & data_txing &  data_val_in &  data_last_in & dword_val & ~rcvd_dword[CODE_SYNCP] 
-                            | state_send_data   &                                             dword_val &  rcvd_dword[CODE_DMATP];
-assign  set_send_eof        = state_send_crc    & phy_ready &                                 dword_val & ~rcvd_dword[CODE_SYNCP];
-assign  set_wait            = state_send_eof    & phy_ready &                                 dword_val & ~rcvd_dword[CODE_SYNCP];
+//                            | state_send_rhold  & data_txing & ~dec_err &                     dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP] & ~rcvd_dword[CODE_DMATP]
+//                            | state_send_shold  & data_txing &  data_val_in &                 dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP];
+                            | state_send_rhold  & data_txing & ~dec_err &                     dword_val_na  & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP] & ~rcvd_dword[CODE_DMATP]
+                            | state_send_shold  & data_txing &  data_val_in &                 dword_val_na  & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP];
+
+assign  set_send_rhold      = state_send_data   & data_txing &  data_val_in & ~data_last_in & dword_val    &  rcvd_dword[CODE_HOLDP]
+                            | state_send_shold  & data_txing &  data_val_in &                 dword_val    &  rcvd_dword[CODE_HOLDP];
+                            
+assign  set_send_shold      = state_send_data   & data_txing & ~data_val_in &                 dword_val    & ~rcvd_dword[CODE_SYNCP];
+
+assign  set_send_crc        = state_send_data   & data_txing &  data_val_in &  data_last_in & dword_val    & ~rcvd_dword[CODE_SYNCP] 
+                            | state_send_data   &                                             dword_val    &  rcvd_dword[CODE_DMATP];
+                            
+assign  set_send_eof        = state_send_crc    & phy_ready &                                 dword_val    & ~rcvd_dword[CODE_SYNCP];
+
+assign  set_wait            = state_send_eof    & phy_ready &                                 dword_val    & ~rcvd_dword[CODE_SYNCP];
+
 // receiver's branch
-assign  set_rcvr_wait       = state_idle        & dword_val &  rcvd_dword[CODE_XRDYP]
-                            | state_send_rdy    & dword_val &  rcvd_dword[CODE_XRDYP];
-assign  set_rcvr_rdy        = state_rcvr_wait   & dword_val &  rcvd_dword[CODE_XRDYP]  & ~data_busy_in;
-assign  set_rcvr_data       = state_rcvr_rdy    & dword_val &  rcvd_dword[CODE_SOFP]
-                            | state_rcvr_rhold  & dword_val & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
-                            | state_rcvr_shold  & dword_val & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
-assign  set_rcvr_rhold      = state_rcvr_data   & dword_val &  rcvd_dword[CODE_DATA]  &  data_busy_in;
-assign  set_rcvr_shold      = state_rcvr_data   & dword_val &  rcvd_dword[CODE_HOLDP]
-                            | state_rcvr_rhold  & dword_val &  rcvd_dword[CODE_HOLDP] & ~data_busy_in;
-assign  set_rcvr_eof        = state_rcvr_data   & dword_val &  rcvd_dword[CODE_EOFP]
-                            | state_rcvr_rhold  & dword_val &  rcvd_dword[CODE_EOFP]
-                            | state_rcvr_shold  & dword_val &  rcvd_dword[CODE_EOFP];
+assign  set_rcvr_wait       = state_idle        & dword_val    &  rcvd_dword[CODE_XRDYP]
+                            | state_send_rdy    & dword_val    &  rcvd_dword[CODE_XRDYP];
+                            
+assign  set_rcvr_rdy        = state_rcvr_wait   & dword_val    &  rcvd_dword[CODE_XRDYP]  & ~data_busy_in;
+
+assign  set_rcvr_data       = state_rcvr_rdy    & dword_val    &  rcvd_dword[CODE_SOFP]
+                            | state_rcvr_rhold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
+                            | state_rcvr_shold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
+                            
+assign  set_rcvr_rhold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_DATA]  &  data_busy_in;
+
+assign  set_rcvr_shold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_HOLDP]
+                            | state_rcvr_rhold  & dword_val    &  rcvd_dword[CODE_HOLDP] & ~data_busy_in;
+                            
+assign  set_rcvr_eof        = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_EOFP]
+                            | state_rcvr_rhold  & dword_val    &  rcvd_dword[CODE_EOFP]
+                            | state_rcvr_shold  & dword_val    &  rcvd_dword[CODE_EOFP];
+                            
 assign  set_rcvr_goodcrc    = state_rcvr_eof    & crc_good;
+
 assign  set_rcvr_goodend    = state_rcvr_goodcrc& incom_ack_good_or_pend; // incom_ack_good; // may arrive at aligns_pair
-assign  set_rcvr_badend     = state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP]
+
+assign  set_rcvr_badend     = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_WTRMP]
                             | state_rcvr_eof    & crc_bad
                             | state_rcvr_goodcrc& incom_ack_bad_or_pend; // incom_ack_bad;   // may arrive at aligns_pair
 
@@ -405,52 +442,52 @@ assign  clr_align           = 0; // never - this state is handled in OOB
 assign  clr_reset           =                                           ~link_reset;
 ///assign  clr_reset           =                                           set_align;
 assign  clr_send_rdy        = set_nocommerr | set_reset | set_sync_esc | set_send_sof | set_rcvr_wait;
-assign  clr_send_sof        = set_nocommerr | set_reset | set_sync_esc | set_send_data | got_escape;
-assign  clr_send_data       = set_nocommerr | set_reset | set_sync_esc | set_send_rhold | set_send_shold | set_send_crc | got_escape;
-assign  clr_send_rhold      = set_nocommerr | set_reset | set_sync_esc | set_send_data | set_send_crc | got_escape;
-assign  clr_send_shold      = set_nocommerr | set_reset | set_sync_esc | set_send_data | set_send_rhold | set_send_crc | got_escape;
-assign  clr_send_crc        = set_nocommerr | set_reset | set_sync_esc | set_send_eof | got_escape;
-assign  clr_send_eof        = set_nocommerr | set_reset | set_sync_esc | set_wait | got_escape;
-assign  clr_wait            = set_nocommerr | set_reset | set_sync_esc | frame_done | got_escape;
+assign  clr_send_sof        = set_nocommerr | set_reset | set_sync_esc | set_send_data; // | got_escape;
+assign  clr_send_data       = set_nocommerr | set_reset | set_sync_esc | set_send_rhold | set_send_shold | set_send_crc; // | got_escape;
+assign  clr_send_rhold      = set_nocommerr | set_reset | set_sync_esc | set_send_data | set_send_crc; //  | got_escape;
+assign  clr_send_shold      = set_nocommerr | set_reset | set_sync_esc | set_send_data | set_send_rhold | set_send_crc; //  | got_escape;
+assign  clr_send_crc        = set_nocommerr | set_reset | set_sync_esc | set_send_eof; // | got_escape;
+assign  clr_send_eof        = set_nocommerr | set_reset | set_sync_esc | set_wait; //  | got_escape;
+assign  clr_wait            = set_nocommerr | set_reset | set_sync_esc | frame_done; // | got_escape;
 /* 
-assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rdy | dword_val & ~rcvd_dword[CODE_XRDYP];
-assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | dword_val & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP];
+assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rdy | dword_val_na & ~rcvd_dword[CODE_XRDYP];
+assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | dword_val_na & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP];
 assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof | set_rcvr_badend | got_escape;
 assign  clr_rcvr_rhold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | set_rcvr_shold | got_escape;
 assign  clr_rcvr_shold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | got_escape;
 assign  clr_rcvr_eof        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodcrc | set_rcvr_badend;
 assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodend | set_rcvr_badend | got_escape;
 */
-assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rdy */ | (dword_val & ~rcvd_dword[CODE_XRDYP]);
-assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data */ | (dword_val & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP]);
-assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof */ | set_rcvr_badend | got_escape;
-assign  clr_rcvr_rhold      = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data | set_rcvr_eof | set_rcvr_shold */ | got_escape;
-assign  clr_rcvr_shold      = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data | set_rcvr_eof */ | got_escape;
+assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rdy */ | (dword_val_na & ~rcvd_dword[CODE_XRDYP]);
+assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data */ | (dword_val_na & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP]);
+assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof */ | set_rcvr_badend; // | got_escape;
+assign  clr_rcvr_rhold      = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data | set_rcvr_eof | set_rcvr_shold */; //  | got_escape;
+assign  clr_rcvr_shold      = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data | set_rcvr_eof */; //  | got_escape;
 assign  clr_rcvr_eof        = set_nocommerr | set_reset | set_sync_esc /*|set_rcvr_goodcrc | set_rcvr_badend*/;
-assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc | /*set_rcvr_goodend | set_rcvr_badend |*/ got_escape;
+assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc /*set_rcvr_goodend | set_rcvr_badend |*/; // | got_escape;
 
-assign  clr_rcvr_goodend    = set_nocommerr | set_reset | set_sync_esc | got_escape;
-assign  clr_rcvr_badend     = set_nocommerr | set_reset | set_sync_esc | got_escape;
+assign  clr_rcvr_goodend    = set_nocommerr | set_reset | set_sync_esc; // | got_escape; // can be 1 cycle only
+assign  clr_rcvr_badend     = set_nocommerr | set_reset | set_sync_esc; // | got_escape;
 
 // the only truely asynchronous transaction between states is -> state_ reset. It shall not be delayed by sending alignes
 // Luckily, while in that state, the line is off, so we dont need to care about merging alignes and state-bounded primitives
 // Others transitions are straightforward
 always @ (posedge clk)
 begin
-    state_sync_esc      <= (state_sync_esc     | set_sync_esc     & ~alignes_pair) & ~(clr_sync_esc & ~alignes_pair)     & ~rst;
-    state_nocommerr     <= (state_nocommerr    | set_nocommerr    & ~alignes_pair) & ~(clr_nocommerr & ~alignes_pair)    & ~rst;
-    state_nocomm        <= (state_nocomm       | set_nocomm       & ~alignes_pair) & ~(clr_nocomm & ~alignes_pair)       & ~rst;
+    state_sync_esc      <= (state_sync_esc     | set_sync_esc     & ~alignes_pair) & ~(clr_sync_esc & ~alignes_pair)                    & ~rst;
+    state_nocommerr     <= (state_nocommerr    | set_nocommerr    & ~alignes_pair) & ~(clr_nocommerr & ~alignes_pair)                   & ~rst;
+    state_nocomm        <= (state_nocomm       | set_nocomm       & ~alignes_pair) & ~(clr_nocomm & ~alignes_pair)                      & ~rst;
     // state_align is not used, it is handled by OOB
-    state_align         <= (state_align        | set_align        & ~alignes_pair) & ~(clr_align & ~alignes_pair)        & ~rst;
-    state_reset         <= (state_reset        | set_reset                       ) & ~ clr_reset                         & ~rst;
-    state_send_rdy      <= (state_send_rdy     | set_send_rdy     & ~alignes_pair) & ~(clr_send_rdy & ~alignes_pair)     & ~rst;
-    state_send_sof      <= (state_send_sof     | set_send_sof     & ~alignes_pair) & ~(clr_send_sof & ~alignes_pair)     & ~rst;
-    state_send_data     <= (state_send_data    | set_send_data    & ~alignes_pair) & ~(clr_send_data & ~alignes_pair)    & ~rst;
-    state_send_rhold    <= (state_send_rhold   | set_send_rhold   & ~alignes_pair) & ~(clr_send_rhold & ~alignes_pair)   & ~rst;
-    state_send_shold    <= (state_send_shold   | set_send_shold   & ~alignes_pair) & ~(clr_send_shold & ~alignes_pair)   & ~rst;
-    state_send_crc      <= (state_send_crc     | set_send_crc     & ~alignes_pair) & ~(clr_send_crc & ~alignes_pair)     & ~rst;
-    state_send_eof      <= (state_send_eof     | set_send_eof     & ~alignes_pair) & ~(clr_send_eof & ~alignes_pair)     & ~rst;
-    state_wait          <= (state_wait         | set_wait         & ~alignes_pair) & ~(clr_wait & ~alignes_pair)         & ~rst;
+    state_align         <= (state_align        | set_align        & ~alignes_pair) & ~(clr_align & ~alignes_pair)                       & ~rst;
+    state_reset         <= (state_reset        | set_reset                       ) & ~ clr_reset                                        & ~rst;
+    state_send_rdy      <= (state_send_rdy     | set_send_rdy     & ~alignes_pair) & ~(clr_send_rdy & ~alignes_pair)                    & ~rst;
+    state_send_sof      <= (state_send_sof     | set_send_sof     & ~alignes_pair) & ~(got_escape | (clr_send_sof & ~alignes_pair))     & ~rst;
+    state_send_data     <= (state_send_data    | set_send_data    & ~alignes_pair) & ~(got_escape | (clr_send_data & ~alignes_pair))    & ~rst;
+    state_send_rhold    <= (state_send_rhold   | set_send_rhold   & ~alignes_pair) & ~(got_escape | (clr_send_rhold & ~alignes_pair))   & ~rst;
+    state_send_shold    <= (state_send_shold   | set_send_shold   & ~alignes_pair) & ~(got_escape | (clr_send_shold & ~alignes_pair))   & ~rst;
+    state_send_crc      <= (state_send_crc     | set_send_crc     & ~alignes_pair) & ~(got_escape | (clr_send_crc & ~alignes_pair))     & ~rst;
+    state_send_eof      <= (state_send_eof     | set_send_eof     & ~alignes_pair) & ~(got_escape | (clr_send_eof & ~alignes_pair))     & ~rst;
+    state_wait          <= (state_wait         | set_wait         & ~alignes_pair) & ~(got_escape | (clr_wait & ~alignes_pair))         & ~rst;
     // Andrey: most receiver states can not wait for transmitting aligns_pair. What host sends in this states matters when confirmed by the device
     // So it seems OK if alignes_pair will just overwrite whatever host was going to send in these state.
     // Care should be taken only for transitions between these states and others (transmit) that need to wait for alignes_pair to finish
@@ -463,24 +500,28 @@ begin
     
     state_rcvr_data     <= (state_rcvr_data    | set_rcvr_data                     ) & ~(set_rcvr_shold |
                                                                                          set_rcvr_shold |
-                                                                                         set_rcvr_eof |    (clr_rcvr_data & ~alignes_pair))  & ~rst;
+                                                                                         set_rcvr_eof |
+                                                                                         got_escape |      (clr_rcvr_data & ~alignes_pair))  & ~rst;
                                                                                          
     state_rcvr_rhold    <= (state_rcvr_rhold   | set_rcvr_rhold                   )  & ~(set_rcvr_data |
                                                                                          set_rcvr_shold |
-                                                                                         set_rcvr_eof |    (clr_rcvr_rhold & ~alignes_pair)) & ~rst;
+                                                                                         set_rcvr_eof |
+                                                                                         got_escape |      (clr_rcvr_rhold & ~alignes_pair)) & ~rst;
                                                                                          
     state_rcvr_shold    <= (state_rcvr_shold   | set_rcvr_shold                   )  & ~(set_rcvr_data |
-                                                                                         set_rcvr_eof |    (clr_rcvr_shold & ~alignes_pair)) & ~rst;
+                                                                                         set_rcvr_eof |
+                                                                                         got_escape |      (clr_rcvr_shold & ~alignes_pair)) & ~rst;
                                                                                          
     state_rcvr_eof      <= (state_rcvr_eof     | set_rcvr_eof                     )  & ~(set_rcvr_goodcrc |
                                                                                          state_rcvr_badend |(clr_rcvr_eof & ~alignes_pair))  & ~rst;
     
     state_rcvr_goodcrc  <= (state_rcvr_goodcrc | set_rcvr_goodcrc                 )  & ~(set_rcvr_goodend |
-                                                                                         set_rcvr_badend | (clr_rcvr_goodcrc & ~alignes_pair)) & ~rst;
+                                                                                         set_rcvr_badend |
+                                                                                         got_escape |      (clr_rcvr_goodcrc & ~alignes_pair)) & ~rst;
                                                                                          
-    state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend                 ) & ~(clr_rcvr_goodend & ~alignes_pair) & ~rst;
+    state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend                 ) & ~(got_escape |       (clr_rcvr_goodend & ~alignes_pair)) & ~rst;
     
-    state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend                  ) & ~(clr_rcvr_badend & ~alignes_pair)  & ~rst;
+    state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend                  ) & ~(got_escape |       (clr_rcvr_badend & ~alignes_pair))  & ~rst;
 
 /*
     state_rcvr_wait     <= (state_rcvr_wait    | set_rcvr_wait    & ~alignes_pair) & ~(clr_rcvr_wait & ~alignes_pair)    & ~rst;
@@ -644,7 +685,7 @@ always @ (posedge clk)
 // incoming data is data
 wire    inc_is_data;
 assign  inc_is_data = dword_val & rcvd_dword[CODE_DATA] & (state_rcvr_data | state_rcvr_rhold);
-//wire    inc_is_crc = dword_val & rcvd_dword[CODE_CRC] & (state_rcvr_data | state_rcvr_rhold);
+//wire    inc_is_crc = dword_val_na & rcvd_dword[CODE_CRC] & (state_rcvr_data | state_rcvr_rhold);
 /*
  * Scrambler can work both as a scrambler and a descramler, because data stream could be
  * one direction at a time
@@ -681,6 +722,7 @@ reg         data_val_out_r;
 reg [31:0]  data_out_rr;
 reg         data_val_out_rr;
 // if current == EOF => _r == CRC and _rr == last data piece
+/*
 always @ (posedge clk)
 begin
     data_out_r      <= scrambler_out;
@@ -688,6 +730,23 @@ begin
     data_val_out_r  <= inc_is_data;
     data_val_out_rr <= data_val_out_r & ~set_rcvr_eof; // means that @ previous clock cycle the delivered data was crc
 end
+*/
+reg  data_held;   // some data is held in data_out_r over primitives - to be restored if not EOF
+// no need to check for set_rcvr_eof - last dword will be always lost
+always @ (posedge clk) begin
+    if (dword_val & rcvd_dword[CODE_SOFP]) data_held <= 0;
+    else if (inc_is_data)                  data_held <= 1;
+    
+    if (inc_is_data)                       data_out_r   <= scrambler_out;
+    if (data_val_out_r)                    data_out_rr  <= data_out_r;
+    
+    data_val_out_r  <= inc_is_data;
+
+    data_val_out_rr <= inc_is_data && data_held;
+    
+end
+
+
 assign  data_out        = data_out_rr;
 assign  data_mask_out   = 2'b11;//{DATA_BYTE_WIDTH/2{1'b1}};
 assign  data_val_out    = data_val_out_rr;
@@ -735,18 +794,20 @@ assign  incom_start_w = set_rcvr_wait; //  & ~alignes_pair;
 // ... and processed
 assign  incom_done_w  = set_rcvr_goodcrc; // & ~alignes_pair;
 // or the FIS had errors
-//assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP] 
+//assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val_na &  rcvd_dword[CODE_WTRMP] 
 //                         | (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
 //assign  incom_invalidate =  (state_rcvr_eof &  crc_bad & ~alignes_pair) | // CRC mismatch
-//                            (state_rcvr_data & dword_val &  rcvd_dword[CODE_WTRMP]);
+//                            (state_rcvr_data & dword_val_na &  rcvd_dword[CODE_WTRMP]);
 assign  incom_invalidate_w =  (state_rcvr_eof &  crc_bad) | // CRC mismatch
                               (state_rcvr_data & dword_val &  rcvd_dword[CODE_WTRMP]); // missed EOF?
 assign  incom_sync_escape =   (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold |
                                state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
 
-// shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val
-assign  dword_val = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP];
+// shows that incoming primitive or data is ready to be processed // TODO somehow move alignes_pair into dword_val_na
+
+assign  dword_val =    |rcvd_dword & phy_ready;                            // any valid primitive/data
+assign  dword_val_na = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP]; // any valid primitive/data but ALIGNp
 // determine imcoming primitive type
 /*
 // determine imcoming primitive type
@@ -1013,16 +1074,98 @@ reg     state_rcvr_badend;  // BadEnd
 ///assign debug_out[31:20] =          debug_num_other[11:0];
 
 ///assign debug_out = debug_unknown_dword; // first unknown dword
+reg [1:0] debug_data_last_in_r;
+reg [1:0] debug_alignes_pair_r;
+reg [1:0] debug_state_send_data_r;
+reg [1:0] debug_dword_val_na;
+reg [1:0] debug_CODE_SYNCP;
+reg [1:0] debug_set_send_crc;
+reg [1:0] debug_data_val_in;
+reg [1:0] debug_was_OK_ERR;
+reg       debug_was_wait;
+reg       debug_was_idle;
+reg       debug_was_ok_err;
+reg       debug_was_state_wait;
+reg       debug_was_frame_done;
+reg       debug_was_got_escape;
+// frame_done | got_escape
+
+always @(posedge clk) begin
+    if (data_strobe_out) begin
+        debug_data_last_in_r <= {debug_data_last_in_r[0],data_last_in};
+        debug_alignes_pair_r <= {debug_alignes_pair_r[0],alignes_pair};
+        debug_state_send_data_r <= {debug_state_send_data_r[0],state_send_data};
+        debug_dword_val_na <= {debug_dword_val_na[0],dword_val_na};
+        debug_CODE_SYNCP <= {debug_CODE_SYNCP[0],rcvd_dword[CODE_SYNCP]};
+        debug_set_send_crc <= {debug_set_send_crc[0],set_send_crc};
+        debug_data_val_in <= {debug_data_val_in[0],data_val_in};
+    end
+     
+    debug_was_ok_err <= rcvd_dword[CODE_ERRP] | rcvd_dword[CODE_OKP];
+    
+    if (frame_req) debug_was_OK_ERR <= 0;
+    else debug_was_OK_ERR <= debug_was_OK_ERR | {rcvd_dword[CODE_ERRP], rcvd_dword[CODE_OKP]};
+    
+    if (frame_req) debug_was_state_wait <= 0;
+    else debug_was_state_wait <= debug_was_state_wait | state_wait;
+    
+    if (state_wait && clr_wait && !alignes_pair) debug_was_frame_done <= frame_done;
+
+    if (state_wait && clr_wait && !alignes_pair) debug_was_got_escape <= got_escape;
+    
+    if ((rcvd_dword[CODE_ERRP] || rcvd_dword[CODE_OKP]) && !debug_was_ok_err) begin
+        debug_was_wait <= state_wait;
+        debug_was_idle <= state_idle;
+    end
+    
+end
+
 assign debug_out[ 4: 0]  =            debug_states_encoded;
+assign debug_out[7: 5] =  {
+                           rcvd_dword[CODE_SYNCP],
+                           rcvd_dword[CODE_OKP],
+                           alignes_pair};
+assign debug_out[31]   =   rcvd_dword[CODE_ALIGNP];
+assign debug_out[30]   =   set_send_sof;
+assign debug_out[29]   =   clr_send_rdy;
+assign debug_out[28]   =   state_send_rdy;
+assign debug_out[27]   =   state_send_sof;
+assign debug_out[26]   =   state_idle;
+assign debug_out[25]   =   state_send_data;
+assign debug_out[24]   =   (state_send_sof     | set_send_sof     & ~alignes_pair);
+assign debug_out[23]   =   (clr_send_sof & ~alignes_pair);
+assign debug_out[22]   =   set_rcvr_wait; // start logging input
+
 //assign debug_out[15: 5] =            debug_to_first_err[14:4];
-assign debug_out[31:16] =            debug_rcvd_dword;
-assign debug_out[7: 5] = 0;
-assign debug_out[15: 8] = {2'b0, state_send_data, data_txing,
-                           data_val_in,  data_last_in, dword_val, ~rcvd_dword[CODE_SYNCP]};
+assign debug_out[21:16] =              debug_rcvd_dword[5:0];
+
+assign debug_out[15: 8] = {
+                           debug_was_wait,         // state was wait when last CODE_ERRP/CODE_OKP was received
+                           debug_was_idle,         // state was idle when last CODE_ERRP/CODE_OKP was received
+                           debug_was_OK_ERR[1:0],
+                           debug_was_state_wait,
+                           debug_was_frame_done,
+                           debug_was_got_escape,
+                           
+/*                           debug_data_last_in_r[1],
+                           debug_alignes_pair_r[1],
+                           debug_state_send_data_r[1],
+                           debug_state_send_data_r[0],
+                           debug_data_val_in[1],
+                           
+                           debug_data_val_in[0],
+                           debug_set_send_crc[1],
+*/                           
+//                           debug_dword_val_na[1],
+                           ~debug_CODE_SYNCP[1]};
 
 /*
-assign  set_send_crc        = state_send_data   & data_txing &  data_val_in &  data_last_in & dword_val & ~rcvd_dword[CODE_SYNCP]
-                            | state_send_data   &                                             dword_val &  rcvd_dword[CODE_DMATP];
+    state_send_sof      <= (state_send_sof     | set_send_sof     & ~alignes_pair) & ~(clr_send_sof & ~alignes_pair)     & ~rst;
+
+
+
+_send_crc        = state_send_data   & data_txing &  data_val_in &  data_last_in & dword_val_na & ~rcvd_dword[CODE_SYNCP]
+                            | state_send_data   &                                             dword_val_na &  rcvd_dword[CODE_DMATP];
 
 */
 
