@@ -1,0 +1,266 @@
+[*]
+[*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
+[*] Mon Feb  1 19:11:20 2016
+[*]
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_top-20151221162333769.fst"
+[dumpfile_mtime] "Mon Dec 21 23:23:59 2015"
+[dumpfile_size] 2362859
+[savefile] "/home/andrey/git/x393_sata/tb_top_03.sav"
+[timestart] 0
+[size] 1823 1180
+[pos] -821 -4
+*-22.223623 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[treeopen] tb.
+[treeopen] tb.dut.
+[treeopen] tb.dut.sata_top.
+[treeopen] tb.dut.sata_top.sata_host.
+[sst_width] 403
+[signals_width] 214
+[sst_expanded] 1
+[sst_vpaned_height] 786
+@c00200
+-host link layer
+@22
+tb.dut.sata_top.sata_host.link.alignes_timer[8:0]
+tb.dut.sata_top.sata_host.link.crc_dword[31:0]
+tb.dut.sata_top.sata_host.link.data_in[31:0]
+@28
+tb.dut.sata_top.sata_host.link.data_mask_in[1:0]
+tb.dut.sata_top.sata_host.link.data_mask_out[1:0]
+@22
+tb.dut.sata_top.sata_host.link.data_out[31:0]
+tb.dut.sata_top.sata_host.link.data_out_r[31:0]
+tb.dut.sata_top.sata_host.link.data_out_rr[31:0]
+tb.dut.sata_top.sata_host.link.phy_data_in[31:0]
+tb.dut.sata_top.sata_host.link.phy_data_out[31:0]
+tb.dut.sata_top.sata_host.link.phy_err_in[3:0]
+tb.dut.sata_top.sata_host.link.phy_isk_in[3:0]
+tb.dut.sata_top.sata_host.link.phy_isk_out[3:0]
+tb.dut.sata_top.sata_host.link.rcvd_dword[14:0]
+tb.dut.sata_top.sata_host.link.scrambler_out[31:0]
+tb.dut.sata_top.sata_host.link.select_prim[14:0]
+tb.dut.sata_top.sata_host.link.sim_states_concat[22:0]
+tb.dut.sata_top.sata_host.link.to_phy_data[31:0]
+tb.dut.sata_top.sata_host.link.to_phy_isk[3:0]
+@1401200
+-host link layer
+@c00200
+-host command layer
+@22
+tb.dut.sata_top.sata_host.command.al_cmd_in[31:0]
+tb.dut.sata_top.sata_host.command.al_cmd_out[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_buf_off_in[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_command_in[7:0]
+tb.dut.sata_top.sata_host.command.al_sh_control_in[7:0]
+tb.dut.sata_top.sata_host.command.al_sh_count_in[15:0]
+tb.dut.sata_top.sata_host.command.al_sh_data_in[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_dev_in[7:0]
+tb.dut.sata_top.sata_host.command.al_sh_dma_cnt_in[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_dma_id_hi_in[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_dma_id_lo_in[31:0]
+tb.dut.sata_top.sata_host.command.al_sh_feature_in[15:0]
+tb.dut.sata_top.sata_host.command.al_sh_lba_hi_in[23:0]
+tb.dut.sata_top.sata_host.command.al_sh_lba_lo_in[23:0]
+tb.dut.sata_top.sata_host.command.al_sh_port_in[3:0]
+tb.dut.sata_top.sata_host.command.al_sh_tran_cnt_in[15:0]
+tb.dut.sata_top.sata_host.command.cmd[31:0]
+tb.dut.sata_top.sata_host.command.cmd_port[3:0]
+@28
+tb.dut.sata_top.sata_host.command.cmd_type[2:0]
+@22
+tb.dut.sata_top.sata_host.command.raddr[9:0]
+tb.dut.sata_top.sata_host.command.sh_command[7:0]
+tb.dut.sata_top.sata_host.command.sh_command_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_control[7:0]
+tb.dut.sata_top.sata_host.command.sh_control_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_count[15:0]
+tb.dut.sata_top.sata_host.command.sh_count_out[15:0]
+tb.dut.sata_top.sata_host.command.sh_data[31:0]
+tb.dut.sata_top.sata_host.command.sh_data_out[31:0]
+tb.dut.sata_top.sata_host.command.sh_dev[7:0]
+tb.dut.sata_top.sata_host.command.sh_dev_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_dma_cnt[31:0]
+tb.dut.sata_top.sata_host.command.sh_dma_cnt_out[31:0]
+tb.dut.sata_top.sata_host.command.sh_dma_id[63:0]
+tb.dut.sata_top.sata_host.command.sh_dma_id_out[63:0]
+tb.dut.sata_top.sata_host.command.sh_dma_off[31:0]
+tb.dut.sata_top.sata_host.command.sh_dma_off_out[31:0]
+tb.dut.sata_top.sata_host.command.sh_err[7:0]
+tb.dut.sata_top.sata_host.command.sh_err_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_estatus[7:0]
+tb.dut.sata_top.sata_host.command.sh_estatus_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_feature[15:0]
+tb.dut.sata_top.sata_host.command.sh_feature_out[15:0]
+tb.dut.sata_top.sata_host.command.sh_lba[47:0]
+tb.dut.sata_top.sata_host.command.sh_lba_out[47:0]
+tb.dut.sata_top.sata_host.command.sh_port[3:0]
+tb.dut.sata_top.sata_host.command.sh_port_out[3:0]
+tb.dut.sata_top.sata_host.command.sh_status[7:0]
+tb.dut.sata_top.sata_host.command.sh_status_out[7:0]
+tb.dut.sata_top.sata_host.command.sh_tran_cnt[15:0]
+tb.dut.sata_top.sata_host.command.sh_tran_cnt_out[15:0]
+tb.dut.sata_top.sata_host.command.tl_data_in[31:0]
+tb.dut.sata_top.sata_host.command.tl_data_out[31:0]
+tb.dut.sata_top.sata_host.command.tl_sh_command_in[7:0]
+tb.dut.sata_top.sata_host.command.tl_sh_count_in[15:0]
+tb.dut.sata_top.sata_host.command.tl_sh_dev_in[7:0]
+tb.dut.sata_top.sata_host.command.tl_sh_dma_cnt_in[31:0]
+tb.dut.sata_top.sata_host.command.tl_sh_dma_id_in[63:0]
+tb.dut.sata_top.sata_host.command.tl_sh_dma_off_in[31:0]
+tb.dut.sata_top.sata_host.command.tl_sh_err_in[7:0]
+tb.dut.sata_top.sata_host.command.tl_sh_estatus_in[7:0]
+tb.dut.sata_top.sata_host.command.tl_sh_lba_in[47:0]
+tb.dut.sata_top.sata_host.command.tl_sh_port_in[3:0]
+tb.dut.sata_top.sata_host.command.tl_sh_status_in[7:0]
+tb.dut.sata_top.sata_host.command.tl_sh_tran_cnt_in[15:0]
+tb.dut.sata_top.sata_host.command.waddr[9:0]
+@1401200
+-host command layer
+@800200
+-host phy level
+@23
+tb.dut.sata_top.sata_host.phy.ll_charisk_in[3:0]
+tb.dut.sata_top.sata_host.phy.ll_charisk_out[3:0]
+tb.dut.sata_top.sata_host.phy.ll_data_in[31:0]
+tb.dut.sata_top.sata_host.phy.ll_data_out[31:0]
+tb.dut.sata_top.sata_host.phy.ll_err_out[3:0]
+tb.dut.sata_top.sata_host.phy.rst_timer[7:0]
+tb.dut.sata_top.sata_host.phy.rxcharisk[3:0]
+tb.dut.sata_top.sata_host.phy.rxcharisk_out[3:0]
+tb.dut.sata_top.sata_host.phy.rxdata[31:0]
+tb.dut.sata_top.sata_host.phy.rxdata_out[31:0]
+tb.dut.sata_top.sata_host.phy.rxdisperr[3:0]
+tb.dut.sata_top.sata_host.phy.rxeyereset_cnt[6:0]
+tb.dut.sata_top.sata_host.phy.rxnotintable[3:0]
+tb.dut.sata_top.sata_host.phy.rxreset_oob_cnt[3:0]
+tb.dut.sata_top.sata_host.phy.txcharisk[3:0]
+tb.dut.sata_top.sata_host.phy.txcharisk_in[3:0]
+tb.dut.sata_top.sata_host.phy.txdata[31:0]
+tb.dut.sata_top.sata_host.phy.txdata_in[31:0]
+tb.dut.sata_top.sata_host.phy.txpcsreset_cnt[3:0]
+@29
+tb.dut.sata_top.sata_host.phy.txpmareset_cnt[2:0]
+@1000200
+-host phy level
+@c00200
+-host transport level
+@22
+tb.dut.sata_top.sata_host.transport.cl_data_in[31:0]
+@28
+tb.dut.sata_top.sata_host.transport.cl_data_mask_in[1:0]
+tb.dut.sata_top.sata_host.transport.cl_data_mask_out[1:0]
+@22
+tb.dut.sata_top.sata_host.transport.cl_data_out[31:0]
+tb.dut.sata_top.sata_host.transport.cmd_port[3:0]
+tb.dut.sata_top.sata_host.transport.cmd_port_r[3:0]
+@28
+tb.dut.sata_top.sata_host.transport.cmd_type[2:0]
+tb.dut.sata_top.sata_host.transport.cmd_type_r[2:0]
+@22
+tb.dut.sata_top.sata_host.transport.dword_cnt[13:0]
+tb.dut.sata_top.sata_host.transport.got_dma_activate_port[3:0]
+tb.dut.sata_top.sata_host.transport.header_bist[31:0]
+tb.dut.sata_top.sata_host.transport.header_data[31:0]
+tb.dut.sata_top.sata_host.transport.header_dmas[31:0]
+tb.dut.sata_top.sata_host.transport.header_regfis[31:0]
+tb.dut.sata_top.sata_host.transport.ll_data_in[31:0]
+@28
+tb.dut.sata_top.sata_host.transport.ll_data_mask_in[1:0]
+tb.dut.sata_top.sata_host.transport.ll_data_mask_out[1:0]
+@22
+tb.dut.sata_top.sata_host.transport.ll_data_out[31:0]
+tb.dut.sata_top.sata_host.transport.ll_header_dword[31:0]
+tb.dut.sata_top.sata_host.transport.loc_command[7:0]
+tb.dut.sata_top.sata_host.transport.loc_count[15:0]
+tb.dut.sata_top.sata_host.transport.loc_dev[7:0]
+tb.dut.sata_top.sata_host.transport.loc_dma_cnt[31:0]
+tb.dut.sata_top.sata_host.transport.loc_dma_id[63:0]
+tb.dut.sata_top.sata_host.transport.loc_dma_off[31:0]
+tb.dut.sata_top.sata_host.transport.loc_err[7:0]
+tb.dut.sata_top.sata_host.transport.loc_estatus[7:0]
+tb.dut.sata_top.sata_host.transport.loc_lba[47:0]
+tb.dut.sata_top.sata_host.transport.loc_port[3:0]
+tb.dut.sata_top.sata_host.transport.loc_status[7:0]
+tb.dut.sata_top.sata_host.transport.loc_tran_cnt[15:0]
+tb.dut.sata_top.sata_host.transport.sh_buf_off_in[31:0]
+tb.dut.sata_top.sata_host.transport.sh_command_in[7:0]
+tb.dut.sata_top.sata_host.transport.sh_command_out[7:0]
+tb.dut.sata_top.sata_host.transport.sh_control_in[7:0]
+tb.dut.sata_top.sata_host.transport.sh_count_in[15:0]
+tb.dut.sata_top.sata_host.transport.sh_count_out[15:0]
+tb.dut.sata_top.sata_host.transport.sh_data_in[31:0]
+tb.dut.sata_top.sata_host.transport.sh_dev_in[7:0]
+tb.dut.sata_top.sata_host.transport.sh_dev_out[7:0]
+tb.dut.sata_top.sata_host.transport.sh_dma_cnt_in[31:0]
+tb.dut.sata_top.sata_host.transport.sh_dma_cnt_out[31:0]
+tb.dut.sata_top.sata_host.transport.sh_dma_id_in[63:0]
+tb.dut.sata_top.sata_host.transport.sh_dma_id_out[63:0]
+tb.dut.sata_top.sata_host.transport.sh_dma_off_out[31:0]
+tb.dut.sata_top.sata_host.transport.sh_err_out[7:0]
+tb.dut.sata_top.sata_host.transport.sh_estatus_out[7:0]
+tb.dut.sata_top.sata_host.transport.sh_feature_in[15:0]
+tb.dut.sata_top.sata_host.transport.sh_lba_in[47:0]
+tb.dut.sata_top.sata_host.transport.sh_lba_out[47:0]
+tb.dut.sata_top.sata_host.transport.sh_port_in[3:0]
+tb.dut.sata_top.sata_host.transport.sh_port_out[3:0]
+tb.dut.sata_top.sata_host.transport.sh_status_out[7:0]
+tb.dut.sata_top.sata_host.transport.sh_tran_cnt_in[15:0]
+tb.dut.sata_top.sata_host.transport.sh_tran_cnt_out[15:0]
+tb.dut.sata_top.sata_host.transport.state[7:0]
+@1401200
+-host transport level
+@c00200
+-shadow registers
+@22
+tb.dut.sata_top.dma_regs.bram_raddr[31:0]
+tb.dut.sata_top.dma_regs.bram_raddr_r[7:0]
+tb.dut.sata_top.dma_regs.bram_rdata[31:0]
+tb.dut.sata_top.dma_regs.bram_rdata_r[31:0]
+tb.dut.sata_top.dma_regs.bram_waddr[31:0]
+tb.dut.sata_top.dma_regs.bram_wdata[31:0]
+tb.dut.sata_top.dma_regs.bram_wstb[3:0]
+tb.dut.sata_top.dma_regs.cmd_in[31:0]
+tb.dut.sata_top.dma_regs.cmd_out[31:0]
+tb.dut.sata_top.dma_regs.lba[31:0]
+tb.dut.sata_top.dma_regs.mem_address[31:7]
+tb.dut.sata_top.dma_regs.reg00[31:0]
+tb.dut.sata_top.dma_regs.reg0c[31:0]
+tb.dut.sata_top.dma_regs.reg04[31:0]
+tb.dut.sata_top.dma_regs.reg08[31:0]
+tb.dut.sata_top.dma_regs.reg10[31:0]
+tb.dut.sata_top.dma_regs.reg14[31:0]
+tb.dut.sata_top.dma_regs.sector_cnt[31:0]
+tb.dut.sata_top.dma_regs.sh_buf_off[31:0]
+tb.dut.sata_top.dma_regs.sh_command[7:0]
+tb.dut.sata_top.dma_regs.sh_command_in[7:0]
+tb.dut.sata_top.dma_regs.sh_control[7:0]
+tb.dut.sata_top.dma_regs.sh_control_in[7:0]
+tb.dut.sata_top.dma_regs.sh_count[15:0]
+tb.dut.sata_top.dma_regs.sh_count_in[15:0]
+tb.dut.sata_top.dma_regs.sh_data[31:0]
+tb.dut.sata_top.dma_regs.sh_data_in[31:0]
+tb.dut.sata_top.dma_regs.sh_dev[7:0]
+tb.dut.sata_top.dma_regs.sh_dev_in[7:0]
+tb.dut.sata_top.dma_regs.sh_dma_cnt[31:0]
+tb.dut.sata_top.dma_regs.sh_dma_cnt_in[31:0]
+tb.dut.sata_top.dma_regs.sh_dma_id_hi[31:0]
+tb.dut.sata_top.dma_regs.sh_dma_id_in[63:0]
+tb.dut.sata_top.dma_regs.sh_dma_id_lo[31:0]
+tb.dut.sata_top.dma_regs.sh_dma_off_in[31:0]
+tb.dut.sata_top.dma_regs.sh_err_in[7:0]
+tb.dut.sata_top.dma_regs.sh_estatus_in[7:0]
+tb.dut.sata_top.dma_regs.sh_feature[15:0]
+tb.dut.sata_top.dma_regs.sh_feature_in[15:0]
+tb.dut.sata_top.dma_regs.sh_lba_hi[23:0]
+tb.dut.sata_top.dma_regs.sh_lba_in[47:0]
+tb.dut.sata_top.dma_regs.sh_lba_lo[23:0]
+tb.dut.sata_top.dma_regs.sh_port[3:0]
+tb.dut.sata_top.dma_regs.sh_port_in[3:0]
+tb.dut.sata_top.dma_regs.sh_status_in[7:0]
+tb.dut.sata_top.dma_regs.sh_tran_cnt[15:0]
+tb.dut.sata_top.dma_regs.sh_tran_cnt_in[15:0]
+tb.dut.sata_top.dma_regs.wdata[31:0]
+@1401200
+-shadow registers
+[pattern_trace] 1
+[pattern_trace] 0
