@@ -975,7 +975,28 @@ class x393sata(object):
                 print(" %s"%(self.interpret_datascope1_dword(dword,prev_dword,next_dword)),end="")
                 prev_dword = dword
             print()
-                
+            
+    def cache_mode(self, write_mode=None, read_mode=None):
+        """
+        Change AXI cache mode for SAXIHP3.
+        @param write_mode - 0..15 - AXI cache mode for writing to the system memory (none - keep current)
+        @param read_mode - 0..15 - AXI cache mode for reading from the system memory (none - keep current)
+        bit 0 (B) for writes - bufferable
+        bit 1 (C) cacheable
+        bit 2 (RA) read allocate, should not be 1 if C==0
+        bit 3 (WA) write allocate, should not be 1 if C==0
+        """
+        mode =self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__AFI_CACHE'))
+        if (write_mode is None) and (read_mode is None):
+            print("Current AXI HP cache mode is set to: write = 0x%x, read = 0x%x"%((mode >> 4) & 0xf, (mode >> 0) & 0xf))
+        else:
+            if not write_mode is None:
+                mode = ((mode ^ ((write_mode & 0xf) << 4)) & (0xf << 4)) ^ mode
+            if not read_mode is None:
+                mode = ((mode ^ ((reade_mode & 0xf) << 0)) & (0xf << 0)) ^ mode
+            self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__AFI_CACHE'), mode)
+            
+        return {'write':(mode >> 4) & 0xf, 'read':(mode >> 0) & 0xf}    
                  
     """
     
@@ -1071,13 +1092,14 @@ for block in range (1,1024):
 
 for i in range(128): 
     mem.write_mem(x393sata.DATAOUT_ADDRESS + 4*i,2*i +  ((254-2*i)<<8) + ((2*i+1)<<16) + ((255-2*i) << 24))
+
 _=mem.mem_dump(x393sata.DATAOUT_ADDRESS,128,4)
 _=mem.mem_dump(x393sata.DATAOUT_ADDRESS,256,2)
 
 sata.dd_write_dma(9,1)
 _=mem.mem_dump (0x80000ff0, 4,4)
 
-_=mem.mem_dump (0x80001000, 0x200,4)
+_=mem.mem_dump (0x80001000, 0x400,4)
 
 
 
@@ -1085,6 +1107,7 @@ sata.arm_logger()
 sata.setup_pio_read_identify_command()
 
 sata.datascope1()
+sata.dd_read_dma(1, 1)
 
 
 

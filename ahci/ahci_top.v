@@ -1107,7 +1107,15 @@ wire [9:0] xmit_dbg_01;
                              debug_dma_h2d[0], // last_DW,
                              
                              dma_dout[27:16],
-                             debug_dma_h2d[19:4]
+                             debug_dma_h2d[19:18], // 2'b0
+                             debug_dma_h2d[17],    // fifo_rd
+                             debug_dma_h2d[16:12], // raddr[4:0]
+                             debug_dma_h2d[11:8],  //fifo_do_vld[3:0]
+
+                             debug_dma_h2d[7],    // fifo_dav
+                             debug_dma_h2d[6],    // fifo_dav2_w
+                             debug_dma_h2d[5],    // fifo_dav2
+                             debug_dma_h2d[4]     // flushing_mclk
      };
      
  //    dma_dout[
@@ -1125,7 +1133,26 @@ wire [9:0] xmit_dbg_01;
 
         
     end
-/*debug_dma_h2d
+/*
+ debug_dma_h2d[3], // done_flush_mclk,
+ debug_dma_h2d[2], // dout_vld,
+ debug_dma_h2d[1], // dout_re,
+ debug_dma_h2d[0], // last_DW,
+ 
+ dma_dout[27:16],
+ debug_dma_h2d[19:18], // 2'b0
+ debug_dma_h2d[17],    // fifo_rd
+ debug_dma_h2d[16:12], // raddr[4:0]
+ debug_dma_h2d[11:8],  //fifo_do_vld[3:0]
+
+ debug_dma_h2d[7],    // fifo_dav
+ debug_dma_h2d[6],    // fifo_dav2_w
+ debug_dma_h2d[5],    // fifo_dav2
+ debug_dma_h2d[4]     // flushing_mclk
+
+
+
+debug_dma_h2d
     assign debug_dma_h2d = {
                              14'b0,
                  17          fifo_rd,
