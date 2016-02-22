@@ -134,6 +134,8 @@ module  ahci_fsm
     input                         sctl_det_changed,  // Software had written new value to sctl_det
     output                        sctl_det_reset,    // clear sctl_det_changed
     
+    output                        hba_rst_done,      // reset GHC.HR and other bits
+    
     output                        pxci0_clear,       // PxCI clear
     input                         pxci0,             // pxCI current value
     
@@ -433,6 +435,7 @@ module  ahci_fsm
         .PXSSTS_DET_1       (ssts_det_dnp),      // output reg 
         .SSTS_DET_OFFLINE   (ssts_det_offline),  // output reg 
         .SCTL_DET_CLEAR     (sctl_det_reset),    // output reg 
+        .HBA_RST_DONE       (hba_rst_done), // output reg 
     // FIS RECEIVE
         .SET_UPDATE_SIG     (set_update_sig),    // output reg 
         .UPDATE_SIG         (update_sig),        // output reg 

@@ -531,6 +531,7 @@ gtx_wrap
     .txresetdone        (txresetdone),     // output wire
     .txcominit          (txcominit),       // input wire 
     .txcomwake          (txcomwake),       // input wire 
+    .txcomfinish        (),                // output wire
     .rxelsfull          (rxelsfull),       // output wire
     .rxelsempty         (rxelsempty),      // output wire
     .txdata             (txdata),          // input [31:0] wire 

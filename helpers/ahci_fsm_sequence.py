@@ -47,6 +47,7 @@ actions = ['NOP',
     # CTRL_STAT
     'PXSERR_DIAG_X', 'SIRQ_DHR', 'SIRQ_DP', 'SIRQ_DS', 'SIRQ_IF', 'SIRQ_INF', 'SIRQ_PS', 'SIRQ_SDB', 'SIRQ_TFE', 'SIRQ_UF',
     'PFSM_STARTED', 'PCMD_CR_CLEAR', 'PCMD_CR_SET', 'PXCI0_CLEAR', 'PXSSTS_DET_1', 'SSTS_DET_OFFLINE', 'SCTL_DET_CLEAR',
+    'HBA_RST_DONE',
     # FIS RECEIVE
     'SET_UPDATE_SIG', 'UPDATE_SIG', 'UPDATE_ERR_STS', 'UPDATE_PIO', 'UPDATE_PRDBC', 'CLEAR_BSY_DRQ',
     'CLEAR_BSY_SET_DRQ', 'SET_BSY', 'SET_STS_7F', 'SET_STS_80', 'XFER_CNTR_CLEAR', 'DECR_DWCR', 'DECR_DWCW', 'FIS_FIRST_FLUSH',
@@ -83,7 +84,7 @@ conditions = [
 sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'H:Init'},
             {LBL:'HBA_RST',  ADDR: 0x2, ACT: NOP},
-            {                           GOTO:'H:Init'},
+            {                           GOTO:'H:HBA_RST'},
             
             {LBL:'PORT_RST', ADDR: 0x4, ACT: NOP},
             {                           GOTO:'H:Init'},
@@ -94,7 +95,9 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {LBL:'ST_CLEARED',ADDR: 0x8,ACT: NOP}, # TODO: make sure this jump is not from P:Init
             {                           GOTO:'P:StartBitCleared'},
             
-
+            {LBL:'H:HBA_RST',           ACT: 'HBA_RST_DONE'}, # Reset GHC.HR and other things
+            {                           GOTO:'H:Init'},
+            
             {LBL:'H:Init',              ACT: NOP},
             {                           GOTO:'H:WaitForAhciEnable'},
 

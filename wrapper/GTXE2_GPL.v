@@ -3005,21 +3005,22 @@ always @ (posedge DRPCLK) begin
     if (DRPEN) drp_raddr <= DRPADDR;
 end
 
+wire reset_or_GTRXRESET = reset || GTRXRESET;
 
 initial
-forever @ (posedge reset)
+forever @ (posedge reset_or_GTRXRESET)
 begin
     tx_rst_done <= 1'b0;
-    @ (negedge reset);
+    @ (negedge reset_or_GTRXRESET);
     repeat (80)
         @ (posedge GTREFCLK0);
     tx_rst_done <= 1'b1;
 end
 initial
-forever @ (posedge reset)
+forever @ (posedge reset_or_GTRXRESET)
 begin
     rx_rst_done <= 1'b0;
-    @ (negedge reset);
+    @ (negedge reset_or_GTRXRESET);
     repeat (100)
         @ (posedge GTREFCLK0);
     rx_rst_done <= 1'b1;

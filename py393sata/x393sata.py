@@ -1080,6 +1080,12 @@ sata.reg_status()
 _=mem.mem_dump (0x80000ff0, 4,4)
 sata.reg_status(),sata.reset_ie(),sata.err_count()
 
+_=mem.mem_dump (0x80000ff0, 4,4)                  
+_=mem.mem_dump (0x80001000, 0x120,4)              
+
+
+
+
 for block in range (1,1024):
     print("\n======== Reading block %d ==============="%block)
     sata.arm_logger()

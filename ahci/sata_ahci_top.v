@@ -174,10 +174,11 @@
 //    wire sata_clk;
 //    wire sata_rst;
     
-    wire hba_arst;  // @SuppressThisWarning VEditor unused
+    wire hba_arst;  // @S uppressThisWarning VEditor unused
     wire port_arst; // @SuppressThisWarning VEditor unused
     wire port_arst_any;
-    wire exrst = port_arst_any; // now both hba_arst and port_arst are the same?
+//    wire exrst = port_arst_any; // now both hba_arst and port_arst are the same?
+    wire exrst = port_arst_any || hba_arst; // now both hba_arst and port_arst are the same (only difference in fsm)
     
     
     

@@ -88,6 +88,7 @@ module gtx_wrap #(
     output  wire    txresetdone,
     input   wire    txcominit,
     input   wire    txcomwake,
+    output  wire    txcomfinish, // @txusrclk2
     // elastic buffer status
     output  wire    rxelsfull,
     output  wire    rxelsempty,
@@ -207,7 +208,7 @@ if (DATA_BYTE_WIDTH == 4) begin
     reg     [ 1:0] txcharisk_enc_in_r;  // TODO: remove async reset
     wire    [38:0] txdata_resync_out;
     wire           txdata_resync_valid;
-    reg      [1:0] txcomwake_gtx_f; // 2 registers just to match latency (data to the 3 next) in Alexey's code, probbaly not needed
+    reg      [1:0] txcomwake_gtx_f; // 2 registers just to match latency (data to the 3 next) in Alexey's code, probably not needed
     reg      [1:0] txcominit_gtx_f;
     reg      [1:0] txelecidle_gtx_f;
     
@@ -1261,7 +1262,7 @@ gtxe2_channel_wrapper(
     .TXPCSRESET                     (txpcsreset),
     .TXPMARESET                     (1'b0),
     .TXRESETDONE                    (txresetdone_gtx),
-    .TXCOMFINISH                    (),
+    .TXCOMFINISH                    (txcomfinish),
     .TXCOMINIT                      (txcominit_gtx),
     .TXCOMSAS                       (1'b0),
     .TXCOMWAKE                      (txcomwake_gtx),

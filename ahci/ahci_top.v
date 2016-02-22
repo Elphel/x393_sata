@@ -361,7 +361,7 @@ module  ahci_top#(
 ///    wire                    sactive0;      // bit 0 of sActive DWORD received in SDB FIS
     // Using even word count (will be rounded up), partial DWORD (last) will be handled by PRD length if needed
     
-    wire             [31:0] xfer_cntr; 
+    wire             [31:2] xfer_cntr; 
     wire                    xfer_cntr_zero; 
                                              
 ///    wire             [11:0] data_in_dwords;  // number of DWORDs received in data FIS (can be updated internally). Is it needed?
@@ -420,7 +420,9 @@ module  ahci_top#(
     wire                          pcmd_cr_set;    // command list run set
     wire                          pcmd_cr_reset;  // command list run reset
 //    wire                          pcmd_fr;        // ahci_fis_receive:get_fis_busy - use frcv_busy
-    wire                          pcmd_fre;       // FIS enable copy to memory
+
+    wire                          pcmd_fre0;      // FIS enable copy to memory
+    wire                          pcmd_fre = pcmd_fre0 || 1;     // FIS enable copy to memory
 //    wire                          pcmd_clear_bsy_drq; // == ahci_fis_receive:clear_bsy_drq
     wire                          pcmd_clo;       // RW1, causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
 //    wire                          pcmd_clear_st;  // RW clear ST (start) bit
@@ -472,6 +474,7 @@ module  ahci_top#(
     
     wire                          pxci0_clear;       // PxCI clear
     wire                          pxci0;             // pxCI current value
+    wire                          hba_rst_done;      // HBA reset done - clear GHC.HR (and some other regs)
     
     wire                    [9:0] last_jump_addr;
     wire                   [31:0] debug_dma;
@@ -580,6 +583,7 @@ module  ahci_top#(
         .sctl_det                 (sctl_det),          // input[3:0] 
         .sctl_det_changed         (sctl_det_changed),  // input 
         .sctl_det_reset           (sctl_det_reset),    // output
+        .hba_rst_done             (hba_rst_done),      // output
         .pxci0_clear              (pxci0_clear),       // output
         .pxci0                    (pxci0),             // input
 
@@ -629,7 +633,7 @@ module  ahci_top#(
         .decr_dwcr                (frcv_decr_dwcr),     // output increment pXferCntr after transmit by data transmitted)
         .decr_dwcw                (frcv_decr_dwcw),     // output increment pXferCntr after transmit by data transmitted)
 //      .decr_DXC_dw     (data_out_dwords),    // output[11:2] **** Probably not needed
-        .pxcmd_fre                (pcmd_fre), // input
+        .pxcmd_fre                ( pcmd_fre), // input
         .pPioXfer                 (pPioXfer),           // input      
         .tfd_sts                  (tfd_sts),            // input[7:0] 
 ///        .tfd_err            (tfd_err),            // input[7:0] 
@@ -731,7 +735,8 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .was_port_rst     (was_port_rst),    // output 
         .debug_in0        ({ debug_data_in_ready,       // output
                              debug_fis_end_w,           // output
-                             debug_fis_end_r[1:0],      // output[1:0] 
+                             xfer_cntr_zero,
+                             debug_fis_end_r[0],        // debug_fis_end_r[1:0],      // output[1:0] 
                              debug_get_fis_busy_r[1:0], // output[1:0] 
                              debug_dma[25:0]}),       // input[31:0]
 //        .debug_in1        ({xclk_period[7:0], // lower 8 bits of 12-bit value. Same frequency would be 0x800 (msb opposite to 3 next bits)
@@ -795,6 +800,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .update_serr             (1'b0), // update_HBA_PORT__PxSERR), // input
         .update_pcmd             (1'b0), // update_HBA_PORT__PxCMD),  // input
         .update_pci              (1'b0), // update_HBA_PORT__PxCI),   // input
+        .update_ghc              (1'b0), // update _GHC_GHC,          // input
         
         .pcmd_clear_icc          (1'b0), // pcmd_clear_icc),          // input
         .pcmd_esp                (pcmd_esp),                // input
@@ -802,7 +808,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .pcmd_cr_set             (pcmd_cr_set),             // input
         .pcmd_cr_reset           (pcmd_cr_reset),           // input
         .pcmd_fr                 (frcv_busy),               // input
-        .pcmd_fre                (pcmd_fre),                // output
+        .pcmd_fre                (pcmd_fre0),               // output
         .pcmd_clear_bsy_drq      (frcv_clear_bsy_drq),      // input
         .pcmd_clo                (pcmd_clo),                // output
         .pcmd_clear_st           (1'b0), // pcmd_clear_st),           // input
@@ -855,6 +861,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .sctl_det_reset          (sctl_det_reset),          // input
         .pxci0_clear             (pxci0_clear),             // input
         .pxci0                   (pxci0),                   // output
+        .hba_reset_done          (hba_rst_done),            // input
         .irq                     (irq)                      // output reg 
     );
 
@@ -1087,7 +1094,7 @@ wire [9:0] xmit_dbg_01;
     );
 
 // Datascope code
-`define DATASCOPE_V2
+//`define DATASCOPE_V2
 // Datascope interface (write to memory that can be software-read)
 `ifdef USE_DATASCOPE
 
@@ -1171,13 +1178,13 @@ debug_dma_h2d
     };
 
 */
-`endif // DATASCOPE_V2
-
-`ifdef DATASCOPE_V1
+//`endif // DATASCOPE_V2
+`else
+//`ifdef DATASCOPE_V1
     localparam DATASCOPE_CFIS_START=0;
     localparam DATASCOPE_INCOMING_POST=32;
     
-    reg    [ADDRESS_BITS-1:0] datascope_waddr_r;
+    reg    [ADDRESS_BITS-1:0] datascope_waddr_r=0;
     reg                 [1:0] datascope_run;
     
     reg                       datascope_link_run;
@@ -1192,8 +1199,25 @@ debug_dma_h2d
     reg                 [2:0] datascope_incoming_run;
     reg                 [7:0] datascope_incoming_cntr;
     reg                       datascope_receive_fis;
-    
+    reg                 [9:0] datascope_last_jump_addr=0;
+    reg                 [1:0] datascope_new_jump = 0;
+    reg                [15:0] datascope_jump_cntr = 0;
+     
+//last_jump_addr[9:0]    
     always @(posedge mclk) begin
+        if (mrst)  datascope_new_jump[0] <=  0;
+        else       datascope_new_jump[0] <=   datascope_last_jump_addr != last_jump_addr;
+        
+        if (mrst)  datascope_new_jump[1] <=  0;
+        else       datascope_new_jump[1] <=  datascope_new_jump[0];
+        
+        if (mrst)               datascope_last_jump_addr <=  0;
+        if (datascope_new_jump) datascope_last_jump_addr <= last_jump_addr;
+        
+        if (datascope_we) datascope_jump_cntr <= datascope_jump_cntr+1;
+        
+        
+    
         if      (mrst)                                                           datascope_receive_fis <= 0;
         else if (datascope_incoming_start)                                       datascope_receive_fis <= 1;
         else if (frcv_get_dsfis ||
@@ -1224,15 +1248,21 @@ debug_dma_h2d
     end    
     
     assign datascope_clk = mclk;
-    assign datascope_waddr = datascope_waddr_r;
+//    assign datascope_waddr = datascope_waddr_r;
+    assign datascope_waddr = last_jump_addr;
 
 
-//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done || d2h_ready || xmit_ok || xmit_err;
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done|| xmit_ok || xmit_err; ///   || d2h_ready ;
 //    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || d2h_ready || datascope_link_run;
-    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || datascope_incoming_run[0] || datascope_link_run;
+///    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || datascope_incoming_run[0] || datascope_link_run;
 //    
-    
+
+     assign datascope_we = &datascope_new_jump;
+//     assign datascope_di = {14'h3fff,fsnd_pCmdToIssue,  xfer_cntr_zero, datascope_jump_cntr};
+     assign datascope_di = {2'h3, fsnd_pCmdToIssue,  xfer_cntr_zero, 2'b0, last_jump_addr[9:0],datascope_jump_cntr};  
+       
 //    assign datascope_di = d2h_ready? {d2h_type,
+/*
     assign datascope_di = datascope_incoming_run[0]? {d2h_type,
                                       debug_in_link[26], // state idle
                                       debug_in_link[4:0], // encoded state (1 cycle later)
@@ -1259,6 +1289,8 @@ debug_dma_h2d
                                                                                                        debug_in_link[24], // fsnd_dx_err[1], //fsnd_dx_err[2:0],
                                                                                                        debug_in_link[23],
                                                                                                        datascope_id[2:0], {12-ADDRESS_BITS{1'b0}}, datascope_waddr_r});
+*/
+
 /*
 assign debug_out[ 4: 0]  =            debug_states_encoded;
 assign debug_out[7: 5] =  {
@@ -1340,8 +1372,10 @@ assign debug_out[7: 5] =  {
         
         datascope_run[1] <= datascope_run[0];
         
-        if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START;
-        else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
+///     if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START;
+///        if    (mrst) datascope_waddr_r <= DATASCOPE_CFIS_START;
+///     else
+        if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
         
         
         if      (mrst)           datascope_id <= 0;

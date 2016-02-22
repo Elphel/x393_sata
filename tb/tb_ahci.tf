@@ -416,7 +416,7 @@ top dut(
 
 assign device_rst = dut.axi_rst;
 sata_device dev(
-    .rst      (device_rst),
+    .rst      (1'b1), // FOREVER device_rst),
     .RXN      (txn),
     .RXP      (txp),
     .TXN      (rxn),
@@ -1284,7 +1284,11 @@ initial begin //Host
     maxigp1_print        ('h1014,"DATASCOPE 5"); // 
     maxigp1_print        ('h1018,"DATASCOPE 6"); // 
     maxigp1_print        ('h101c,"DATASCOPE 7"); // 
-    
+// Reset HBA
+    maxigp1_writep       (GHC__GHC__HR__ADDR << 2, 1); // Reset HBA
+    #12000; 
+    @(posedge CLK);     
+    maxigp1_print        (GHC__GHC__HR__ADDR << 2,"GHC__GHC__HR__ADDR after pause");
 /*
 // Reset port
     maxigp1_print        ('h3ff << 2,"DEBUG_REGISTER");
@@ -1394,7 +1398,7 @@ end
 
   initial begin
 //       #30000;
-     #70000;
+     #100000;
 //     #29630;
 //     #30000;
 //     #250000;
