@@ -172,6 +172,7 @@ module  ahci_top#(
     input              serr_DI,   // RWC: PHY Internal Error
                                   // sirq_PRC,
                                   // sirq_IF || // sirq_INF  
+    input              serr_EE,   // RWC: Internal error (such as elastic buffer overflow or primitive mis-alignment)
     input              serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
     input              serr_EC,   // RWC: Persistent Communication or Data Integrity Error
     input              serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
@@ -476,10 +477,16 @@ module  ahci_top#(
     wire                          pxci0;             // pxCI current value
     wire                          hba_rst_done;      // HBA reset done - clear GHC.HR (and some other regs)
     
+    wire                          comreset_send0; // just disabling it
+    
+    
     wire                    [9:0] last_jump_addr;
     wire                   [31:0] debug_dma;
     wire                   [31:0] debug_dma1;
     wire                   [31:0] debug_dma_h2d;
+    
+    assign comreset_send = comreset_send0 && 0;
+    
     // Async FF
     always @ (posedge mrst or posedge mclk) begin
         if (mrst) en_port <= 0;
@@ -518,7 +525,7 @@ module  ahci_top#(
 
         .phy_ready                (phy_ready),         // input
         .syncesc_send             (syncesc_send),      // output
-        .comreset_send            (comreset_send),     // output
+        .comreset_send            (comreset_send0),     // output
         .syncesc_send_done        (syncesc_send_done), // input
         .cominit_got              (cominit_got),       // input
         .set_offline              (set_offline),       // output
@@ -834,6 +841,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .serr_DB                 (serr_DB),                 // input
         .serr_DW                 (serr_DW),                 // input
         .serr_DI                 (serr_DI),                 // input
+        .serr_EE                 (serr_EE),                 // input
         .serr_EP                 (serr_EP),                 // input
         .serr_EC                 (serr_EC),                 // input
         .serr_ET                 (serr_ET),                 // input

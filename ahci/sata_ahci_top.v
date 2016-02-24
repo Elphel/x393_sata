@@ -222,7 +222,7 @@
     wire               serr_DW;   // RWC: COMMWAKE signal was detected
     wire               serr_DI;   // RWC: PHY Internal Error
                                   // sirq_PRC,
-                                  // sirq_IF || // sirq_INF  
+    wire               serr_EE;   // RWC: Internal error (such as elastic buffer overflow or primitive mis-alignment)
     wire               serr_EP;   // RWC: Protocol Error - a violation of SATA protocol detected
     wire               serr_EC;   // RWC: Persistent Communication or Data Integrity Error
     wire               serr_ET;   // RWC: Transient Data Integrity Error (error not recovered by the interface)
@@ -389,6 +389,7 @@
         .serr_DB           (serr_DB),           // input
         .serr_DW           (serr_DW),           // input
         .serr_DI           (serr_DI),           // input
+        .serr_EE           (serr_EE),           // input
         .serr_EP           (serr_EP),           // input
         .serr_EC           (serr_EC),           // input
         .serr_ET           (serr_ET),           // input
@@ -469,6 +470,7 @@
         .serr_DB           (serr_DB),           // output
         .serr_DW           (serr_DW),           // output
         .serr_DI           (serr_DI),           // output
+        .serr_EE           (serr_EE),           // output
         .serr_EP           (serr_EP),           // output
         .serr_EC           (serr_EC),           // output
         .serr_ET           (serr_ET),           // output

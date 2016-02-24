@@ -81,7 +81,7 @@ module  ahci_sata_layers #(
     output             serr_DW,   // RWC: COMMWAKE signal was detected
     output             serr_DI,   // RWC: PHY Internal Error
                                   // sirq_PRC,
-                                  // sirq_IF || // sirq_INF  
+    output             serr_EE,   // RWC: Internal error (such as elastic buffer overflow or primitive mis-alignment)
     output             serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
     output             serr_EC,   // RWC: Persistent Communication or Data Integrity Error
     output             serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
@@ -246,8 +246,9 @@ module  ahci_sata_layers #(
 //    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
 //    assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
-    assign serr_DI = phy_ready && (rxelsfull);   // RWC: PHY Internal Error // just debugging
-    assign serr_EP = phy_ready && (rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
+    assign serr_EE = phy_ready && (rxelsfull || rxelsempty);
+    assign serr_DI = phy_ready && (0);   // rxelsfull);   // RWC: PHY Internal Error // just debugging
+    assign serr_EP = phy_ready && (0);   // rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
     assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
     assign serr_ET = phy_ready && (0);   // RWC: Transient Data Integrity Error (error not recovered by the interface)
     assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established

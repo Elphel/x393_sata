@@ -56,7 +56,10 @@ actions = ['NOP',
     # DMA
     'DMA_ABORT*', 'DMA_PRD_IRQ_CLEAR',
     # SATA TRANSPORT/LINK/PHY
-    'XMIT_COMRESET', 'SEND_SYNC_ESC*', 'SET_OFFLINE', 'R_OK', 'R_ERR',
+    'XMIT_COMRESET', # temporary - just disables unsolicited COMINIT
+    'SEND_SYNC_ESC*', 'SET_OFFLINE', 'R_OK', 'R_ERR',
+    'EN_COMINIT',
+
     # FIS TRANSMIT/WAIT DONE
     'FETCH_CMD*', 'ATAPI_XMIT*', 'CFIS_XMIT*', 'DX_XMIT*',
     #FIS RECEIVE/WAIT DONE
@@ -119,7 +122,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             #TODO - add to some error? Now silently skips
             {                           GOTO:'P:NotRunning'},
 
-            {LBL:'P:NotRunning',        ACT: 'NOP'},                 # 'PXCI0_CLEAR'},    # pxci0_clear, - should not be here as it updates soft registers?
+            {LBL:'P:NotRunning',        ACT: 'EN_COMINIT'},          #  Enable unsolicited cominit 'PXCI0_CLEAR'},    # pxci0_clear, - should not be here as it updates soft registers?
             {IF: 'FIS_FIRST_INVALID',   GOTO:'P:NotRunningGarbage'}, 
             {IF:'SCTL_DET_CHANGED_TO_4',GOTO:'P:Offline'},           #4
             {IF:'SCTL_DET_CHANGED_TO_1',GOTO:'P:StartComm'},         #5

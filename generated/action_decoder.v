@@ -1,6 +1,6 @@
 /*******************************************************************************
  * Module: action_decoder
- * Date:2016-02-20  
+ * Date:2016-02-22  
  * Author: auto-generated file, see ahci_fsm_sequence.py
  * Description: Decode sequencer code to 1-hot actions
  *******************************************************************************/
@@ -51,6 +51,7 @@ module action_decoder (
     output reg   SET_OFFLINE,
     output reg   R_OK,
     output reg   R_ERR,
+    output reg   EN_COMINIT,
     output reg   FETCH_CMD,
     output reg   ATAPI_XMIT,
     output reg   CFIS_XMIT,
@@ -104,16 +105,17 @@ module action_decoder (
         SET_OFFLINE <=        enable && data[ 8] && data[ 4];
         R_OK <=               enable && data[ 9] && data[ 4];
         R_ERR <=              enable && data[10] && data[ 4];
-        FETCH_CMD <=          enable && data[ 6] && data[ 5];
-        ATAPI_XMIT <=         enable && data[ 7] && data[ 5];
-        CFIS_XMIT <=          enable && data[ 8] && data[ 5];
-        DX_XMIT <=            enable && data[ 9] && data[ 5];
-        GET_DATA_FIS <=       enable && data[10] && data[ 5];
-        GET_DSFIS <=          enable && data[ 7] && data[ 6];
-        GET_IGNORE <=         enable && data[ 8] && data[ 6];
-        GET_PSFIS <=          enable && data[ 9] && data[ 6];
-        GET_RFIS <=           enable && data[10] && data[ 6];
-        GET_SDBFIS <=         enable && data[ 8] && data[ 7];
-        GET_UFIS <=           enable && data[ 9] && data[ 7];
+        EN_COMINIT <=         enable && data[ 6] && data[ 5];
+        FETCH_CMD <=          enable && data[ 7] && data[ 5];
+        ATAPI_XMIT <=         enable && data[ 8] && data[ 5];
+        CFIS_XMIT <=          enable && data[ 9] && data[ 5];
+        DX_XMIT <=            enable && data[10] && data[ 5];
+        GET_DATA_FIS <=       enable && data[ 7] && data[ 6];
+        GET_DSFIS <=          enable && data[ 8] && data[ 6];
+        GET_IGNORE <=         enable && data[ 9] && data[ 6];
+        GET_PSFIS <=          enable && data[10] && data[ 6];
+        GET_RFIS <=           enable && data[ 8] && data[ 7];
+        GET_SDBFIS <=         enable && data[ 9] && data[ 7];
+        GET_UFIS <=           enable && data[10] && data[ 7];
     end
 endmodule

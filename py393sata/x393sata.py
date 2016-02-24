@@ -1083,6 +1083,10 @@ sata.reg_status(),sata.reset_ie(),sata.err_count()
 _=mem.mem_dump (0x80000ff0, 4,4)                  
 _=mem.mem_dump (0x80001000, 0x120,4)              
 
+hex(sata.get_reg_address('HBA_PORT__PxSCTL'))
+mem.write_mem(0x8000012c,1)
+mem.write_mem(0x8000012c,0)
+hex(mem.read_mem(0x8000012c))
 
 
 

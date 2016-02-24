@@ -101,6 +101,7 @@ module  ahci_ctrl_stat #(
     input                         serr_DI,   // RWC: PHY Internal Error
                                   // sirq_PRC,
                                   // sirq_IF || // sirq_INF  
+    input                         serr_EE,   // RWC: Internal error (such as elastic buffer overflow or primitive mis-alignment)
     input                         serr_EP,   // RWC: Protocol Error - a violation of SATA protocol detected
     input                         serr_EC,   // RWC: Persistent Communication or Data Integrity Error
     input                         serr_ET,   // RWC: Transient Data Integrity Error (error not recovered by the interface)
@@ -204,7 +205,8 @@ module  ahci_ctrl_stat #(
                                          {32{serr_DW }} & HBA_PORT__PxSERR__DIAG__W__MASK | // 'h40000;
                                          {32{serr_DI }} & HBA_PORT__PxSERR__DIAG__I__MASK | // 'h20000;
                                          {32{sirq_PRC}} & HBA_PORT__PxSERR__DIAG__N__MASK | // 'h10000;
-                                         {32{sirq_IF | sirq_INF }} & HBA_PORT__PxSERR__ERR__E__MASK | // 'h800;
+//                                         {32{sirq_IF | sirq_INF }} & HBA_PORT__PxSERR__ERR__E__MASK | // 'h800;
+                                         {32{serr_EE}}  & HBA_PORT__PxSERR__ERR__E__MASK | // 'h800;
                                          {32{serr_EP }} & HBA_PORT__PxSERR__ERR__P__MASK |  // 'h400;
 
                                          {32{serr_EC }} & HBA_PORT__PxSERR__ERR__C__MASK |  // 'h200;

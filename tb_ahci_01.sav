@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Mon Feb 22 22:05:23 2016
+[*] Tue Feb 23 00:04:34 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160222132932478.fst"
-[dumpfile_mtime] "Mon Feb 22 20:31:27 2016"
-[dumpfile_size] 14406416
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160222150448690.fst"
+[dumpfile_mtime] "Mon Feb 22 22:05:55 2016"
+[dumpfile_size] 7768068
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 48630000
-[size] 1823 1180
+[timestart] 35797800
+[size] 1823 1173
 [pos] 2026 0
-*-23.135801 73732102 62346574 72998842 74025406 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-15.135801 35895886 62346574 72998842 74025406 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.linkMonitorFIS.
@@ -28,6 +28,7 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.crc.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.link.scrambler.
+[treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.genblk1.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.
@@ -1586,7 +1587,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_g
 -drp
 @1401200
 -axi_ahci_regs
-@c00200
+@800200
 -ahci_fsm
 @28
 tb_ahci.dut.sata_top.ahci_top_i.hba_arst
@@ -1609,7 +1610,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
 @1401200
 -group_end
-@c00022
+@c00023
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
@@ -1622,7 +1623,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
 (7)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
 (8)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
 (9)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_addr[9:0]
-@1401200
+@1401201
 -group_end
 @c00022
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.pgm_data[17:0]
@@ -1860,7 +1861,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
-@1401200
+@1000200
 -ahci_fsm
 @c00200
 -ahci_fis_receive
@@ -4141,7 +4142,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_ack
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.frame_busy
 @1401200
 -link
-@c00201
+@c00200
 -phy
 @800200
 -gtx_8x10enc
@@ -4309,7 +4310,6 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_g
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.channel.rx.dataiface.wordcounter[31:0]
 @1401200
 -GTXE2_GPL
-@1401201
 -phy
 @c00200
 -comma
@@ -4521,6 +4521,10 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.window[38:0
 -comma_align
 @800200
 -debug_cominit
+@28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.TXCOMINIT
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.TXCOMFINISH
+tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.txcominit
 @200
 -
 @22

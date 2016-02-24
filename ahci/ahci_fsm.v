@@ -56,7 +56,7 @@ module  ahci_fsm
     
     // Communication with ahci_ctrl_stat (some are not needed)
     // update register inputs (will write to register memory current value of the corresponding register)
-    output                        pfsm_started, // H: FSM doene, P: FSM started (enable sensing pcmd_st_cleared)
+    output                        pfsm_started, // H: FSM done, P: FSM started (enable sensing pcmd_st_cleared)
     // update register inputs (will write to register memory current value of the corresponding register)
     // Removing - such updates are always done when startimng new state
 ///    input                         update_pending,
@@ -281,7 +281,7 @@ module  ahci_fsm
     
     reg                      [1:0] async_pend_r; // waiting to process cominit_got
     reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
-    wire                           asynq_rq = cominit_got || pcmd_st_cleared;
+    wire                           asynq_rq = (cominit_got && unsolicited_cominit_en) || pcmd_st_cleared;
                                    // OK to wait for some time fsm_act_busy is supposed to never hang up
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
 //    reg                            x_rdy_collision_pend;
@@ -297,7 +297,8 @@ module  ahci_fsm
     
     wire                           conditions_ce =  // copy all conditions to the register so they will not change while iterating through them
                                        !fsm_transitions_w && !fsm_transitions[0];
-    
+    reg                            unsolicited_cominit_en; // allow unsolicited COMINITs
+    wire                           en_cominit; // en_cominit
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
     assign update_all = fsm_jump[0];
@@ -336,6 +337,10 @@ module  ahci_fsm
     localparam LABEL_ST_CLEARED = 11'h008;
 
     always @ (posedge mclk) begin
+        if      (hba_rst)                     unsolicited_cominit_en <= !was_port_rst;
+//      else if (en_cominit || comreset_send) unsolicited_cominit_en <= en_cominit;
+    
+    
         if      (hba_rst)                                                    pgm_jump_addr <= (was_hba_rst || was_port_rst) ? (was_hba_rst? LABEL_HBA_RST:LABEL_PORT_RST) : LABEL_POR;
 //        else if (async_pend_r[1])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
         else if (async_pend_r[0])                                            pgm_jump_addr <= async_from_st? LABEL_ST_CLEARED : LABEL_COMINIT;
@@ -462,6 +467,7 @@ module  ahci_fsm
         .SET_OFFLINE        (set_offline),       // output reg 
         .R_OK               (send_R_OK),         // output reg 
         .R_ERR              (send_R_ERR),        // output reg
+        .EN_COMINIT         (en_cominit),        // output reg
     // FIS TRANSMIT/WAIT DONE
         .FETCH_CMD          (fetch_cmd),         // output reg 
         .ATAPI_XMIT         (atapi_xmit),        // output reg 
