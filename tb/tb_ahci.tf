@@ -1179,6 +1179,13 @@ initial begin //Host
     maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32");
     maxigp1_print        (PXTFD_OFFS32 << 2,"PXTFD_OFFS32");
     maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR,"HBA_PORT__PxSERR__DIAG__X__ADDR");
+    
+// Request ACTIVE, see it will be cleared
+    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, 32'h10000000); //
+    repeat (3) begin  
+        maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__ after ACTIVE request");
+    end
+    
     maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");
     maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, some RO bits already set 
     maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");

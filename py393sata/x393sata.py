@@ -45,7 +45,7 @@ SI5338_PATH_OLD =   '/sys/devices/amba.0/e0004000.ps7-i2c/i2c-0/0-0070'
 MEM_PATH_OLD =      '/sys/devices/elphel393-mem.2/'
 #new System
 SI5338_PATH_NEW =   '/sys/devices/soc0/amba@0/e0004000.ps7-i2c/i2c-0/0-0070'
-MEM_PATH_NEW =      '/sys/devices/soc0/elphel393-mem@0/'
+MEM_PATH_NEW =      ''
 
 DEFAULT_BITFILE="/usr/local/verilog/x393_sata.bit"
 BUFFER_ADDRESS_NAME = 'buffer_address'

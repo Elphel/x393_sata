@@ -60,7 +60,7 @@ module  ahci_ctrl_stat #(
 ///    input                         st_pending_reset,// reset both st01_pending and st10_pending
 
 // PxCMD
-    input                         pcmd_clear_icc, // clear PxCMD.ICC field
+//    input                         pcmd_clear_icc, // clear PxCMD.ICC field (generated here)
     input                         pcmd_esp,       // external SATA port (just forward value)
     output                        pcmd_cr,        // command list run - current
     input                         pcmd_cr_set,    // command list run set
@@ -225,7 +225,12 @@ module  ahci_ctrl_stat #(
     wire                   [ 3:0] sssts_det = ({4{ssts_det_dnp}} &      4'h1) |
                                               ({4{ssts_det_dp}} &       4'h3) |
                                               ({4{ssts_det_offline}} &  4'h4);
-                                              
+
+    reg                   pcmd_clear_icc_r; 
+    wire                  pcmd_clear_icc = !pcmd_clear_icc_r &&
+                                           ((PxCMD_r & HBA_PORT__PxCMD__ICC__MASK) == 32'h10000000) &&
+                                           ((PxSSTS_r & HBA_PORT__PxSSTS__IPM__MASK) == 12'h100) ;
+   // PxSSTS_r[11:8]     HBA_PORT__PxSSTS__IPM__MASK                                   ;
     // to update only HBA/async changed bits (not by the software)
 
     wire  set_ssts_ipm = ssts_ipm_dnp || ssts_ipm_active || ssts_ipm_part || ssts_ipm_slumb || ssts_ipm_devsleep;
@@ -377,6 +382,10 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
     assign pcmd_cr =  PxCMD_r[15];  // command list run - current
     assign pcmd_clo = PxCMD_r[3];   // causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     assign pcmd_st =  PxCMD_r[0];   // current value
+    
+    always @(posedge mclk) begin 
+        pcmd_clear_icc_r <=pcmd_clear_icc;
+    end
                        
     always @(posedge mclk) begin // Here we do not have data written by soft, only the result (cleared). If bit is 0, it is
                                  // either cleared, or was 0. If it was 0, then IS bit was also 0, so clearing will not hurt.

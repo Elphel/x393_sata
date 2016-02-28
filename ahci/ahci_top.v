@@ -809,7 +809,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .update_pci              (1'b0), // update_HBA_PORT__PxCI),   // input
         .update_ghc              (1'b0), // update _GHC_GHC,          // input
         
-        .pcmd_clear_icc          (1'b0), // pcmd_clear_icc),          // input
+//        .pcmd_clear_icc          (1'b0), // pcmd_clear_icc),          // input
         .pcmd_esp                (pcmd_esp),                // input
         .pcmd_cr                 (), //pcmd_cr),                 // output
         .pcmd_cr_set             (pcmd_cr_set),             // input
