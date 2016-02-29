@@ -484,6 +484,10 @@ module  ahci_top#(
     wire                   [31:0] debug_dma;
     wire                   [31:0] debug_dma1;
     wire                   [31:0] debug_dma_h2d;
+
+    wire                          unsolicited_en;    // enable processing of cominit_got and PxERR.DIAG.W interrupts from
+                                                     // this bit is reset at reset, set when PxSSTS.DET==3 or PxSCTL.DET==4
+
     
     assign comreset_send = comreset_send0 && 0;
     
@@ -673,6 +677,7 @@ module  ahci_top#(
         .ch_a                     (fsnd_ch_a),          // input
 ///        .ch_cfl          (fsnd_ch_cfl),        // input[4:0] 
 ///        .dwords_sent     (data_out_dwords)     // input[11:0] ????
+        .unsolicited_en           (unsolicited_en),     // input
         .last_jump_addr           (last_jump_addr)
     );
 
@@ -870,6 +875,7 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .pxci0_clear             (pxci0_clear),             // input
         .pxci0                   (pxci0),                   // output
         .hba_reset_done          (hba_rst_done),            // input
+        .unsolicited_en          (unsolicited_en),          // output
         .irq                     (irq)                      // output reg 
     );
 
@@ -1104,6 +1110,8 @@ wire [9:0] xmit_dbg_01;
 // Datascope code
 //`define DATASCOPE_V2
 // Datascope interface (write to memory that can be software-read)
+`define DATASCOPE_FIS_DATA 1
+
 `ifdef USE_DATASCOPE
 
 `ifdef DATASCOPE_V2
@@ -1256,21 +1264,9 @@ debug_dma_h2d
     end    
     
     assign datascope_clk = mclk;
-//    assign datascope_waddr = datascope_waddr_r;
-    assign datascope_waddr = last_jump_addr;
-
-
-//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done|| xmit_ok || xmit_err; ///   || d2h_ready ;
-//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || d2h_ready || datascope_link_run;
-///    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || datascope_incoming_run[0] || datascope_link_run;
-//    
-
-     assign datascope_we = &datascope_new_jump;
-//     assign datascope_di = {14'h3fff,fsnd_pCmdToIssue,  xfer_cntr_zero, datascope_jump_cntr};
-     assign datascope_di = {2'h3, fsnd_pCmdToIssue,  xfer_cntr_zero, 2'b0, last_jump_addr[9:0],datascope_jump_cntr};  
-       
-//    assign datascope_di = d2h_ready? {d2h_type,
-/*
+`ifdef DATASCOPE_FIS_DATA    
+    assign datascope_waddr = datascope_waddr_r;
+    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || datascope_incoming_run[0] || datascope_link_run;
     assign datascope_di = datascope_incoming_run[0]? {d2h_type,
                                       debug_in_link[26], // state idle
                                       debug_in_link[4:0], // encoded state (1 cycle later)
@@ -1297,6 +1293,26 @@ debug_dma_h2d
                                                                                                        debug_in_link[24], // fsnd_dx_err[1], //fsnd_dx_err[2:0],
                                                                                                        debug_in_link[23],
                                                                                                        datascope_id[2:0], {12-ADDRESS_BITS{1'b0}}, datascope_waddr_r});
+    always @(posedge mclk) begin
+        if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START; // start from command FIS
+///        if    (mrst) datascope_waddr_r <= DATASCOPE_CFIS_START;
+        else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
+    end
+
+`else    
+    assign datascope_waddr = last_jump_addr;
+    assign datascope_we = &datascope_new_jump;
+    assign datascope_di = {2'h3, fsnd_pCmdToIssue,  xfer_cntr_zero, 2'b0, last_jump_addr[9:0],datascope_jump_cntr};  
+`endif
+
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || fsnd_done|| xmit_ok || xmit_err; ///   || d2h_ready ;
+//    assign datascope_we = (datascope_run[0] && h2d_valid && h2d_ready) || d2h_ready || datascope_link_run;
+//    
+
+//     assign datascope_di = {14'h3fff,fsnd_pCmdToIssue,  xfer_cntr_zero, datascope_jump_cntr};
+       
+//    assign datascope_di = d2h_ready? {d2h_type,
+/*
 */
 
 /*
@@ -1366,7 +1382,8 @@ assign debug_out[7: 5] =  {
                                              h2d_data[11:0]} :    // 12 bits
                                              {{32-ADDRESS_BITS{1'b0}},datascope_waddr_r};
 
-*/  always @(posedge mclk) begin
+*/
+  always @(posedge mclk) begin
         if      (mrst)                                      datascope_run[0] <= 0;
         else if (fsnd_cfis_xmit)                            datascope_run[0] <= 1;
         else if (h2d_valid && h2d_ready && (h2d_type == 2)) datascope_run[0] <= 0;
@@ -1380,10 +1397,6 @@ assign debug_out[7: 5] =  {
         
         datascope_run[1] <= datascope_run[0];
         
-///     if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START;
-///        if    (mrst) datascope_waddr_r <= DATASCOPE_CFIS_START;
-///     else
-        if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
         
         
         if      (mrst)           datascope_id <= 0;

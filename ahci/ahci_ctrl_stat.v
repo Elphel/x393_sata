@@ -139,6 +139,8 @@ module  ahci_ctrl_stat #(
     output                        pxci0,             // pxCI current value
     
     input                         hba_reset_done,    // at the end of the HBA reset, clear GHC.HR, GHC.IE
+    output                        unsolicited_en,    // enable processing of cominit_got and PxERR.DIAG.W interrupts from
+                                                     // this bit is reset at reset, set when PxSSTS.DET==3 or PxSCTL.DET==4
     
 /*
 */    
@@ -187,22 +189,22 @@ module  ahci_ctrl_stat #(
                                          {32{sirq_INF}} & HBA_PORT__PxIS__INFS__MASK | // 'h4000000;
                                          {32{sirq_OF }} & HBA_PORT__PxIS__OFS__MASK |  // 'h1000000;
                                          {32{sirq_PRC}} & HBA_PORT__PxIS__PRCS__MASK | // 'h400000;
-                                         {32{sirq_PC}} &  HBA_PORT__PxIS__PCS__MASK |  // 'h40;
+                                         {32{sirq_PC & unsolicited_en}} &  HBA_PORT__PxIS__PCS__MASK |  // 'h40;
                                          {32{sirq_DP}} &  HBA_PORT__PxIS__DPS__MASK |  // 'h20;
                                          {32{sirq_UF }} & HBA_PORT__PxIS__UFS__MASK |  // 'h10;
                                          {32{sirq_SDB}} & HBA_PORT__PxIS__SDBS__MASK | // 'h8;
                                          {32{sirq_DS }} & HBA_PORT__PxIS__DSS__MASK |  // 'h4;
                                          {32{sirq_PS }} & HBA_PORT__PxIS__PSS__MASK |  // 'h2;
                                          {32{sirq_DHR}} & HBA_PORT__PxIS__DHRS__MASK;  // 'h1;
-
-    wire                   [31:0] serr = {32{sirq_PC}} &  HBA_PORT__PxSERR__DIAG__X__MASK | // 'h4000000;
+// See if sirq_PC should also be enabled by unsolicited_en. Or not?
+    wire                   [31:0] serr = {32{sirq_PC & unsolicited_en}} &  HBA_PORT__PxSERR__DIAG__X__MASK | // 'h4000000;
                                          {32{sirq_UF }} & HBA_PORT__PxSERR__DIAG__F__MASK | // 'h2000000;
                                          {32{serr_DT }} & HBA_PORT__PxSERR__DIAG__T__MASK | // 'h1000000;
                                          {32{serr_DS }} & HBA_PORT__PxSERR__DIAG__S__MASK | // 'h800000;
                                          {32{serr_DH }} & HBA_PORT__PxSERR__DIAG__H__MASK | // 'h400000;
                                          {32{serr_DC }} & HBA_PORT__PxSERR__DIAG__C__MASK | // 'h200000;
                                          {32{serr_DB }} & HBA_PORT__PxSERR__DIAG__B__MASK | // 'h80000;
-                                         {32{serr_DW }} & HBA_PORT__PxSERR__DIAG__W__MASK | // 'h40000;
+                                         {32{serr_DW & unsolicited_en}} & HBA_PORT__PxSERR__DIAG__W__MASK | // 'h40000;
                                          {32{serr_DI }} & HBA_PORT__PxSERR__DIAG__I__MASK | // 'h20000;
                                          {32{sirq_PRC}} & HBA_PORT__PxSERR__DIAG__N__MASK | // 'h10000;
 //                                         {32{sirq_IF | sirq_INF }} & HBA_PORT__PxSERR__ERR__E__MASK | // 'h800;
@@ -276,13 +278,14 @@ module  ahci_ctrl_stat #(
     wire                          update_GHC_GHC =          update_ghc  || update_first[6] || update_next[6];
     
     reg                           pfsm_started_r;    
+    reg                           unsolicited_en_r;
     
     assign update_busy = (update_all && (|regs_changed)) || (|updating[6:1]);
     assign update_pending =  | regs_changed;
     assign pcmd_fre = |(HBA_PORT__PxCMD__FRE__MASK & PxCMD_r); 
     assign serr_diag_X = |(HBA_PORT__PxSERR__DIAG__X__MASK & PxSERR_r);
     assign ssts_det = PxSSTS_r[3:0];
-    
+    assign unsolicited_en = unsolicited_en_r;
 //    assign cirq_PRC = swr_HBA_PORT__PxSERR && |(soft_write_data & HBA_PORT__PxSERR__DIAG__N__MASK);
 //    assign cirq_PC =  swr_HBA_PORT__PxSERR && |(soft_write_data & HBA_PORT__PxSERR__DIAG__X__MASK);
        
@@ -383,8 +386,15 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
     assign pcmd_clo = PxCMD_r[3];   // causes ahci_fis_receive:clear_bsy_drq, that in turn resets this bit
     assign pcmd_st =  PxCMD_r[0];   // current value
     
+    always @(posedge mclk) begin
+       if (mrst)                                                   unsolicited_en_r <= 0;
+       else if (((PxSSTS_r & HBA_PORT__PxSSTS__DET__MASK) == 3) ||
+                 (sctl_det == 4))                                  unsolicited_en_r <= 1;
+    end
+
+
     always @(posedge mclk) begin 
-        pcmd_clear_icc_r <=pcmd_clear_icc;
+        pcmd_clear_icc_r <= pcmd_clear_icc;
     end
                        
     always @(posedge mclk) begin // Here we do not have data written by soft, only the result (cleared). If bit is 0, it is

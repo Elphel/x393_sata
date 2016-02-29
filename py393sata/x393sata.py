@@ -45,12 +45,33 @@ SI5338_PATH_OLD =   '/sys/devices/amba.0/e0004000.ps7-i2c/i2c-0/0-0070'
 MEM_PATH_OLD =      '/sys/devices/elphel393-mem.2/'
 #new System
 SI5338_PATH_NEW =   '/sys/devices/soc0/amba@0/e0004000.ps7-i2c/i2c-0/0-0070'
-MEM_PATH_NEW =      ''
+MEM_PATH_NEW =      '/sys/devices/soc0/elphel393-mem@0/'
 
 DEFAULT_BITFILE="/usr/local/verilog/x393_sata.bit"
-BUFFER_ADDRESS_NAME = 'buffer_address'
-BUFFER_PAGES_NAME =   'buffer_pages'
-BUFFER_FLUSH_NAME =   'buffer_flush'
+BUFFER_ADDRESS_NAME =       'buffer_address'
+BUFFER_PAGES_NAME =         'buffer_pages'
+BUFFER_H2D_ADDRESS_NAME =   'buffer_address_h2d'
+BUFFER_H2D_PAGES_NAME =     'buffer_pages_h2d'
+BUFFER_D2H_ADDRESS_NAME =   'buffer_address_d2h'
+BUFFER_D2H_PAGES_NAME =     'buffer_pages_d2h'
+BUFFER_BIDIR_ADDRESS_NAME = 'buffer_address_bidir'
+BUFFER_BIDIR_PAGES_NAME =   'buffer_pages_bidir'
+
+#BUFFER_FLUSH_NAME =   'buffer_flush'
+
+BUFFER_FOR_CPU =             'sync_for_cpu' # add suffix
+BUFFER_FOR_DEVICE =          'sync_for_device' # add suffix
+
+BUFFER_FOR_CPU_H2D =         'sync_for_cpu_h2d'
+BUFFER_FOR_DEVICE_H2D =      'sync_for_device_h2d'
+
+BUFFER_FOR_CPU_D2H =         'sync_for_cpu_d2h'
+BUFFER_FOR_DEVICE_D2H =      'sync_for_device_d2h'
+
+BUFFER_FOR_CPU_BIDIR =       'sync_for_cpu_bidir'
+BUFFER_FOR_DEVICE_BIDIR =    'sync_for_device_bidir'
+
+
 FPGA_RST_CTRL= 0xf8000240
 FPGA0_THR_CTRL=0xf8000178
 FPGA_LOAD_BITSTREAM="/dev/xdevcfg"
@@ -71,14 +92,24 @@ IDENTIFY_BUF =                0 # Identify receive buffer offset in  DATAIN_BUFF
 
 DATAOUT_BUFFER_OFFSET = 0x20000
 DATAOUT_BUFFER_SIZE =   0x10000
-SI5338_PATH = None
-MEM_PATH = None
+SI5338_PATH =             None
+MEM_PATH =                None
 
-BUFFER_ADDRESS =      None # in bytes
-BUFFER_LEN =          None # in bytes
-COMMAND_ADDRESS =     None # start of the command buffer (to be sent to device)
-DATAIN_ADDRESS  =     None # start of the the 
-DATAOUT_ADDRESS  =    None # start of the the 
+BUFFER_ADDRESS =          None # in bytes
+BUFFER_LEN =              None # in bytes
+
+BUFFER_ADDRESS_H2D =      None # in bytes
+BUFFER_LEN_H2D =          None # in bytes
+
+BUFFER_ADDRESS_D2H =      None # in bytes
+BUFFER_LEN_D2H =          None # in bytes
+
+BUFFER_ADDRESS_BIDIR =    None # in bytes
+BUFFER_LEN_BIDIR =        None # in bytes
+
+COMMAND_ADDRESS =         None # start of the command buffer (to be sent to device)
+DATAIN_ADDRESS  =         None # start of the the 
+DATAOUT_ADDRESS  =        None # start of the the 
 
 #DRP addresses (non-GTX)
 DRP_MASK_ADDR =      0x200 # ..0x207
@@ -121,6 +152,7 @@ class x393sata(object):
     register_defines=None
     def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
         global BUFFER_ADDRESS, BUFFER_LEN, COMMAND_ADDRESS, DATAIN_ADDRESS, DATAOUT_ADDRESS, SI5338_PATH, MEM_PATH
+        global BUFFER_ADDRESS_H2D, BUFFER_LEN_H2D, BUFFER_ADDRESS_D2H, BUFFER_LEN_D2H, BUFFER_ADDRESS_BIDIR, BUFFER_LEN_BIDIR 
         
         self.DEBUG_MODE=debug_mode
         if not dry_mode:
@@ -132,8 +164,14 @@ class x393sata(object):
         self.vsc3304= x393_vsc3304(debug_mode, dry_mode, pcb_rev)
         self.register_defines = registers.process_data(False)['field_defines']
         if dry_mode:
-            BUFFER_ADDRESS=0x27900000 # 0x38100000 on new
-            BUFFER_LEN=    0x6400000
+            BUFFER_ADDRESS =       0x38100000
+            BUFFER_LEN =           0x06400000
+            BUFFER_ADDRESS_H2D =   0x38100000
+            BUFFER_LEN_H2D =       0x06400000
+            BUFFER_ADDRESS_D2H =   0x38100000
+            BUFFER_LEN_D2 =        0x06400000
+            BUFFER_ADDRESS_BIDIR = 0x38100000
+            BUFFER_LEN_BIDIR =     0x06400000
             print ("Running in simulated mode, using hard-coded addresses:")
         else:
             if os.path.exists(SI5338_PATH_OLD):
@@ -147,6 +185,7 @@ class x393sata(object):
             else:
                 print ("Does not seem to be a known system - both %s (old) and %s (new) are not found"%(SI5338_PATH_OLD, SI5338_PATH_NEW))
                 return
+            
             try:
                 with open(MEM_PATH+BUFFER_ADDRESS_NAME) as sysfile:
                     BUFFER_ADDRESS=int(sysfile.read(),0)
@@ -157,14 +196,58 @@ class x393sata(object):
                 print('BUFFER_ADDRESS=',BUFFER_ADDRESS)    
                 print('BUFFER_LEN=',BUFFER_LEN)    
                 return
-        COMMAND_ADDRESS = BUFFER_ADDRESS + COMMAND_BUFFER_OFFSET
-        DATAIN_ADDRESS =  BUFFER_ADDRESS + DATAIN_BUFFER_OFFSET
-        DATAOUT_ADDRESS = BUFFER_ADDRESS + DATAOUT_BUFFER_OFFSET
-        print('BUFFER_ADDRESS=0x%x'%(BUFFER_ADDRESS))    
-        print('BUFFER_LEN=0x%x'%(BUFFER_LEN))
-        print('COMMAND_ADDRESS=0x%x'%(COMMAND_ADDRESS))
-        print('DATAIN_ADDRESS=0x%x'%(DATAIN_ADDRESS))
-        print('DATAOUT_ADDRESS=0x%x'%(DATAOUT_ADDRESS))
+
+            try:
+                with open(MEM_PATH + BUFFER_H2D_ADDRESS_NAME) as sysfile:
+                    BUFFER_ADDRESS_H2D=int(sysfile.read(),0)
+                with open(MEM_PATH+BUFFER_H2D_PAGES_NAME) as sysfile:
+                    BUFFER_LEN_H2D=PAGE_SIZE*int(sysfile.read(),0)
+            except:
+                print("Failed to get reserved physical memory range")
+                print('BUFFER_ADDRESS_H2D=',BUFFER_ADDRESS_H2D)    
+                print('BUFFER_LEN_H2D=',BUFFER_LEN_H2D)    
+                return
+            
+            try:
+                with open(MEM_PATH + BUFFER_D2H_ADDRESS_NAME) as sysfile:
+                    BUFFER_ADDRESS_D2H=int(sysfile.read(),0)
+                with open(MEM_PATH+BUFFER_D2H_PAGES_NAME) as sysfile:
+                    BUFFER_LEN_D2H=PAGE_SIZE*int(sysfile.read(),0)
+            except:
+                print("Failed to get reserved physical memory range")
+                print('BUFFER_ADDRESS_D2H=',BUFFER_ADDRESS_D2H)    
+                print('BUFFER_LEN_D2H=',BUFFER_LEN_D2H)    
+                return
+            
+            try:
+                with open(MEM_PATH + BUFFER_BIDIR_ADDRESS_NAME) as sysfile:
+                    BUFFER_ADDRESS_BIDIR=int(sysfile.read(),0)
+                with open(MEM_PATH+BUFFER_BIDIR_PAGES_NAME) as sysfile:
+                    BUFFER_LEN_BIDIR=PAGE_SIZE*int(sysfile.read(),0)
+            except:
+                print("Failed to get reserved physical memory range")
+                print('BUFFER_ADDRESS_BIDIR=',BUFFER_ADDRESS_BIDIR)    
+                print('BUFFER_LEN_BIDIR=',BUFFER_LEN_BIDIR)    
+                return
+            
+            
+#        COMMAND_ADDRESS = BUFFER_ADDRESS + COMMAND_BUFFER_OFFSET
+#        DATAIN_ADDRESS =  BUFFER_ADDRESS + DATAIN_BUFFER_OFFSET
+#        DATAOUT_ADDRESS = BUFFER_ADDRESS + DATAOUT_BUFFER_OFFSET
+        COMMAND_ADDRESS = BUFFER_ADDRESS_H2D + COMMAND_BUFFER_OFFSET
+        DATAIN_ADDRESS =  BUFFER_ADDRESS_D2H + DATAIN_BUFFER_OFFSET
+        DATAOUT_ADDRESS = BUFFER_ADDRESS_H2D + DATAOUT_BUFFER_OFFSET
+        print('BUFFER_ADDRESS =       0x%08x'%(BUFFER_ADDRESS))    
+        print('BUFFER_LEN =           0x%08x'%(BUFFER_LEN))
+        print('BUFFER_ADDRESS_H2D =   0x%08x'%(BUFFER_ADDRESS_H2D))    
+        print('BUFFER_LEN_H2D =       0x%08x'%(BUFFER_LEN_H2D))
+        print('BUFFER_ADDRESS_D2H =   0x%08x'%(BUFFER_ADDRESS_D2H))    
+        print('BUFFER_LEN_D2H =       0x%08x'%(BUFFER_LEN_D2H))
+        print('BUFFER_ADDRESS_BIDIR = 0x%08x'%(BUFFER_ADDRESS_BIDIR))    
+        print('BUFFER_LEN_BIDIR =     0x%08x'%(BUFFER_LEN_BIDIR))
+        print('COMMAND_ADDRESS =      0x%08x'%(COMMAND_ADDRESS))
+        print('DATAIN_ADDRESS =       0x%08x'%(DATAIN_ADDRESS))
+        print('DATAOUT_ADDRESS =      0x%08x'%(DATAOUT_ADDRESS))
     def reset_get(self):
         """
         Get current reset state
@@ -187,15 +270,43 @@ class x393sata(object):
         else:
             for d in data:
                 self.x393_mem.write_mem(FPGA_RST_CTRL,d)
-                
-    def flush_mem(self):                
+    def get_mem_buf_args(self, saddr=None, len=None):
+        #Is it really needed? Or use cache line size (32B), not PAGE_SIZE?
+        args=""
+        if (saddr is None) or (len is None):
+            return ""
+        else:
+            eaddr = PAGE_SIZE * ((saddr+len) // PAGE_SIZE)
+            if ((saddr+len) % PAGE_SIZE):
+                eaddr += PAGE_SIZE
+            saddr = PAGE_SIZE * (saddr // PAGE_SIZE)
+            return "%d %d"%(saddr, eaddr-saddr )    
+    def _get_dma_dir_suffix(self, direction):
+        if   direction.upper()[0] in "HT":
+            return "_h2d"
+        elif direction.upper()[0] in "DF":
+            return "_d2h"
+        elif direction.upper()[0] in "B":
+            return "_bidir"
+    def sync_for_cpu(self, direction, saddr=None, len=None):
+        
+        with open (MEM_PATH + BUFFER_FOR_CPU + self._get_dma_dir_suffix(direction),"w") as f:
+            print (self.get_mem_buf_args(saddr, len),file=f)
+                    
+    def sync_for_device(self, direction, saddr=None, len=None):
+        with open (MEM_PATH + BUFFER_FOR_DEVICE + self._get_dma_dir_suffix(direction),"w") as f:
+            print (self.get_mem_buf_args(saddr, len),file=f)
+            
+    '''            
+    def flush_mem(self, saddr=None, len=None):                
         """
         Flush memory buffer
         """
+            
         with open (MEM_PATH+BUFFER_FLUSH_NAME,"w") as f:
             print ("1",file=f)
-        
-                
+        # PAGE_SIZE
+    '''            
     def bitstream(self,
                   bitfile=None,
                   quiet=1):
@@ -467,6 +578,7 @@ class x393sata(object):
         """
         # Clear interrupt register
         self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         # clear system memory for the command
         for a in range(64):
             self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
@@ -506,9 +618,13 @@ class x393sata(object):
                                      ((4 * i + 4) << 24))
 
         """
+        self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        self.sync_for_device('D2H',DATAIN_ADDRESS + IDENTIFY_BUF, 512)
+
+        
         # Make it flush (dumb way - write each cache line (32 bytes) something?
-        for i in range (4096):
-            self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
+#        for i in range (4096):
+#            self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
             
 #        print("Running flush_mem()")    
 #        self.flush_mem() # Did not worked, caused error
@@ -546,7 +662,9 @@ class x393sata(object):
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x20,4)
+        
         print("Memory read data:")    
+        self.sync_for_cpu('D2H',DATAIN_ADDRESS + IDENTIFY_BUF, 512)
         print("_=mem.mem_dump (0x%x, 0x100, 2)"%(DATAIN_ADDRESS + IDENTIFY_BUF))
         self.x393_mem.mem_dump (DATAIN_ADDRESS + IDENTIFY_BUF, 0x100,2)        
         
@@ -565,6 +683,7 @@ class x393sata(object):
         # Clear interrupt register
         self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
         # clear system memory for the command
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         for a in range(64):
             self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
         #Setup command table in system memory
@@ -595,9 +714,12 @@ class x393sata(object):
         self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
                                                      (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
 
+        self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        self.sync_for_device('D2H',DATAIN_ADDRESS , count * 512)
+        
         # Make it flush (dumb way - write each cache line (32 bytes) something?
-        for i in range (4096):
-            self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
+#        for i in range (4096):
+#           self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
             
 #        print("Running flush_mem()")    
 #        self.flush_mem() # Did not worked, caused error
@@ -651,7 +773,8 @@ class x393sata(object):
         print("Datascope (debug) data:")    
         print("_=mem.mem_dump (0x%x, 0x200,4)"%(DATASCOPE_ADDR))
         self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
-        print("Memory read data:")    
+        print("Memory read data:") 
+        self.sync_for_cpu('D2H',DATAIN_ADDRESS, count * 512)
         print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
         self.x393_mem.mem_dump (DATAIN_ADDRESS, count * 0x200, 1)        
     def dd_write_dma(self, skip, count = 1, use_read_buffer = False, do_not_start = False, prd_irqs = None): #TODO: Add multi-PRD testing
@@ -671,6 +794,7 @@ class x393sata(object):
             raise ValueError ("This program supports only 24-bit LBA")
         data_buf = (DATAOUT_ADDRESS, DATAIN_ADDRESS) [use_read_buffer]       
         # clear system memory for the command
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         for a in range(64):
             self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
         #Setup command table in system memory
@@ -701,13 +825,17 @@ class x393sata(object):
         self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
                                                      (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
 
+        self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         # Make it flush (dumb way - write each cache line (32 bytes) something?
-        for i in range (4096):
-            self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
+#        for i in range (4096):
+#            self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
             
 #        print("Running flush_mem()")    
 #        self.flush_mem() # Did not worked, caused error
 #mem.write_mem(0x80000118,0x11)
+
+        self.sync_for_device('H2D',data_buf, count*512)
+
         # Set PxCMD.ST bit (it may already be set)
         self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCMD'), 0x11) # .ST and .FRE bits (FRE is readonly 1 anyway)
         # Set Command Issued
@@ -1096,6 +1224,21 @@ for block in range (1,1024):
     sata.dd_read_dma(block, 1)
     _=mem.mem_dump (0x80000ff0, 4,4)
     sata.reg_status(),sata.reset_ie(),sata.err_count()
+
+mem.mem_save('/mnt/mmc/regs_dump',0x80000000,0x3000)
+
+    def mem_save (self, filename, start_addr, length):
+        '''
+         Save physical memory content to a file
+         @param filename - path to a file
+         @param start_addr physical byte start address
+         @param length - number of bytes to save
+
+
+_=mem.mem_dump(0x3813fff8,0x2,4)
+mem.mem_save('/mnt/mmc/data/regs_dump_01',0x80000000,0x3000)
+mem.mem_save('/mnt/mmc/data/mem0x3000_dump_01',0x38140000,0x13e000)
+
 
 
 #############

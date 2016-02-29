@@ -236,6 +236,9 @@ module  ahci_fsm
     input                         ch_p,        // prefetchable - only used with non-zero PRDTL or ATAPI bit set
     input                         ch_w,        // Write: system memory -> device
     input                         ch_a,         // ATAPI: 1 means device should send PIO setup FIS for ATAPI command
+    input                         unsolicited_en,    // enable processing of cominit_got and PxERR.DIAG.W interrupts from
+                                                     // this bit is reset at reset, set when PxSSTS.DET==3 or PxSCTL.DET==4
+    
     output reg             [ 9:0] last_jump_addr // debug feature
 ///    input                   [4:0] ch_cfl,      // length of the command FIS in DW, 0 means none. 0 and 1 - illegal,
                                                // maximal is 16 (0x10)
@@ -281,7 +284,8 @@ module  ahci_fsm
     
     reg                      [1:0] async_pend_r; // waiting to process cominit_got
     reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
-    wire                           asynq_rq = (cominit_got && unsolicited_cominit_en) || pcmd_st_cleared;
+//    wire                           asynq_rq = (cominit_got && unsolicited_cominit_en) || pcmd_st_cleared;
+    wire                           asynq_rq = (cominit_got && unsolicited_en) || pcmd_st_cleared;
                                    // OK to wait for some time fsm_act_busy is supposed to never hang up
     wire                           async_ackn = !fsm_preload && async_pend_r[0] && ((fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]);   // OK to process async jump
 //    reg                            x_rdy_collision_pend;
@@ -297,8 +301,8 @@ module  ahci_fsm
     
     wire                           conditions_ce =  // copy all conditions to the register so they will not change while iterating through them
                                        !fsm_transitions_w && !fsm_transitions[0];
-    reg                            unsolicited_cominit_en; // allow unsolicited COMINITs
-    wire                           en_cominit; // en_cominit
+//    reg                            unsolicited_cominit_en; // allow unsolicited COMINITs
+//    wire                           en_cominit; // en_cominit
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
     assign update_all = fsm_jump[0];
@@ -337,7 +341,7 @@ module  ahci_fsm
     localparam LABEL_ST_CLEARED = 11'h008;
 
     always @ (posedge mclk) begin
-        if      (hba_rst)                     unsolicited_cominit_en <= !was_port_rst;
+///        if      (hba_rst)                     unsolicited_cominit_en <= !was_port_rst;
 //      else if (en_cominit || comreset_send) unsolicited_cominit_en <= en_cominit;
     
     
@@ -467,7 +471,8 @@ module  ahci_fsm
         .SET_OFFLINE        (set_offline),       // output reg 
         .R_OK               (send_R_OK),         // output reg 
         .R_ERR              (send_R_ERR),        // output reg
-        .EN_COMINIT         (en_cominit),        // output reg
+//        .EN_COMINIT         (en_cominit),        // output reg
+        .EN_COMINIT         (),                  // output reg
     // FIS TRANSMIT/WAIT DONE
         .FETCH_CMD          (fetch_cmd),         // output reg 
         .ATAPI_XMIT         (atapi_xmit),        // output reg 
