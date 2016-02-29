@@ -800,10 +800,13 @@ localparam HBA_PORT0_OFFS32  = 'h40;
 localparam PXSIG_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h9; 
 localparam PXTFD_OFFS32 = HBA_OFFS32 + HBA_PORT0_OFFS32 + 'h8;
 
-localparam SYS_MEM_START = 32'h3fffc000; // 16384 bytes (4096 DWORDs of teh system memory for R/W over AXI_HP) 
+//localparam SYS_MEM_START = 32'h3fffc000; // 16384 bytes (4096 DWORDs of the system memory for R/W over AXI_HP) 
+localparam SYS_MEM_START = 32'h24180000; // 16384 bytes (4096 DWORDs of the system memory for R/W over AXI_HP) 
 localparam SYS_MEM_SIZE =  16384; // bytes - size of system memory 
 // realtive to the system memory area
-localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the system memory
+///localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the system memory
+localparam COMMAND_TABLE = 32'h1000; // 256 bytes for a command table in the system memory
+//0x24181000
 localparam IDENTIFY_BUF =  32'h3d00; // 512 bytes for a command table in the system memory
 localparam PRD_OFFSET = 'h80;        // start of PRD table - 128-th byte in command table
 localparam ATA_IDFY =     'hec; // Identify command

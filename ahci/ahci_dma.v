@@ -41,7 +41,9 @@ module  ahci_dma (
     input                         mclk, // for command/status
     input                         hclk,   // global clock to run axi_hp @ 150MHz
     // Control interface  (@mclk)
-    input                  [31:7] ctba,         // command table base address
+    // Documentation insists 6 LSBs should be 0, but AHCI driver seems to ignore it. Will align to just 128 bits.
+//    input                  [31:7] ctba,         // command table base address
+    input                  [31:4] ctba,         // command table base address
     input                         ctba_ld,      // load command table base address
     input                  [15:0] prdtl,        // number of entries in PRD table (valid at cmd_start)
     input                         dev_wr,       // write to device (valid at start)
@@ -157,7 +159,8 @@ module  ahci_dma (
 
     reg     [31:0] ct_data_ram [0:31];
     reg      [3:0] int_data_addr;    // internal (ct,prd) data address
-    reg     [31:7] ctba_r;
+//    reg     [31:7] ctba_r;
+    reg     [31:4] ctba_r; // Seems that AHCI driver ignores requirement to have 6 LSB==0
     reg     [15:0] prdtl_mclk;
     wire           cmd_start_hclk;
     reg            prd_start_r;
@@ -342,7 +345,8 @@ module  ahci_dma (
         if (ct_re[0]) ct_data_reg <=  ct_data_ram[ct_addr];
         if (ct_re[1]) ct_data <=      ct_data_reg;
         
-        if (ctba_ld) ctba_r <=        ctba[31:7];
+//        if (ctba_ld) ctba_r <=        ctba[31:7];
+        if (ctba_ld) ctba_r <=        ctba[31:4];
         
         if (cmd_start) prdtl_mclk <=  prdtl;
         
@@ -395,7 +399,8 @@ module  ahci_dma (
         else if (cmd_start_hclk)         prd_enabled <= 0;
     
     
-        if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
+//        if (cmd_start_hclk)  ct_maddr[31:4] <= {ctba_r[31:7],3'b0};
+        if (cmd_start_hclk)  ct_maddr[31:4] <= ctba_r[31:4];
         else if (ct_done)    ct_maddr[31:4] <= ct_maddr[31:4] + 8; // 16;
         else if (wcount_set) ct_maddr[31:4] <= ct_maddr[31:4] + 1;
         

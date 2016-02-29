@@ -1236,8 +1236,8 @@ mem.mem_save('/mnt/mmc/regs_dump',0x80000000,0x3000)
 
 
 _=mem.mem_dump(0x3813fff8,0x2,4)
-mem.mem_save('/mnt/mmc/data/regs_dump_01',0x80000000,0x3000)
-mem.mem_save('/mnt/mmc/data/mem0x3000_dump_01',0x38140000,0x13e000)
+mem.mem_save('/mnt/mmc/data/regs_dump_04',0x80000000,0x3000)
+mem.mem_save('/mnt/mmc/data/mem0x3000_dump_04',0x38140000,0x13e000)
 
 
 

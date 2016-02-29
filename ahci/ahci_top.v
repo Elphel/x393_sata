@@ -884,7 +884,8 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .hrst                  (hrst),          // input
         .mclk                  (mclk),          // input
         .hclk                  (hclk),          // input
-        .ctba                  (regs_dout[31:7]),// input[31:7] 
+//        .ctba                  (regs_dout[31:7]),// input[31:7] 
+        .ctba                  (regs_dout[31:4]),// input[31:4] 
         .ctba_ld               (ctba_ld),       // input
         .prdtl                 (prdtl),         // input[15:0] 
         .dev_wr                (dev_wr),        // input
