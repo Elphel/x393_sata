@@ -247,6 +247,13 @@ module  ahci_fsm
 );
 `include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
 `include "includes/fis_types.vh"        // @SuppressThisWarning VEditor : Some  localparams unused
+    // Reset addresses - later use generated
+    localparam LABEL_POR =        11'h000;
+    localparam LABEL_HBA_RST =    11'h002;
+    localparam LABEL_PORT_RST =   11'h004;
+    localparam LABEL_COMINIT =    11'h006;
+    localparam LABEL_ST_CLEARED = 11'h008;
+
     wire                           tfd_bsy =     tfd_sts[7];
     wire                           tfd_drq =     tfd_sts[3];
     wire                           tfd_sts_err = tfd_sts[0];
@@ -276,7 +283,8 @@ module  ahci_fsm
                                                   (syncesc_send_pend && syncesc_send_done) ||
                                                   dma_abort_done ||
                                                   asynq_rq; // cominit_got || pcmd_st_cleared
-    reg                            fsm_act_done; // made later by 1 cycle so the new conditions are latched                                                
+    reg                            fsm_act_done; // made later by 1 cycle so the new conditions are latched // TODO:check is enough ? Adding 1 extra                                              
+    reg                            fsm_act_pre_done;                                              
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];
 
@@ -303,6 +311,10 @@ module  ahci_fsm
                                        !fsm_transitions_w && !fsm_transitions[0];
 //    reg                            unsolicited_cominit_en; // allow unsolicited COMINITs
 //    wire                           en_cominit; // en_cominit
+
+    // New variable:
+    reg                            pisn32; // pIssueSlot != 32
+    wire                           clear_pisn32; // additional clear when in P:NotRunning state
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
     assign update_all = fsm_jump[0];
@@ -333,12 +345,12 @@ module  ahci_fsm
         else if (pgm_wa) pgm_waddr <= pgm_ad[ 9:0];
         else if (pgm_wd) pgm_waddr <=  pgm_waddr + 1;
     end
-    // Reset addresses - later use generated
-    localparam LABEL_POR =        11'h000;
-    localparam LABEL_HBA_RST =    11'h002;
-    localparam LABEL_PORT_RST =   11'h004;
-    localparam LABEL_COMINIT =    11'h006;
-    localparam LABEL_ST_CLEARED = 11'h008;
+
+    always @ (posedge mclk) begin
+        if (hba_rst || pxci0_clear || clear_pisn32) pisn32 <= 0; 
+        else if (fetch_cmd)                         pisn32 <= 1;
+        
+    end
 
     always @ (posedge mclk) begin
 ///        if      (hba_rst)                     unsolicited_cominit_en <= !was_port_rst;
@@ -352,8 +364,9 @@ module  ahci_fsm
         
         was_rst <= hba_rst;
         
-        fsm_act_done <= fsm_act_done_w; // delay by 1 clock cycle
-               
+///     fsm_act_done <= fsm_act_done_w; // delay by 1 clock cycle
+        fsm_act_pre_done <= fsm_act_done_w; // delay by 1 clock cycle
+        fsm_act_done <= fsm_act_pre_done; // TODO - verify delay by 2 is needed to latch
         fsm_jump <= {fsm_jump[1:0], pre_jump_w | (was_rst & ~hba_rst)};
         
         if   (fsm_jump[0]) pgm_addr <= pgm_jump_addr;
@@ -471,8 +484,8 @@ module  ahci_fsm
         .SET_OFFLINE        (set_offline),       // output reg 
         .R_OK               (send_R_OK),         // output reg 
         .R_ERR              (send_R_ERR),        // output reg
-//        .EN_COMINIT         (en_cominit),        // output reg
-        .EN_COMINIT         (),                  // output reg
+//        .EN_COMINIT         (en_cominit),      // output reg
+        .EN_COMINIT         (clear_pisn32),      // output reg
     // FIS TRANSMIT/WAIT DONE
         .FETCH_CMD          (fetch_cmd),         // output reg 
         .ATAPI_XMIT         (atapi_xmit),        // output reg 
@@ -496,7 +509,8 @@ module  ahci_fsm
         .condition             (cond_met_w),                              // output
     //COMPOSITE
         .ST_NB_ND              (pcmd_st && !tfd_bsy &&!tfd_drq),          // input PxCMD.ST & !PxTFD.STS.BSY & !PxTFD.STS.DRQ
-        .PXCI0_NOT_CMDTOISSUE  (pxci0 && !pCmdToIssue),                   // input pxci0 && !pCmdToIssue was pIssueSlot==32, -> p:SelectCmd
+//        .PXCI0_NOT_CMDTOISSUE  (pxci0 && !pCmdToIssue),                 // input pxci0 && !pCmdToIssue was pIssueSlot==32, -> p:SelectCmd
+        .PXCI0_NOT_CMDTOISSUE  (pxci0 && !pisn32),                        // input pxci0 && !pCmdToIssue was pIssueSlot==32, -> p:SelectCmd
         .PCTI_CTBAR_XCZ        (pCmdToIssue && xfer_cntr_zero && ch_r ),  // input  pCmdToIssue && ch_r && xfer_cntr_zero
         .PCTI_XCZ              (pCmdToIssue && xfer_cntr_zero),           // input  pCmdToIssue && xfer_cntr_zero
         .NST_D2HR              (!pcmd_st && (fis_type == FIS_D2HR)),      // input !ST && (FIS == FIS_D2HR) TODO: does it mean either BSY or DRQ are 1?

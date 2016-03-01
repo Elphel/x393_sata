@@ -79,7 +79,8 @@ INT_STS=       0xf800700c
 MAXI1_ADDR = 0x80000000
 DATASCOPE_ADDR = 0x1000 + MAXI1_ADDR
 COMMAND_HEADER0_OFFS =    0x800 # offset of the command header 0 in MAXI1 space 
-COMMAND_BUFFER_OFFSET =     0x0 # Just at the beginning of available memory
+#COMMAND_BUFFER_OFFSET =     0x0 # Just at the beginning of available memory
+COMMAND_BUFFER_OFFSET =     0x10 # Simulating offset in the AHCI driver
 COMMAND_BUFFER_SIZE =     0x100 # 256 bytes - 128 before PRDT, 128+ - PRDTs (16 bytes each)
 PRD_OFFSET =               0x80 # Start of the PRD table
 FB_OFFS =                 0xc00 # Needs 0x100 bytes 
@@ -600,13 +601,16 @@ class x393sata(object):
                                                      (5 <<  0) | # 'CFL' - number of DWORDs in this CFIS
                                                      (0 <<  5) | # 'A' Not ATAPI
                                                      (0 <<  6) | # 'W' Not write to device
-                                                     (1 <<  7) | # 'P' Prefetchable = 1
+#                                                    (1 <<  7) | # 'P' Prefetchable = 1
+                                                     (0 <<  7) | # 'P' Prefetchable = 0
                                                      (0 <<  8) | # 'R' Not a Reset
                                                      (0 <<  9) | # 'B' Not a BIST
-                                                     (1 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+#                                                     (1 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+                                                     (0 << 10) | # 'C' Do clear BSY/CI after transmitting this command
                                                      (1 << 16))  # 'PRDTL' - number of PRDT entries (just one)
-        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
-                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
+#        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
+#                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2), (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
         # Write some junk to the higher addresses of the CFIS
         #Only was needed for debugging, removing
         """ 

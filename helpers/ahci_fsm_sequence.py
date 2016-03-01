@@ -285,6 +285,9 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
             {LBL:'RegFIS:Accept',       ACT: 'R_OK'},                # send R_OK
             {                           ACT: 'UPDATE_ERR_STS'},      # update_err_sts
+            {                           ACT: 'NOP'},                 # 3 NOPs to propagate changes afte no-wait action
+            {                           ACT: 'NOP'},                 # 
+            {                           ACT: 'NOP'},                 # 
             {IF: 'TFD_STS_ERR',         GOTO:'ERR:FatalTaskfile'},   # 1. tfd_sts[0]
             {IF: 'NB_ND',               GOTO:'RegFIS:ClearCI'},      # 2. PxTFD.STS.BSY =’0’ and PxTFD.STS.DRQ =’0’
             {                           GOTO:'RegFIS:UpdateSig'},    # 3.
@@ -296,6 +299,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
 
             {LBL:'RegFIS:SetIntr',      ACT: 'SIRQ_DHR'},            # sirq_DHR
             {                           GOTO:'RegFIS:UpdateSig'},    # 2. (PxIE/IRQ is handled)
+            
 #RegFIS:SetIS, RegFIS:GenIntr are handled by hardware, skipping
             {LBL:'RegFIS:UpdateSig',    ACT: 'UPDATE_SIG'},          # update_sig will only update if pUpdateSig
             {                           GOTO:'PM:Aggr' },            # 1
@@ -313,6 +317,9 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'P:Idle' },             # 5.
             
             {LBL:'PIO:Update',          ACT: 'UPDATE_PIO'},          # update_pio -  update PxTFD.STS and PxTFD.ERR from pio_*
+            {                           ACT: 'NOP'},                 # 3 NOPs to propagate changes afte no-wait action
+            {                           ACT: 'NOP'},                 # 
+            {                           ACT: 'NOP'},                 # 
             {IF: 'TFD_STS_ERR',         GOTO:'ERR:FatalTaskfile'},   # 1. tfd_sts[0]
             {IF: 'NB_ND',               GOTO:'PIO:ClearCI'},         # 2. PxTFD.STS.BSY =’0’ and PxTFD.STS.DRQ =’0’
             {IF: 'PIO_I',               GOTO:'PIO:SetIntr'},         # 3. pio_i
@@ -320,6 +327,7 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
             {LBL:'PIO:ClearCI',         ACT: 'UPDATE_PRDBC'},        # update_prdbc
             {                           ACT: 'PXCI0_CLEAR'},         # pxci0_clear, reset both (pIssueSlot:=32) and PxCI[0]
+            
             {IF: 'PIO_I',               GOTO:'PIO:SetIntr'},         # 2. pio_i
             {                           GOTO:'PM:Aggr' },            # 3.
 #PIO:Ccc - not implemented
@@ -398,6 +406,9 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
             {LBL:'SDB:Accept',          ACT: 'R_OK'},                # get_sdbfis Is in only for Native CC ?
             {                           ACT: 'UPDATE_ERR_STS'},      # update_err_sts
+            {                           ACT: 'NOP'},                 # 3 NOPs to propagate changes afte no-wait action
+            {                           ACT: 'NOP'},                 # 
+            {                           ACT: 'NOP'},                 # 
             {IF: 'TFD_STS_ERR',         GOTO:'ERR:FatalTaskfile'},   # 1. tfd_sts[0]
             {IF: 'FIS_I',               GOTO:'SDB:SetIntr'},         # 3. fis_i
             {                           GOTO:'PM:Aggr' },            # 4.

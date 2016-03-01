@@ -805,7 +805,8 @@ localparam SYS_MEM_START = 32'h24180000; // 16384 bytes (4096 DWORDs of the syst
 localparam SYS_MEM_SIZE =  16384; // bytes - size of system memory 
 // realtive to the system memory area
 ///localparam COMMAND_TABLE = 32'h3f00; // 256 bytes for a command table in the system memory
-localparam COMMAND_TABLE = 32'h1000; // 256 bytes for a command table in the system memory
+//localparam COMMAND_TABLE = 32'h1000; // 256 bytes for a command table in the system memory
+localparam COMMAND_TABLE = 32'h1010; // testing non-aligned
 //0x24181000
 localparam IDENTIFY_BUF =  32'h3d00; // 512 bytes for a command table in the system memory
 localparam PRD_OFFSET = 'h80;        // start of PRD table - 128-th byte in command table
@@ -896,13 +897,15 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
             maxigp1_writep       ((CLB_OFFS32 + 0) << 2,     (5 <<  0) | // 'CFL' - number of DWORDs in thes CFIS
                                                          (0 <<  5) | // 'A' Not ATAPI
                                                          (0 <<  6) | // 'W' Not write to device
-                                                         (1 <<  7) | // 'P' Prefetchable = 1
+//                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  7) | // 'P' Prefetchable = 1
                                                          (0 <<  8) | // 'R' Not a Reset
                                                          (0 <<  9) | // 'B' Not a BIST
-//                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
-                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
+                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+//                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
-            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+//            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
             maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
             // relax and enjoy
@@ -934,7 +937,8 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
-            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+//            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
             maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
             // relax and enjoy
@@ -984,7 +988,8 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
-            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
             maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
             // relax and enjoy
@@ -1037,7 +1042,8 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
-            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
             maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
             // relax and enjoy
@@ -1075,7 +1081,8 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (1)
-            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
             maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
             // relax and enjoy
