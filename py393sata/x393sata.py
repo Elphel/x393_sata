@@ -167,7 +167,7 @@ class x393sata(object):
         self.DRY_MODE=dry_mode
         self.x393_mem=X393Mem(debug_mode,dry_mode, 1)
         self.vsc3304= x393_vsc3304(debug_mode, dry_mode, pcb_rev)
-        self.register_defines = registers.process_data(debug_mode)['field_defines']
+        self.register_defines = registers.process_data(verbose = False)['field_defines']
         if dry_mode:
             BUFFER_ADDRESS =       0x38100000
             BUFFER_LEN =           0x06400000
