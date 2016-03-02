@@ -97,10 +97,12 @@ class x393_vsc3304(object):
                 print("Program is forced to run in SIMULATED mode as '/dev/xdevcfg' does not exist (not a camera)")
             else:
                 if os.path.exists(VSC_DIR_OLD):
-                    print ('x393_vsc3304: Running on OLD system')
+                    if self.DEBUG_MODE:
+                        print ('x393_vsc3304: Running on OLD system')
                     VSC_DIR = VSC_DIR_OLD
                 elif os.path.exists(VSC_DIR_NEW):    
-                    print ('x393_vsc3304: Running on NEW system')
+                    if self.DEBUG_MODE:
+                        print ('x393_vsc3304: Running on NEW system')
                     VSC_DIR = VSC_DIR_NEW
                 else:
                     print ("Does not seem to be a known system - both %s (old) and %s (new) are not found"%(VSC_DIR_OLD, VSC_DIR_NEW))
@@ -118,7 +120,8 @@ class x393_vsc3304(object):
         if self.DRY_MODE:
             print ("'%s' -> '%s'"%(str(what), VSC_DIR+"/"+where))
         else:
-            print ("'%s' -> '%s'"%(str(what), VSC_DIR+"/"+where))
+            if self.DEBUG_MODE:
+                print ("'%s' -> '%s'"%(str(what), VSC_DIR+"/"+where))
             with open (VSC_DIR+"/"+where,"w") as f:
                 print (str(what),file=f)
     def read_vals(self, path):
@@ -163,7 +166,8 @@ class x393_vsc3304(object):
             print("Invalid connections: %s (defined are: %s), using %s"%(mode, str(self.VSC3304_CONNECTIONS.keys()), defconn))
             mode =  defconn
             conns = self.VSC3304_CONNECTIONS[mode]
-        print(str(conns))
+        if self.DEBUG_MODE:
+            print(str(conns))
         #activate inputs
         for conn in conns:
             self.echo("0", "input_state_off/"+self.in_port(self.port_name (conn["FROM"])))

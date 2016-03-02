@@ -606,7 +606,8 @@ def process_data(verbose = True):
                 dwae = (offs*8 + fieldEnd)   // 32 # 32-bit address
                 fe=fieldEnd
                 if dwae > dwas:
-                    print ("***** WARNING: Field %s spans several DWORDs, truncating to the first one"%(fullName))
+                    if verbose:
+                        print ("***** WARNING: Field %s spans several DWORDs, truncating to the first one"%(fullName))
                     fe = 32*dwas +31 - offs*8 # Later AND fieldValue with field mask
                 fieldMask = ((1 << (fe - fieldStart + 1)) -1) << ((offs % 4) * 8 + fieldStart)
                 fieldShiftedValue = fieldValue << ((offs % 4) * 8 + fieldStart)

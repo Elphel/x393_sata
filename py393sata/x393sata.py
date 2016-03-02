@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# encoding: utf-8
 from __future__ import print_function
 from __future__ import division
 
@@ -151,11 +153,13 @@ class x393sata(object):
     x393_mem=None
     vsc3304 = None
     register_defines=None
-    def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
+    def __init__(self, debug_mode = 1,dry_mode = False, pcb_rev = None):
         global BUFFER_ADDRESS, BUFFER_LEN, COMMAND_ADDRESS, DATAIN_ADDRESS, DATAOUT_ADDRESS, SI5338_PATH, MEM_PATH
         global BUFFER_ADDRESS_H2D, BUFFER_LEN_H2D, BUFFER_ADDRESS_D2H, BUFFER_LEN_D2H, BUFFER_ADDRESS_BIDIR, BUFFER_LEN_BIDIR 
         
-        self.DEBUG_MODE=debug_mode
+        if pcb_rev is None:
+            pcb_rev = self.get_10389_rev()
+        self.DEBUG_MODE = debug_mode
         if not dry_mode:
             if not os.path.exists("/dev/xdevcfg"):
                 dry_mode=True
@@ -163,7 +167,7 @@ class x393sata(object):
         self.DRY_MODE=dry_mode
         self.x393_mem=X393Mem(debug_mode,dry_mode, 1)
         self.vsc3304= x393_vsc3304(debug_mode, dry_mode, pcb_rev)
-        self.register_defines = registers.process_data(False)['field_defines']
+        self.register_defines = registers.process_data(debug_mode)['field_defines']
         if dry_mode:
             BUFFER_ADDRESS =       0x38100000
             BUFFER_LEN =           0x06400000
@@ -180,7 +184,8 @@ class x393sata(object):
                 SI5338_PATH = SI5338_PATH_OLD
                 MEM_PATH =    MEM_PATH_OLD
             elif os.path.exists(SI5338_PATH_NEW):    
-                print ('x393sata: Running on NEW system')
+                if self.DEBUG_MODE:
+                    print ('x393sata: Running on NEW system')
                 SI5338_PATH = SI5338_PATH_NEW
                 MEM_PATH =    MEM_PATH_NEW
             else:
@@ -238,17 +243,18 @@ class x393sata(object):
         COMMAND_ADDRESS = BUFFER_ADDRESS_H2D + COMMAND_BUFFER_OFFSET
         DATAIN_ADDRESS =  BUFFER_ADDRESS_D2H + DATAIN_BUFFER_OFFSET
         DATAOUT_ADDRESS = BUFFER_ADDRESS_H2D + DATAOUT_BUFFER_OFFSET
-        print('BUFFER_ADDRESS =       0x%08x'%(BUFFER_ADDRESS))    
-        print('BUFFER_LEN =           0x%08x'%(BUFFER_LEN))
-        print('BUFFER_ADDRESS_H2D =   0x%08x'%(BUFFER_ADDRESS_H2D))    
-        print('BUFFER_LEN_H2D =       0x%08x'%(BUFFER_LEN_H2D))
-        print('BUFFER_ADDRESS_D2H =   0x%08x'%(BUFFER_ADDRESS_D2H))    
-        print('BUFFER_LEN_D2H =       0x%08x'%(BUFFER_LEN_D2H))
-        print('BUFFER_ADDRESS_BIDIR = 0x%08x'%(BUFFER_ADDRESS_BIDIR))    
-        print('BUFFER_LEN_BIDIR =     0x%08x'%(BUFFER_LEN_BIDIR))
-        print('COMMAND_ADDRESS =      0x%08x'%(COMMAND_ADDRESS))
-        print('DATAIN_ADDRESS =       0x%08x'%(DATAIN_ADDRESS))
-        print('DATAOUT_ADDRESS =      0x%08x'%(DATAOUT_ADDRESS))
+        if self.DEBUG_MODE:
+            print('BUFFER_ADDRESS =       0x%08x'%(BUFFER_ADDRESS))    
+            print('BUFFER_LEN =           0x%08x'%(BUFFER_LEN))
+            print('BUFFER_ADDRESS_H2D =   0x%08x'%(BUFFER_ADDRESS_H2D))    
+            print('BUFFER_LEN_H2D =       0x%08x'%(BUFFER_LEN_H2D))
+            print('BUFFER_ADDRESS_D2H =   0x%08x'%(BUFFER_ADDRESS_D2H))    
+            print('BUFFER_LEN_D2H =       0x%08x'%(BUFFER_LEN_D2H))
+            print('BUFFER_ADDRESS_BIDIR = 0x%08x'%(BUFFER_ADDRESS_BIDIR))    
+            print('BUFFER_LEN_BIDIR =     0x%08x'%(BUFFER_LEN_BIDIR))
+            print('COMMAND_ADDRESS =      0x%08x'%(COMMAND_ADDRESS))
+            print('DATAIN_ADDRESS =       0x%08x'%(DATAIN_ADDRESS))
+            print('DATAOUT_ADDRESS =      0x%08x'%(DATAOUT_ADDRESS))
     def reset_get(self):
         """
         Get current reset state
@@ -325,15 +331,19 @@ class x393sata(object):
             print("vcc_sens01 vp33sens01 vcc_sens23 vp33sens23", file = f)
         """
         #Spread Spectrum off on channel 3
-        print ("Spread Spectrum off on channel 3")
+        if quiet < 2:
+            print ("Spread Spectrum off on channel 3")
         with open (SI5338_PATH+"/spread_spectrum/ss3_values","w") as f:
             print ("0",file=f)
             
-        print ("FPGA clock OFF")
+        if quiet < 2:
+             print ("FPGA clock OFF")
         self.x393_mem.write_mem(FPGA0_THR_CTRL,1)
-        print ("Reset ON")
+        if quiet < 2:
+             print ("Reset ON")
         self.reset(0)
-        print ("cat %s >%s"%(bitfile,FPGA_LOAD_BITSTREAM))
+        if quiet < 2:
+             print ("cat %s >%s"%(bitfile,FPGA_LOAD_BITSTREAM))
         if not self.DRY_MODE:
             l=0
             with open(bitfile, 'rb') as src, open(FPGA_LOAD_BITSTREAM, 'wb') as dst:
@@ -346,7 +356,7 @@ class x393sata(object):
                     l+=len(copy_buffer)
                     if quiet < 4 :
                         print("sent %d bytes to FPGA"%l)                            
-
+        if quiet < 4:
             print("Loaded %d bytes to FPGA"%l)                            
 #            call(("cat",bitfile,">"+FPGA_LOAD_BITSTREAM))
         if quiet < 4 :
@@ -365,22 +375,24 @@ class x393sata(object):
         if quiet < 4 :
             print ("Reset OFF")
         self.reset(0xa)
-#        self.x393_axi_tasks.init_state()
         self.set_zynq()
-#        self.set_debug()
-        print("Use 'set_zynq()', 'set_esata()' or 'set_debug() to switch SSD connection")
+        if quiet < 4 :
+            print("Use 'set_zynq()', 'set_esata()' or 'set_debug() to switch SSD connection")
         
     def set_zynq(self):    
         self.vsc3304.connect_zynq_ssd()
-        self.vsc3304.connection_status()
+        if self.DEBUG_MODE:
+            self.vsc3304.connection_status()
 
     def set_esata(self):    
         self.vsc3304.connect_esata_ssd()
-        self.vsc3304.connection_status()
+        if self.DEBUG_MODE:
+             self.vsc3304.connection_status()
         
     def set_debug(self):    
         self.vsc3304.connect_debug()
-        self.vsc3304.connection_status()
+        if self.DEBUG_MODE:
+             self.vsc3304.connection_status()
 
     def erate(self, dly = 1.0):
         c0 = self.x393_mem.read_mem(0x80000ff0)
@@ -1129,9 +1141,52 @@ class x393sata(object):
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__AFI_CACHE'), mode)
             
         return {'write':(mode >> 4) & 0xf, 'read':(mode >> 0) & 0xf}    
-                 
+    def get_MAC(self):
+        with open("/sys/class/net/eth0/address") as sysfile:
+            return sysfile.read().strip()
+    def get_10389_rev(self):
+        mac = self.get_MAC()
+        if mac.endswith(':01'):
+            return '10389'
+        elif mac.endswith(':02'):
+            return '10389B'
+        else:
+            raise Exception ("Unknown camera MAC address used to get 10389 revision. Only *:01 (10389) and *:02 (10389B) are currently defined")
+        
+        
+def init_sata():
+    sata = x393sata(         debug_mode = 0, # 1,
+                             dry_mode =   0,
+                             pcb_rev =    None)
+    sata.bitstream(bitfile=None,
+                   quiet=4) # 4 will be really quiet
+
+    sata.drp (0x20b,0x221) # bypass, clock align
+    #hex(sata.drp (0x20b))
+    sata.drp (0x59,0x8) # Use RXREC
+    #Below is not needed to just prepare hardware for the AHCI driver
     """
+    sata.reg_status() # 
+    sata.reg_status()
+    _=mem.mem_dump (0x80000ff0, 4,4)
+    sata.reg_status(),sata.reset_ie(),sata.err_count()
     
+    _=mem.mem_dump (0x80000ff0, 4,4)                  
+    _=mem.mem_dump (0x80001000, 0x120,4)              
+    """
+        
+                
+if __name__ == "__main__": 
+    init_sata()
+
+
+
+    """
+def get_MAC():
+    with open("/sys/class/net/eth0/address") as sysfile:
+        return sysfile.read()
+00:0e:64:10:00:02
+/sys/class/net/eth0/address
 sata.drp (0x20b,0x221), sata.drp (0x20b,0x4221)
     
 DRP_RXDLY_CFG    

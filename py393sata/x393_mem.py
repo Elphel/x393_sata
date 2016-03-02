@@ -74,7 +74,8 @@ class X393Mem(object):
                     return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr - (1<<32))
                 except:
                     self.USE_NEGATIVE = False
-                    print ("Turning OFF use of negative offsets in mmap")
+                    if self.DEBUG_MODE:
+                        print ("Turning OFF use of negative offsets in mmap")
                     return mmap.mmap(f.fileno(), self.PAGE_SIZE, offset = page_addr)
             else:
                 try:
