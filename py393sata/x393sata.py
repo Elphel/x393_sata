@@ -1196,7 +1196,8 @@ from __future__ import division
 import x393sata
 import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
-sata = x393sata.x393sata()
+sata = x393sata.x393sata(1,0,"10389B")
+#    def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
 
 sata.bitstream()
 #sata.drp_write (0x20b,0x401) # bypass, clock align
