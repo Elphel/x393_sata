@@ -728,7 +728,8 @@ class x393sata(object):
                                                      (1 << 10) | # 'C' Do clear BSY/CI after transmitting this command
                                                      (1 << 16))  # 'PRDTL' - number of PRDT entries (just one)
         self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
-                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
+                                                     (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
+#                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
 
         self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         self.sync_for_device('D2H',DATAIN_ADDRESS , count * 512)
@@ -839,7 +840,8 @@ class x393sata(object):
                                                      (1 << 10) | # 'C' Do clear BSY/CI after transmitting this command
                                                      (1 << 16))  # 'PRDTL' - number of PRDT entries (just one)
         self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
-                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
+                                                     (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
+#                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
 
         self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
         # Make it flush (dumb way - write each cache line (32 bytes) something?
@@ -1240,6 +1242,9 @@ _=sata.scan_rxdly(0.1,0x80,0x80) # set bad
 _=sata.scan_rxdly() # scan all with measurement time 0.1
 _=sata.scan_rxdly(0.1, 0, 255) # scan half (full range is 2 periods) with measurement time 0.1
 
+sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']
+('A', 'E', 'G', 'H')
+sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']=('E','G','H')
 
 reload (x393sata)
 sata = x393sata.x393sata()
@@ -1251,7 +1256,7 @@ from __future__ import division
 import x393sata
 import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
-sata = x393sata.x393sata(1,0,"10389B")
+sata = x393sata.x393sata() # 1,0,"10389B")
 #    def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
 
 sata.bitstream()
