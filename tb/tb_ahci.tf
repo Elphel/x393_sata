@@ -817,6 +817,7 @@ localparam ATA_WBUF_DMA = 'heb; // Write 512 bytes to device buffer in DMA mode 
 localparam ATA_RDMA =     'hc8; // Read from device in DMA mode                   @SuppressThisWarning VEditor - not yet used
 localparam ATA_RBUF_PIO = 'he4; // Read  512 bytes from device buffer in PIO mode @SuppressThisWarning VEditor - not yet used
 localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mode @SuppressThisWarning VEditor - not yet used
+localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressing
 
     reg  [31:0] sysmem[0:4095]; 
 
@@ -995,6 +996,60 @@ localparam ATA_RBUF_DMA = 'he9; // Read  512 bytes from device buffer in DMA mod
             // relax and enjoy
         end
     endtask
+    
+    task setup_dma_read_ext_command_multi4;
+        input integer prd_int; // [0] - first prd interrupt, ... [31] - 31-st
+        input integer nw1; // first segment lengtth (in words)
+        input integer nw2; // second segment lengtth (in words)
+        input integer nw3; // third segment lengtth (in words)
+        
+        integer nw4;
+        integer i;
+        
+        begin
+            nw4 = 256 - nw1 - nw2 - nw3; // total 512 bytes, 256 words
+            // clear system memory for command
+            for (i = 0; i < 64; i = i+1)  sysmem[(COMMAND_TABLE >> 2) + i] = 0;
+            // fill ATA command 
+            sysmem[(COMMAND_TABLE >> 2) + 0] = FIS_H2DR |         // FIS type - H2D register (0x27)
+                                               ('h80 << 8) |      // set C = 1
+                                               (ATA_RDMA_EXT << 16) | // Command = 0x25 (READ_DMA_EXT)
+                                              ( 0 << 24);        // features = 0 ?
+            // All other 4 DWORDs are 0 for this command
+            // Set PRDT (four items)
+            // PRDT #1
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  3] = (prd_int[0] << 31) | (2 * nw1 - 1); // 2 * nw1 bytes
+            // PRDT #2
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  4] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  7] = (prd_int[0] << 31) | (2 * nw2 - 1); // 2 * nw2 bytes
+            // PRDT #3
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  8] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 11] = (prd_int[0] << 31) | (2 * nw3 - 1); // 2 * nw3 bytes
+            // PRDT #4
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 12] = SYS_MEM_START + IDENTIFY_BUF + (2 * nw1) + (2 * nw2) + (2 * nw3);
+            sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) + 15] = (prd_int[0] << 31) | (2 * nw4 - 1); // 2 * nw4 bytes
+            
+            // Setup command header
+            maxigp1_writep       ((CLB_OFFS32 + 0) << 2, (5 <<  0) | // 'CFL' - number of DWORDs in the CFIS
+                                                         (0 <<  5) | // 'A' Not ATAPI
+                                                         (0 <<  6) | // 'W' Not write to device
+//                                                         (1 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  7) | // 'P' Prefetchable = 1
+                                                         (0 <<  8) | // 'R' Not a Reset
+                                                         (0 <<  9) | // 'B' Not a BIST
+                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
+//                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
+                                                         (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
+            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
+            // Set Command Issued
+            maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 1); // 'PxCI' - Set 'Command issue' for slot 0 (the only one)
+            // relax and enjoy
+        end
+    endtask
+    
+    
     
     task setup_dma_write_identify_command_multi4; // Write DMA, use data received during read identify
         input integer lba;
@@ -1205,9 +1260,13 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
     
 //  setup_pio_read_identify_command_simple(512,1); // prdt interrupt for entry 0
-  setup_pio_read_identify_command_simple(2560,1); // intentionally too long
+
+////  setup_pio_read_identify_command_simple(2560,1); // intentionally too long
 ///  setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
-/// setup_pio_read_identify_command_multi4(1,27,71,83); // prdt interrupt for entry 0
+
+/// setup_pio_read_identify_command_multi4(0,27,71,83); // No prdt interrupts
+    setup_dma_read_ext_command_multi4(0,64,64,64);     // No prdt interrupts, 4 64-word chunks
+    
 /// setup_pio_read_identify_command_multi4(1,27,64,83); // prdt interrupt for entry 0
 ///    setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0 // last used
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
@@ -1323,6 +1382,13 @@ initial begin //Host
 //HBA_PORT__PxIE__DHRE__MASK = 'h1;
 end
 
+function func_is_dev_read_dma_ext;
+    input [31:0] dw;
+    begin
+        func_is_dev_read_dma_ext = ((dw & 'hff) == FIS_H2DR ) && (((dw >> 16) & 'hff) == ATA_RDMA_EXT);
+    end
+endfunction
+
 function func_is_dev_identify;
     input [31:0] dw;
     begin
@@ -1390,13 +1456,32 @@ initial begin //Device
 
             dev.send_dma_activate (69,      // input integer id;
                                    status); // output integer status;
+        end else if (func_is_dev_read_dma_ext(dev.receive_data[0])) begin
+            dev.send_incrementing_data(70,      // input integer id;
+                                   128, // number of dwords to send, later decode count field
+                                   status); // output integer status;
+            DEVICE_TITLE =                "Device sent Data FIS (READ DMA EXT)";
+            $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+            
+            // Send multiple FISes if needed, when done:
+            dev.send_D2HR(70,
+               1, // irq,
+               8'h0,                                // status
+               0,                                   // error
+               0,                                   // device
+               0,                                   // lba_low
+               0,                                   // lba_high
+               0,                                   // count
+               status);                             // output: result status
+            DEVICE_TITLE =                "Device sent D2H FIS (DMA D2H over)";
+            $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
 
         end else if (func_is_h2d_data(dev.receive_data[0])) begin
             DEVICE_TITLE = "Got H2D data";
             $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);
             $display("[Dev-TB]:       %hh payload DWORDs got (%d bytes) @%t", dev.received_size, dev.received_size << 2, $time);
             // Assuming device got what it needed, otherwise send DMA Activate again
-            dev.send_D2HR(70,
+            dev.send_D2HR(71,
                1, // irq,
                8'h0,                                // status
                0,                                   // error

@@ -1,22 +1,25 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Tue Mar  1 01:47:21 2016
+[*] Fri Mar  4 19:49:47 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160229184025832.fst"
-[dumpfile_mtime] "Tue Mar  1 01:42:30 2016"
-[dumpfile_size] 15004446
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160304124651260.fst"
+[dumpfile_mtime] "Fri Mar  4 19:48:48 2016"
+[dumpfile_size] 13922108
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 47816000
+[timestart] 34498000
 [size] 1823 1180
 [pos] 0 42
-*-18.256386 48747934 62346574 72998842 74025406 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-19.415150 37229086 62346574 72998842 74025406 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
+[treeopen] tb_ahci.dev.
 [treeopen] tb_ahci.dev.linkMonitorFIS.
 [treeopen] tb_ahci.dev.phy.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.
+[treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.
+[treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.dataiface.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.tx.
 [treeopen] tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.tx.ser.
 [treeopen] tb_ahci.dev.phy.oob_dev.
@@ -56,8 +59,8 @@
 [treeopen] tb_ahci.simul_axi_hp_wr_i.waddr_i.
 [treeopen] tb_ahci.simul_axi_hp_wr_i.wdata_i.
 [treeopen] tb_ahci.simul_axi_read_i.
-[sst_width] 368
-[signals_width] 409
+[sst_width] 325
+[signals_width] 338
 [sst_expanded] 1
 [sst_vpaned_height] 573
 @820
@@ -1702,7 +1705,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_g
 -drp
 @1401200
 -axi_ahci_regs
-@c00200
+@800200
 -ahci_fsm
 @28
 tb_ahci.dut.sata_top.ahci_top_i.hba_arst
@@ -1837,6 +1840,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.sirq_PC
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.get_rfis
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_sig
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_err_sts
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_prdbc
 @1000200
 -actions
 @c00200
@@ -1976,7 +1980,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_pend_r[1:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_ackn
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.async_from_st
-@1401200
+@1000200
 -ahci_fsm
 @c00200
 -ahci_fis_receive
@@ -2533,16 +2537,38 @@ tb_ahci.simul_axi_hp_wr_i.wdata_i.fill[7:0]
 -
 @800200
 -debug_non_prefetchable
+@29
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.condition_mux_i.XFER0
+@28
+tb_ahci.dut.sata_top.ahci_top_i.dma_cmd_busy
+tb_ahci.dut.sata_top.ahci_top_i.dma_cmd_done
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dma_prds_done
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.dwords_over
+@22
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.data_in_dwords_r[11:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.prdbc_r[31:2]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.get_data_fis
+tb_ahci.dut.sata_top.ahci_top_i.frcv_update_prdbc
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.update_prdbc
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.update_prdbc_r
+@22
+tb_ahci.dut.sata_top.ahci_top_i.xfer_cntr[31:2]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.xfer_cntr_r[31:2]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_data[31:0]
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_addr[9:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.ahci_fis_receive_i.reg_we
+@200
+-
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_pio
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.update_err_sts
 (1)tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_transitions[1:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_transitions_w
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.tfd_bsy
-@29
 [color] 3
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.conditions_ce
-@28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.tfd_drq
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.tfd_sts[7:0]
@@ -2802,7 +2828,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.qwcount[22:1]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.data_len[3:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.axi_set_addr_data_w
-@800200
+@c00200
 -fifo_h2d
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.din[63:0]
@@ -3175,7 +3201,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_i.slow_down
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_i.last_DW
-@800200
+@c00200
 -debug
 @200
 -
@@ -3223,10 +3249,12 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_i.last_dw_sent
 @1001200
 -group_end
-@1000200
+@1401200
 -debug
+@1000200
 -h2d_stuff
 -mclk_domain
+@1401200
 -fifo_h2d
 @28
 tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.cmd_busy
@@ -4220,6 +4248,20 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.crc.crc_bit[31:0]
 -
 @1000200
 -crc
+@800200
+-dev_dbg
+@28
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.dataiface.reset
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.dataiface.full_wr
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.dataiface.val_wr
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.dataiface.val_rd
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.des.need_reset
+@22
+tb_ahci.dev.phy.gtx_wrapper.gtx_gpl.channel.rx.des.bitcounter[31:0]
+@200
+-
+@1000200
+-dev_dbg
 @800200
 -dev_crc
 @22
@@ -5238,7 +5280,7 @@ tb_ahci.dut.sata_top.ahci_top_i.h2d_valid
 tb_ahci.dut.sata_top.ahci_top_i.data_out_dwords[11:0]
 @28
 tb_ahci.dut.sata_top.ahci_top_i.datascope_clk
-@800022
+@c00022
 tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
 @28
 (0)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
@@ -5273,7 +5315,7 @@ tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
 (29)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
 (30)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
 (31)tb_ahci.dut.sata_top.ahci_top_i.datascope_di[31:0]
-@1001200
+@1401200
 -group_end
 @800022
 tb_ahci.dut.sata_top.ahci_top_i.datascope_run[1:0]

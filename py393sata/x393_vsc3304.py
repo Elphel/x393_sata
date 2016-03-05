@@ -57,6 +57,14 @@ class x393_vsc3304(object):
             "SSD_B":          "F",
             "ZYNQ_A":         "G",
             "ZYNQ_B":         "H"},
+        "10389S": { #testing with the wrong adapter
+            "INVERTED_PORTS": ("C","E","G","H"),
+            "ESATA_A":        "C",
+            "ESATA_B":        "A",
+            "SSD_A":          "E",
+            "SSD_B":          "F",
+            "ZYNQ_A":         "G",
+            "ZYNQ_B":         "H"},
      }
     PORT_NUM = {"A":{"OUT": 8,"IN":12}, # I/O port numbers for each port name
                 "B":{"OUT": 9,"IN":13},
@@ -77,6 +85,9 @@ class x393_vsc3304(object):
 
         "ZYNQ<->ESATA":[{"FROM": "ZYNQ_A",  "TO": "ESATA_A" },
                         {"FROM": "ESATA_B", "TO": "ZYNQ_B"}],
+        #Temporarily, testing with wrong adapter  (swapped ESATA_A and ESATA_B)                 
+        "ZYNQ<->SSATA":[{"FROM": "ZYNQ_A",  "TO": "ESATA_B" },
+                        {"FROM": "ESATA_A", "TO": "ZYNQ_B"}],
                            
         "DEBUG_SSD":   [{"FROM": "ZYNQ_A",  "TO": "SSD_A" },
                         {"FROM": "SSD_B",   "TO": "ZYNQ_B"},
@@ -188,6 +199,9 @@ class x393_vsc3304(object):
 
     def connect_zynq_esata(self):
         self.connect("ZYNQ<->ESATA")
+
+    def connect_zynq_ssata(self):
+        self.connect("ZYNQ<->SSATA")
         
     def connect_debug(self):
         self.connect("DEBUG_SSD")

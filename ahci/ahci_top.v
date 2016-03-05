@@ -1295,9 +1295,9 @@ debug_dma_h2d
                                                                                                        debug_in_link[23],
                                                                                                        datascope_id[2:0], {12-ADDRESS_BITS{1'b0}}, datascope_waddr_r});
     always @(posedge mclk) begin
-        if    (fsnd_cfis_xmit) datascope_waddr_r <= DATASCOPE_CFIS_START; // start from command FIS
+        if    (fsnd_cfis_xmit)                          datascope_waddr_r <= DATASCOPE_CFIS_START; // start from command FIS
 ///        if    (mrst) datascope_waddr_r <= DATASCOPE_CFIS_START;
-        else if (datascope_we) datascope_waddr_r <= datascope_waddr_r + 1;
+        else if (datascope_we && !(&datascope_waddr_r)) datascope_waddr_r <= datascope_waddr_r + 1;
     end
 
 `else    

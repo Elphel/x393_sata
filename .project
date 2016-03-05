@@ -52,87 +52,87 @@
 		<link>
 			<name>vivado_logs/VivadoBitstream.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoBitstream-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoBitstream-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoOpt.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOpt-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOpt-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoOptPhys.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOptPhys-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOptPhys-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoOptPower.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOptPower-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoOptPower-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoPlace.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoPlace-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoPlace-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoRoute.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoRoute-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoRoute-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoSynthesis.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoSynthesis-20160229184939748.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoSynthesis-20160304125744608.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoTimimgSummaryReportImplemented.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimimgSummaryReportImplemented-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimimgSummaryReportImplemented-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoTimimgSummaryReportSynthesis.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimimgSummaryReportSynthesis-20160229184939748.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimimgSummaryReportSynthesis-20160304125744608.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoTimingReportImplemented.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimingReportImplemented-20160229185157261.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimingReportImplemented-20160304130042850.log</location>
 		</link>
 		<link>
 			<name>vivado_logs/VivadoTimingReportSynthesis.log</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimingReportSynthesis-20160229184939748.log</location>
+			<location>/home/andrey/git/x393_sata/vivado_logs/VivadoTimingReportSynthesis-20160304125744608.log</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-opt-phys.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-phys-20160229185157261.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-phys-20160304130042850.dcp</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-opt-power.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-power-20160229185157261.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-power-20160304130042850.dcp</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-opt.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-20160229185157261.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-opt-20160304130042850.dcp</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-place.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-place-20160229185157261.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-place-20160304130042850.dcp</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-route.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-route-20160229185157261.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-route-20160304130042850.dcp</location>
 		</link>
 		<link>
 			<name>vivado_state/x393_sata-synth.dcp</name>
 			<type>1</type>
-			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-synth-20160229184939748.dcp</location>
+			<location>/home/andrey/git/x393_sata/vivado_state/x393_sata-synth-20160304125744608.dcp</location>
 		</link>
 	</linkedResources>
 </projectDescription>

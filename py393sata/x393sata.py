@@ -85,6 +85,7 @@ COMMAND_HEADER0_OFFS =    0x800 # offset of the command header 0 in MAXI1 space
 COMMAND_BUFFER_OFFSET =     0x10 # Simulating offset in the AHCI driver
 COMMAND_BUFFER_SIZE =     0x100 # 256 bytes - 128 before PRDT, 128+ - PRDTs (16 bytes each)
 PRD_OFFSET =               0x80 # Start of the PRD table
+PRD_SIZE =                 0x10 # PRD entry size
 FB_OFFS =                 0xc00 # Needs 0x100 bytes 
 DRP_OFFS =                0xfec # Read/Write DRP data [31] - write/ready, [30:16] - address/0, [15:0] - data to/data from
 DBG_OFFS =                0xff0 # and 3 next DWORDS
@@ -144,8 +145,11 @@ ATA_WDMA =     0xca # Write to device in DMA mode
 ATA_WBUF_PIO = 0xe8 # Write 512 bytes to device buffer in PIO mode
 ATA_WBUF_DMA = 0xeb # Write 512 bytes to device buffer in DMA mode
 ATA_RDMA =     0xc8 # Read from device in DMA mode
+ATA_RDMA_EXT = 0x25 # Read DMA devices that support 48-bit Addressing
+
 ATA_RBUF_PIO = 0xe4 # Read  512 bytes from device buffer in PIO mode
 ATA_RBUF_DMA = 0xe9 # Read  512 bytes from device buffer in DMA mode
+ATA_READ_LOG_EXT = 0x2f
 
 class x393sata(object):
     DRY_MODE= True # True
@@ -683,6 +687,269 @@ class x393sata(object):
         self.sync_for_cpu('D2H',DATAIN_ADDRESS + IDENTIFY_BUF, 512)
         print("_=mem.mem_dump (0x%x, 0x100, 2)"%(DATAIN_ADDRESS + IDENTIFY_BUF))
         self.x393_mem.mem_dump (DATAIN_ADDRESS + IDENTIFY_BUF, 0x100,2)        
+
+    def read_log_ext(self, lba, count = 1, cntrl = 0, do_not_start = False, prd_irqs = None): #TODO: Add multi-PRD testing
+        """
+        run 'read log ext' command, as driver was doing it
+        @param lba - lba parameter
+        @param count - number of blocks to read
+        @param cntrl - cntrl parameter (was sending 0xa0 - all obsolete bits)
+        @param do_not_start - do not actually launch the command by writing 1 to command_issue (CI) bit in PxCI register
+        @param prd_irqs - None or a tuple/list with per-PRD interrupts
+        """
+        if lba > (1 << 24):
+            raise ValueError ("This program supports only 24-bit LBA") 
+        if count > 256:
+            raise ValueError ("This program supports only 8 bit count") 
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
+        # clear system memory for the command
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        for a in range(64):
+            self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
+        #Setup command table in system memory
+        self.x393_mem.write_mem(COMMAND_ADDRESS +  0,
+                                FIS_H2DR |         # FIS type - H2D register (0x27)
+                               (0x80 << 8) |       # set C = 1
+                               (ATA_READ_LOG_EXT << 16) |  # Command = 0x27EC (IDFY)
+                               ( 0 << 24))         # features = 0 ?
+        """
+0x80000800:0001 PRDTL==1
+               0005  CFISL = 5
+                    00000000 2e200010 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+        
+0x2e200010:00
+             2f     Command
+               80   (Bit 15: `: Command register - 0 Device control register)
+                 27 RFIS H2D
+           a0                   Device?
+             00
+               0830             LBA 15:0
+           00000000
+           08                   CONTROL = 8
+             000001             COUNT = 1
+           00000000
+           00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 
+0x2e200040:0000000c 0000000d 0000000e 0000000f 00000010 00000011 00000012 00000013 00000014 00000015 00000016 00000017 00000018 00000019 0000001a 0000001b 
+0x2e200080:0000001c 0000001d 0000001e 0000001f
++0x80:     24d7e680 00000000 00000022 000001ff
+                
+        """
+        self.x393_mem.write_mem(COMMAND_ADDRESS +  4, lba | (0xa0 << 24)) # LBA 24 bits and device (how driver sent it)
+        self.x393_mem.write_mem(COMMAND_ADDRESS + 12, count & 0xff | (cntrl << 24)) # count field (0 means 256 blocks)
+        # Other DWORDs are reserved/0 for this command
+        # Set PRDT (single item) TODO: later check multiple small ones
+        self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + (0 << 2), DATAIN_ADDRESS)
+        prdt_int = 0
+        if prd_irqs:
+            prdt_int = (0,1)[prd_irqs[0]] 
+        self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + (3 << 2), (prdt_int << 31) | ((count * 512) -1)) # count * 512 bytes in this PRDT)
+        # Setup command header 
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (0 << 2),
+                                                     (5 <<  0) | # 'CFL' - number of DWORDs in this CFIS
+                                                     (0 <<  5) | # 'A' Not ATAPI
+                                                     (0 <<  6) | # 'W' Not write to device
+                                                     (0 <<  7) | # 'P' Prefetchable = 1
+                                                     (0 <<  8) | # 'R' Not a Reset
+                                                     (0 <<  9) | # 'B' Not a BIST
+                                                     (0 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+                                                     (1 << 16))  # 'PRDTL' - number of PRDT entries (just one)
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2),
+                                                     (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
+#                                                     (COMMAND_ADDRESS) & 0xffffffc0) # 'CTBA' - Command table base address
+
+        self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        self.sync_for_device('D2H',DATAIN_ADDRESS , count * 512)
+        
+        # Make it flush (dumb way - write each cache line (32 bytes) something?
+#        for i in range (4096):
+#           self.x393_mem.write_mem(COMMAND_ADDRESS + 32 * i, self.x393_mem.read_mem(COMMAND_ADDRESS + 32 * i))
+            
+#        print("Running flush_mem()")    
+#        self.flush_mem() # Did not worked, caused error
+#mem.write_mem(0x80000118,0x11)
+        # Set PxCMD.ST bit (it may already be set)
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCMD'), 0x11) # .ST and .FRE bits (FRE is readonly 1 anyway)
+        # Set Command Issued
+        if do_not_start:
+            print ('Run the following command to start the comand:')
+            print("mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)")
+        else:
+            self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
+        print("Command table data:")
+        print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
+        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        #Wait interrupt
+        for r in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                if (istat & 2) != 2: #DHRS interrupt (for DMA - 1)
+                    print ("\n ======================Got wrong interrupt ============================")    
+                    self.reg_status()
+                    print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+                    self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+                    print("Datascope (debug) data:")    
+                    print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+                    self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+                    dd =0
+                    for a in range(0x80001000,0x80001014,4):
+                        dd |= self.x393_mem.read_mem(a)
+                    if dd == 0:
+                        print ("*** Probably got cache/write buffer problem, continuing ***")
+                        break    
+                    raise Exception("Failed to get interrupt")
+                    
+                break
+            sleep(0.1)
+        else:
+            print ("\n ====================== Failed to get interrupt ============================")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x100,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+            raise Exception("Failed to get interrupt")
+            
+        print("Datascope (debug) data:")    
+        print("_=mem.mem_dump (0x%x, 0x200,4)"%(DATASCOPE_ADDR))
+        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+        print("Memory read data:") 
+        self.sync_for_cpu('D2H',DATAIN_ADDRESS, count * 512)
+        print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
+        self.x393_mem.mem_dump (DATAIN_ADDRESS, count * 0x200, 1)        
+        
+        #ATA_RDMA_EXT = 0x25 # Read DMA devices that support 48-bit Addressing
+        
+    #Reproducing multi-block command that failed from the driver    
+    def dd_read_dma_ext(self, lba, chunk_size= 4096, xfer_size= 0x30000, do_not_start = False, prd_irqs = None):
+        """
+        Read device to memory, use multi PRD table
+        @param lba - start block number
+        @param chunk_size - Size of each memory chunk pointed by a single PRD entry
+        @param xfer_size -  Total data size to be read
+        @param do_not_start - do not actually launch the command by writing 1 to command_issue (CI) bit in PxCI register
+        @param prd_irqs - None or a tuple/list with per-PRD interrupts
+        """
+        features = 0
+        device = 0xe0
+        control = 0x08
+        icc = 0
+        aux = 0
+        # Round up the xfer size to integer number of logical sectors
+        lbs = 512 #logical block size)
+        count = -(-xfer_size // lbs)
+        xfer_size = count * lbs
+        nprds =  -(-xfer_size // chunk_size) # last chunk may be partial
+        cmd_size = PRD_OFFSET + PRD_SIZE * nprds;
+        print("count = 0x%08x"%(count))
+        print("xfer_size = 0x%08x"%(xfer_size))
+
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
+        # sync system memory for the command
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, cmd_size) # command and PRD table
+        for a in range(cmd_size//4):
+            self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
+        #Setup command table in system memory
+        self.x393_mem.write_mem(COMMAND_ADDRESS +  0,
+                                FIS_H2DR |                 # FIS type - H2D register (0x27)
+                               (0x80 << 8) |               # set C = 1
+                               (ATA_RDMA_EXT << 16) |      # Command = 0x25
+                               ((features & 0xff) << 24))  # features = 0
+        
+        self.x393_mem.write_mem(COMMAND_ADDRESS +  4, (lba         & 0xffffff) | (device << 24))                 # LBA 24 low bits
+        self.x393_mem.write_mem(COMMAND_ADDRESS +  8, ((lba >> 24) & 0xffffff) | (((features>>8) & 0xff) << 24)) # LBA 24 high bits
+        self.x393_mem.write_mem(COMMAND_ADDRESS + 12, (count & 0xffff) | (icc << 16) | (control << 24))          # count
+        self.x393_mem.write_mem(COMMAND_ADDRESS + 16, aux & 0xffff) # count field (0 means 65536 logical blocks)
+        # Set PRDT entries
+        left = xfer_size
+        n = 0
+        while left > 0:
+            self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + PRD_SIZE * n + (0 << 2), DATAIN_ADDRESS + chunk_size * n)
+            self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + PRD_SIZE * n + (1 << 2), 0) # data chunk address , bits[63:32]
+            this_size = min(chunk_size, left)
+            prdt_int = 0
+            if prd_irqs and (len(prd_irqs) > n):
+                prdt_int = (0,1)[prd_irqs[n]] 
+            self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + PRD_SIZE * n + (3 << 2), (prdt_int << 31) | (this_size - 1))
+            left -= this_size
+            n += 1
+                  
+        # Setup command header 
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (0 << 2),
+                                                     (5 <<  0) | # 'CFL' - number of DWORDs in this CFIS
+                                                     (0 <<  5) | # 'A' Not ATAPI
+                                                     (0 <<  6) | # 'W' Not write to device
+                                                     (0 <<  7) | # 'P' Prefetchable = 1
+                                                     (0 <<  8) | # 'R' Not a Reset
+                                                     (0 <<  9) | # 'B' Not a BIST
+                                                     (0 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+                                                     (nprds << 16))  # 'PRDTL' - number of PRDT entries
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2), (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
+        self.sync_for_device('H2D',COMMAND_ADDRESS, cmd_size) # command and PRD table
+        self.sync_for_device('D2H',DATAIN_ADDRESS , xfer_size)
+
+        # Set PxCMD.ST bit (it may already be set)
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCMD'), 0x11) # .ST and .FRE bits (FRE is readonly 1 anyway)
+        # Set Command Issued
+        if do_not_start:
+            print ('Run the following command to start the comand:')
+            print("mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)")
+        else:
+            self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
+        print("Command table data:")
+        print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
+        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        #Wait interrupt
+        for r in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                if (istat & 1) != 1: #DHRS interrupt (for PIO - 2)
+                    print ("\n ======================Got wrong interrupt ============================")    
+                    self.reg_status()
+                    print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+                    self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+                    print("Datascope (debug) data:")    
+                    print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+                    self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+                    dd =0
+                    for a in range(0x80001000,0x80001014,4):
+                        dd |= self.x393_mem.read_mem(a)
+                    if dd == 0:
+                        print ("*** Probably got cache/write buffer problem, continuing ***")
+                        break    
+                    raise Exception("Failed to get interrupt")
+                    
+                break
+            sleep(0.1)
+        else:
+            print ("\n ====================== Failed to get interrupt ============================")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x100,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+            raise Exception("Failed to get interrupt")
+            
+        print("Datascope (debug) data:")    
+        print("_=mem.mem_dump (0x%x, 0x200,4)"%(DATASCOPE_ADDR))
+        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+        print("Memory read data:") 
+        self.sync_for_cpu('D2H',DATAIN_ADDRESS, count * 512)
+        print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
+        mcount=min(count,2)
+        self.x393_mem.mem_dump (DATAIN_ADDRESS, mcount * 0x200, 1)
+        if (mcount<count):
+            print("------------------------- truncated -------------------------")        
+
         
     def dd_read_dma(self, skip, count = 1, do_not_start = False, prd_irqs = None): #TODO: Add multi-PRD testing
         """
@@ -794,6 +1061,8 @@ class x393sata(object):
         self.sync_for_cpu('D2H',DATAIN_ADDRESS, count * 512)
         print("_=mem.mem_dump (0x%x, 0x%x, 1)"%(DATAIN_ADDRESS, count * 0x200))
         self.x393_mem.mem_dump (DATAIN_ADDRESS, count * 0x200, 1)        
+        
+        
     def dd_write_dma(self, skip, count = 1, use_read_buffer = False, do_not_start = False, prd_irqs = None): #TODO: Add multi-PRD testing
         """
         Write device from memory, use single PRD table
@@ -1227,7 +1496,7 @@ hex(mem.read_mem(0x80000fec))
 sata.drp_write(0x20b,1) #disable wait for auto align
 sata.reset_device()
 _=mem.mem_dump (0x80000ff0, 4,4)
-sata.reg_status(
+sata.reg_status()
 sata.reset_ie(), sata.reg_status()
 sata.read_sipo_meas(0xfffff,0x7ffe)
 
@@ -1276,10 +1545,75 @@ sata.reg_status(),sata.reset_ie(),sata.err_count()
 _=mem.mem_dump (0x80000ff0, 4,4)                  
 _=mem.mem_dump (0x80001000, 0x120,4)              
 
+
+
 hex(sata.get_reg_address('HBA_PORT__PxSCTL'))
 mem.write_mem(0x8000012c,1)
 mem.write_mem(0x8000012c,0)
 hex(mem.read_mem(0x8000012c))
+
+mem.write_mem(0x80000118,0x10)
+
+
+0x80001000:002f8027 a0000830 00000000 08000001 00000000
+
+0x2e200010:00
+             2f     Command
+               80   (Bit 15: `: Command register - 0 Device control register)
+                 27 RFIS H2D
+           a0                   Device?
+             00
+               0830             LBA 15:0
+           00000000
+           08                   CONTROL = 8
+             000001             COUNT = 1
+           00000000
+           00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 
+0x2e200040:0000000c 0000000d 0000000e 0000000f 00000010 00000011 00000012 00000013 00000014 00000015 00000016 00000017 00000018 00000019 0000001a 0000001b 
+0x2e200080:0000001c 0000001d 0000001e 0000001f
++0x80:     24d7e680 00000000 00000022 000001ff
+
+
+                                                                   00000024 00000025 00000026 00000027 00000028 00000029 0000002a 0000002b 
+0x2e2000c0:0000002c 0000002d 0000002e 0000002f 00000030 00000031 00000032 00000033 00000034 00000035 00000036 00000037 00000038 00000039 0000003a 0000003b 
+0x2e200100:0000003c 0000003d 0000003e 0000003f 
+
+
+
+0x24d7e680:00080001 80000000 06da4a87 80000000 00000102 80000000 00000000 00000000 00000000 00000000 ffff0000 00000000 00003200 80000000 00000000 00000000 
+0x24d7e6c0:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e700:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e740:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e780:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e7c0:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e800:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+0x24d7e840:00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+
+----------------------
+>>> _=mem.mem_dump (0x80000ff0, 4,4)                  
+0x80000ff0:a0004109 9d010f00 adac0f00 021b890c 
+
+0x80000800:00300005 00000000 2e200010 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 
+
+0x2e200010:00258027 e0000080 00000000 08000180 00000000 00000005 00000006 00000007 00000008 00000009 0000000a 0000000b 
+0x2e200040:0000000c 0000000d 0000000e 0000000f 00000010 00000011 00000012 00000013 00000014 00000015 00000016 00000017 00000018 00000019 0000001a 0000001b 
+0x2e200080:0000001c 0000001d 0000001e 0000001f 29406000 00000000 00000022 00000fff 252fc000 00000000 00000026 00000fff 2488e000 00000000 0000002a 00000fff 
+0x2e2000c0:246c4000 00000000 0000002e 00000fff 246d1000 00000000 00000032 00000fff 2e952000 00000000 00000036 00000fff 246c7000 00000000 0000003a 00000fff 
+0x2e200100:246e6000 00000000 0000003e 00000fff 29b4c000 00000000 00000042 00000fff 246de000 00000000 00000046 00000fff 26667000 00000000 0000004a 00000fff 
+0x2e200140:26bbc000 00000000 0000004e 00000fff 26b7e000 00000000 00000052 00000fff 26a0a000 00000000 00000056 00000fff 2471b000 00000000 0000005a 00000fff 
+0x2e200180:2471d000 00000000 0000005e 00000fff 27a4c000 00000000 00000062 00000fff 27992000 00000000 00000066 00000fff 27954000 00000000 0000006a 00000fff 
+0x2e2001c0:2781e000 00000000 0000006e 00000fff 27cba000 00000000 00000072 00000fff 27fa2000 00000000 00000076 00000fff 27f64000 00000000 0000007a 00000fff 
+0x2e200200:27e6d000 00000000 0000007e 00000fff 27d74000 00000000 00000082 00000fff 261ca000 00000000 00000086 00000fff 282cb000 00000000 0000008a 00000fff 
+0x2e200240:2824f000 00000000 0000008e 00000fff 28194000 00000000 00000092 00000fff 281d3000 00000000 00000096 00000fff 25cf0000 00000000 0000009a 00000fff 
+0x2e200280:2618c000 00000000 0000009e 00000fff 26110000 00000000 000000a2 00000fff 26057000 00000000 000000a6 00000fff 26019000 00000000 000000aa 00000fff 
+0x2e2002c0:259c8000 00000000 000000ae 00000fff 25c37000 00000000 000000b2 00000fff 263bb000 00000000 000000b6 00000fff 262c2000 00000000 000000ba 00000fff 
+0x2e200300:26284000 00000000 000000be 00000fff 256df000 00000000 000000c2 00000fff 25f9b000 00000000 000000c6 00000fff 25de8000 00000000 000000ca 00000fff 
+0x2e200340:25e27000 00000000 000000ce 00000fff 25d6c000 00000000 000000d2 00000fff 250ce000 00000000 000000d6 00000fff 25663000 00000000 000000da 00000fff 
+0x2e200380:2556b000 00000000 000000de 00000fff 000000e0 000000e1 000000e2 000000e3 000000e4 000000e5 000000e6 000000e7 000000e8 000000e9 000000ea 000000eb 
+
+
+
+
 
 
 
@@ -1304,7 +1638,10 @@ _=mem.mem_dump(0x3813fff8,0x2,4)
 mem.mem_save('/mnt/mmc/data/regs_dump_04',0x80000000,0x3000)
 mem.mem_save('/mnt/mmc/data/mem0x3000_dump_04',0x38140000,0x13e000)
 
-
+0x3813fff8:0000018b 00003000 
+'0x4a1000'
+mem.mem_save('/mnt/mmc/data/regs_dump_05',0x80000000,0x3000)
+mem.mem_save('/mnt/mmc/data/mem0x3000_dump_05',0x38140000,0x4a1000)
 
 #############
 

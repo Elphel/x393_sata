@@ -1282,7 +1282,7 @@ assign  val_wr  = ~full_wr & bitcounter == (width - 1);
 always @ (posedge inclk) begin
     if (reset) need_reset <= 0;
     else if (full_wr && !need_reset) begin
-        $display("FIFO in %m is full, that is not an appropriate behaviour - needs reset @%time", $time);
+        $display("1:FIFO in %m is full, that is not an appropriate behaviour - needs reset @%time", $time);
         bitcounter <= 'bx;
         need_reset <= 1'b1;
 //        $finish;
@@ -1811,6 +1811,7 @@ wire                    full_wr;
 wire                    val_wr;
 wire                    val_rd;
 wire                    almost_empty_rd;
+reg                     need_reset = 1;
 
 always @ (posedge usrclk)
     wordcounter  <= reset ? 32'h0 : realign & ~(div == 0) ? 32'd1 : wordcounter == (div - 1) ? 32'h0 : wordcounter + 1'b1;
@@ -1835,10 +1836,11 @@ assign  val_rd  = ~empty_rd & ~almost_empty_rd;
 assign  val_wr  = ~full_wr & wordcounter == (div - 1);
 
 always @ (posedge usrclk)
-    if (full_wr)
-    begin
-        $display("FIFO in %m is full, that is not an appropriate behaviour, needs reset");
+    if (reset) need_reset <= 0;
+    else   if (full_wr && !need_reset) begin
+        $display("2:FIFO in %m is full, that is not an appropriate behaviour, needs reset @%time", $time);
         wordcounter = 'bx;
+        need_reset <= 1;
 //        $finish;
     end
 

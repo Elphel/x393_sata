@@ -850,6 +850,19 @@ task send_identify_data; // @SuppressThisWarning VEditor - Used in testbench
     end
 endtask
 
+task send_incrementing_data; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    input integer len;
+    output integer status;
+    integer i;
+    begin
+        transmit_data[0] = FIS_DATA;
+        for (i=0;i<len;i=i+1) begin
+            transmit_data[i+1] = i;
+        end
+        linkTransmitFIS(id, 129, 0, status);        
+    end
+endtask
 
 
 

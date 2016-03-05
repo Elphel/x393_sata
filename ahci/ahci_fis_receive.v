@@ -342,7 +342,7 @@ localparam DATA_TYPE_ERR =      3;
         if (reg_we_w)                         reg_data <=    hba_data_in;
         else if (update_err_sts_r)            reg_data <=    {16'b0,tf_err_sts};
         else if (update_sig_r)                reg_data <=    sig_r;
-        else if (update_prdbc_r)              reg_data <=    {xfer_cntr_r[31:2],2'b0};
+        else if (update_prdbc_r)              reg_data <=    {prdbc_r[31:2],2'b0}; // xfer_cntr_r[31:2],2'b0};
 
         if (store_sig[1])                     sig_r[31:8] <= hba_data_in[23:0];
         if (store_sig[3])                     sig_r[ 7:0] <= hba_data_in[ 7:0];
