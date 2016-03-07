@@ -212,6 +212,9 @@ module  ahci_sata_layers #(
     
     wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
     wire                    [31:0] debug_phy0;
+    
+    wire [31:0]                    datascope0_di;
+    
 //    assign debug_sata = {link_established, phy_ready, debug_phy[29:16],debug_link[15:0]}; // 
 //    assign debug_sata = debug_link[31:0]; // 
 ///    assign debug_sata = debug_phy;
@@ -261,6 +264,7 @@ module  ahci_sata_layers #(
         if (d2h_fifo_wr) debug_last_d2h_type_in<= d2h_type_in;
         if (d2h_fifo_rd) debug_last_d2h_type<=    d2h_type;
     end
+    /*
     assign debug_phy = {h2d_type_out[1:0],h2d_type[1:0],
                         ll_h2d_last,d2h_valid,  d2h_type[1:0],
                         debug_last_d2h_type_in, d2h_type_in[1:0],
@@ -272,6 +276,22 @@ module  ahci_sata_layers #(
                         d2h_waddr[1:0],
                         d2h_raddr[1:0],
                         debug_phy0[ 7:0]};
+*/
+/*                        
+    assign debug_phy = {h2d_type_out[1:0],h2d_type[1:0],
+                        ll_h2d_last,d2h_valid,  d2h_type[1:0],
+//                        debug_last_d2h_type_in, d2h_type_in[1:0],
+//                        debug_last_d2h_type[1:0],
+//                        d2h_fill[1:0],
+//                        1'b0,
+//                        d2h_fifo_wr,
+//                        d2h_fifo_re_regen[1:0],
+//                        d2h_waddr[1:0],
+//                        d2h_raddr[1:0],
+                        debug_phy0[23:0]};
+*/
+assign debug_phy = debug_phy0; 
+
 //                        debug_phy0[15:0]};
 //                        debug_phy0[19:0]};
     
@@ -289,7 +309,7 @@ module  ahci_sata_layers #(
 //        .comwake_got     (serr_DW),            // output wire 
     
     
-    
+    assign datascope_di   = {5'b0,debug_link[5],datascope0_di[25:0]};// aligns_pair tx
     link #(
         .DATA_BYTE_WIDTH(4)
     ) link (
@@ -412,10 +432,10 @@ module  ahci_sata_layers #(
         .datascope_clk     (datascope_clk),     // output
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
         .datascope_we      (datascope_we),      // output
-        .datascope_di      (datascope_di),      // output[31:0] 
-//        .datascope_trig    (ll_incom_invalidate ), // ll_frame_ackn),     // input datascope external trigger
+        .datascope_di      (datascope0_di),      // output[31:0] 
+        .datascope_trig    (ll_incom_invalidate ), // ll_frame_ackn),     // input datascope external trigger
 //        .datascope_trig    (debug_link[4:0] == 'h0a), // state_send_eof // input datascope external trigger
-        .datascope_trig    (debug_link[4:0] == 'h02), // state_rcvr_goodcrc // input datascope external trigger
+///        .datascope_trig    (debug_link[4:0] == 'h02), // state_rcvr_goodcrc // input datascope external trigger
         //debug_link
 `endif        
 

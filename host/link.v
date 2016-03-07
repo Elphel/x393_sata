@@ -176,8 +176,8 @@ always @ (posedge clk) begin
     phy_err_in_r    <= phy_err_in_r0;
     
 end
-
-
+// When switching from state_rcvr_shold to state_rcvr_data we need to know that it will be data 1 cycle ahead
+wire                     next_will_be_data = !(is_cont_p_w || (rcv_junk && !(is_non_cont_non_align_p_w || is_align_p_w))) && !(|phy_isk_in_r0);
 
 reg                      data_txing_r; // if there are still some data to transmit and the transaction wasn't cancelled
 wire                     data_txing = data_txing_r & ~state_send_crc;
@@ -413,9 +413,11 @@ assign  set_rcvr_wait       = state_idle        & dword_val    &  rcvd_dword[COD
 assign  set_rcvr_rdy        = state_rcvr_wait   & dword_val    &  rcvd_dword[CODE_XRDYP]  & ~data_busy_in;
 
 assign  set_rcvr_data       = state_rcvr_rdy    & dword_val    &  rcvd_dword[CODE_SOFP]
-                            | state_rcvr_rhold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
-                            | state_rcvr_shold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
-                            
+//                            | state_rcvr_rhold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
+                            | state_rcvr_rhold  & next_will_be_data & ~data_busy_in
+//                            | state_rcvr_shold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
+                            | state_rcvr_shold  & next_will_be_data; // So it will not be align
+//next_will_be_data                            
 assign  set_rcvr_rhold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_DATA]  &  data_busy_in;
 
 assign  set_rcvr_shold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_HOLDP]
@@ -1246,7 +1248,7 @@ always @ (posedge clk)
                          , state_rcvr_badend
                          };
         $display("%m: invalid states: %b", sim_states_concat);
-        $finish;
+//        $finish;
     end
 `endif
 

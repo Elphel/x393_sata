@@ -354,6 +354,16 @@ wire [31:0] test_elastic_fast_data_out;
 wire        test_elastic_fast_full;
 wire        test_elastic_fast_empty;
 
+wire        incom_start_slow ;
+wire        incom_done_slow ; 
+wire        incom_invalidate_slow ; 
+wire        incom_sync_escape_slow ; 
+
+wire        incom_start_fast ;
+wire        incom_done_fast ; 
+wire        incom_invalidate_fast ; 
+wire        incom_sync_escape_fast ; 
+
 
 reg test_elastic_slow_rclk = 0;
 reg test_elastic_fast_rclk = 0;
@@ -381,6 +391,52 @@ always #(TEST_ELASTIC_PERIOD_FAST/2) test_elastic_fast_rclk =!test_elastic_fast_
         .empty          (test_elastic_slow_empty)           // output
     );
 
+    /* Testing just receive after elastic */
+/*    
+    link #(
+        .DATA_BYTE_WIDTH(4),
+        .ALIGNES_PERIOD(10)
+    ) link_slow_i (
+        .rst               (dut.sata_top.ahci_sata_layers_i.rst), // input wire 
+        .clk               (test_elastic_slow_rclk), // input wire 
+        .data_in           (0), // input[31:0] wire 
+        .data_mask_in      (2'b0), // input[1:0] wire 
+        .data_strobe_out   (), // output wire 
+        .data_last_in      (1'b0), // input wire 
+        .data_val_in       (1'b0), // input wire 
+        .data_out          (), // output[31:0] wire 
+        .data_mask_out     (), // output[1:0] wire 
+        .data_val_out      (), // output wire 
+        .data_busy_in      (1'b0), // input wire 
+        .data_last_out     (), // output wire 
+        .frame_req         (1'b0), // input wire 
+        .frame_busy        (), // output wire 
+        .frame_ack         (), // output wire 
+        .frame_rej         (), // output wire 
+        .frame_done_good   (), // output wire 
+        .frame_done_bad    (), // output wire 
+        
+        .incom_start       (incom_start_slow),       // output wire 
+        .incom_done        (incom_done_slow),        // output wire 
+        .incom_invalidate  (incom_invalidate_slow),  // output wire 
+        .incom_sync_escape (incom_sync_escape_slow), // output wire 
+        .incom_ack_good    (1'b0),                      // input wire Not needed here?
+        .incom_ack_bad     (1'b0),                      // input wire Not needed here?
+        .link_reset        (dut.sata_top.ahci_sata_layers_i.ll_link_reset), // input wire 
+        .sync_escape_req   (1'b0), // input wire 
+        .sync_escape_ack   (), // output wire 
+        .incom_stop_req    (1'b0), // input wire 
+        .link_established  (), // output
+        .link_bad_crc      (), // output reg 
+        .phy_ready         (dut.sata_top.ahci_sata_layers_i.phy_ready), // input wire 
+        .phy_data_in       (test_elastic_slow_data_out),                                         // input[31:0] wire 
+        .phy_isk_in        (test_elastic_slow_charisk_out),                                      // input[3:0] wire 
+        .phy_err_in        (test_elastic_slow_notintable_out | test_elastic_slow_disperror_out), // input[3:0] wire 
+        .phy_data_out      (), // output[31:0] wire 
+        .phy_isk_out       (), // output[3:0] wire 
+        .debug_out         () // output[31:0] 
+    );
+*/
     elastic1632 #(
         .DEPTH_LOG2(4),
         .OFFSET(5)
@@ -401,7 +457,52 @@ always #(TEST_ELASTIC_PERIOD_FAST/2) test_elastic_fast_rclk =!test_elastic_fast_
         .empty          (test_elastic_fast_empty)           // output
     );
 
-
+    /* Testing just receive after elastic */
+/*    
+    link #(
+        .DATA_BYTE_WIDTH(4),
+        .ALIGNES_PERIOD(10)
+    ) link_fast_i (
+        .rst               (dut.sata_top.ahci_sata_layers_i.rst), // input wire 
+        .clk               (test_elastic_fast_rclk), // input wire 
+        .data_in           (0), // input[31:0] wire 
+        .data_mask_in      (2'b0), // input[1:0] wire 
+        .data_strobe_out   (), // output wire 
+        .data_last_in      (1'b0), // input wire 
+        .data_val_in       (1'b0), // input wire 
+        .data_out          (), // output[31:0] wire 
+        .data_mask_out     (), // output[1:0] wire 
+        .data_val_out      (), // output wire 
+        .data_busy_in      (1'b0), // input wire 
+        .data_last_out     (), // output wire 
+        .frame_req         (1'b0), // input wire 
+        .frame_busy        (), // output wire 
+        .frame_ack         (), // output wire 
+        .frame_rej         (), // output wire 
+        .frame_done_good   (), // output wire 
+        .frame_done_bad    (), // output wire 
+        
+        .incom_start       (incom_start_fast),       // output wire 
+        .incom_done        (incom_done_fast),        // output wire 
+        .incom_invalidate  (incom_invalidate_fast),  // output wire 
+        .incom_sync_escape (incom_sync_escape_fast), // output wire 
+        .incom_ack_good    (1'b0),                      // input wire Not needed here - will it work in passive mode?
+        .incom_ack_bad     (1'b0),                      // input wire Not needed here - will it work in passive mode?
+        .link_reset        (dut.sata_top.ahci_sata_layers_i.ll_link_reset), // input wire 
+        .sync_escape_req   (1'b0), // input wire 
+        .sync_escape_ack   (), // output wire 
+        .incom_stop_req    (1'b0), // input wire 
+        .link_established  (), // output
+        .link_bad_crc      (), // output reg 
+        .phy_ready         (dut.sata_top.ahci_sata_layers_i.phy_ready), // input wire 
+        .phy_data_in       (test_elastic_fast_data_out),                                         // input[31:0] wire 
+        .phy_isk_in        (test_elastic_fast_charisk_out),                                      // input[3:0] wire 
+        .phy_err_in        (test_elastic_fast_notintable_out | test_elastic_fast_disperror_out), // input[3:0] wire 
+        .phy_data_out      (), // output[31:0] wire 
+        .phy_isk_out       (), // output[3:0] wire 
+        .debug_out         () // output[31:0] 
+    );
+*/
 
 
 
@@ -905,6 +1006,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
                                                          (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
 //                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 //            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -938,6 +1040,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (just one)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 //            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -989,6 +1092,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 ///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -1041,6 +1145,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
                                                          (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
 //                                                         (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 ///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -1097,6 +1202,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (4 << 16)); // 'PRDTL' - number of PRDT entries (4)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 ///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -1136,6 +1242,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
 //                                                         (0 << 10) | // 'C' Do not clear BSY/CI after transmitting this command
                                                          (1 << 10) | // 'C' Do clear BSY/CI after transmitting this command
                                                          (1 << 16)); // 'PRDTL' - number of PRDT entries (1)
+            maxigp1_writep       ((CLB_OFFS32 +1 ) << 2, 0);                                                // clear PRDBC
 ///            maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE) & 32'hffffffc0); // 'CTBA' - Command table base address
             maxigp1_writep       ((CLB_OFFS32 +2 ) << 2, (SYS_MEM_START + COMMAND_TABLE)); // 'CTBA' - Command table base address
             // Set Command Issued
@@ -1281,11 +1388,17 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
 `endif     
     
+// TODO change to ifdef - this is for identify command    
+//    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
+//    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
+
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow DHR only interrupts (PIO setup)
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // clear that interrupt
     
-    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
-    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
+    
     wait (IRQ);
-    TESTBENCH_TITLE = "Got Identify";
+//    TESTBENCH_TITLE = "Got Identify";
+    TESTBENCH_TITLE = "Got D2HRFIS";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR");
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
@@ -1457,10 +1570,12 @@ initial begin //Device
             dev.send_dma_activate (69,      // input integer id;
                                    status); // output integer status;
         end else if (func_is_dev_read_dma_ext(dev.receive_data[0])) begin
-            dev.send_incrementing_data(70,      // input integer id;
-                                   128, // number of dwords to send, later decode count field
-                                   status); // output integer status;
-            DEVICE_TITLE =                "Device sent Data FIS (READ DMA EXT)";
+        
+//            dev.send_incrementing_data(70,      // input integer id;
+            dev.send_incrementing_data_pause(70,      // input integer id;
+                                             128, // number of dwords to send, later decode count field
+                                             status); // output integer status;
+            DEVICE_TITLE =                "Device sent Data FIS with pauses(READ DMA EXT)";
             $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
             
             // Send multiple FISes if needed, when done:

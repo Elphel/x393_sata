@@ -840,6 +840,7 @@ task send_identify_data; // @SuppressThisWarning VEditor - Used in testbench
     reg   [15:0] identify_data[0:255]; // SuppressThisWarning VEditor : assigned in $readmem() system task
     integer i;
     begin
+        clear_transmit_pause(0);
 //        $readmemh("input_data/identify.dat",identify_data);
         $readmemh("input_data/test512.dat",identify_data);
         transmit_data[0] = FIS_DATA;
@@ -856,6 +857,7 @@ task send_incrementing_data; // @SuppressThisWarning VEditor - Used in testbench
     output integer status;
     integer i;
     begin
+        clear_transmit_pause(0);
         transmit_data[0] = FIS_DATA;
         for (i=0;i<len;i=i+1) begin
             transmit_data[i+1] = i;
@@ -864,6 +866,23 @@ task send_incrementing_data; // @SuppressThisWarning VEditor - Used in testbench
     end
 endtask
 
+task send_incrementing_data_pause; // @SuppressThisWarning VEditor - Used in testbench
+    input integer id;
+    input integer len;
+    output integer status;
+    integer i;
+    begin
+        clear_transmit_pause(0);
+        for (i=0;i<len;i=i+8) begin
+            transmit_data_pause[i+1] = i; // each 8-th have increainsg pause
+        end    
+        transmit_data[0] = FIS_DATA;
+        for (i=0;i<len;i=i+1) begin
+            transmit_data[i+1] = i;
+        end
+        linkTransmitFIS(id, 129, 0, status);        
+    end
+endtask
 
 
 /*
@@ -895,7 +914,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
     input integer size; // dwords count
     input integer transmit_custom_crc;
     output integer status;
-    integer pause;
+    integer xpause;
     integer cnt;
     integer crc;
     reg [111:0] rprim;
@@ -958,17 +977,21 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
         end
     // L_SendData + L_RcvrHold + L_SendHold
         cnt = 0;
-        pause = transmit_data_pause[0];
+        xpause = transmit_data_pause[0];
         while (cnt < size) begin
-//            scrambler_value = scrambleFunc(scrambler_value[31:16]);
-            scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
-//            $display("[Device] LINK:      Scrambler = %h", scrambler_value);
-            linkSendData(transmit_data[cnt] ^ scrambler_value);
-            crc = calculateCRC(crc, transmit_data[cnt]);
-//            $display("[Device] LINK:      Sent data = %h", transmit_data[cnt]);
-            DEV_TITLE = "Sent data";
-            DEV_DATA =  transmit_data[cnt];
-            $display("[Device] LINK:      %s = %h (#%d) @%t", DEV_TITLE, DEV_DATA, cnt, $time);
+            if (xpause > 0) begin
+                DEV_TITLE = "Transmission is paused";
+                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+                linkSendPrim("HOLD");
+                xpause = xpause - 1;
+            end else begin
+                scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
+                linkSendData(transmit_data[cnt] ^ scrambler_value);
+                crc = calculateCRC(crc, transmit_data[cnt]);
+                DEV_TITLE = "Sent data";
+                DEV_DATA =  transmit_data[cnt];
+                $display("[Device] LINK:      %s = %h (#%d) @%t", DEV_TITLE, DEV_DATA, cnt, $time);
+            end
             @ (posedge clk)
                 rprim = linkGetPrim(0);
             if (rprim == "SYNC") begin
@@ -978,43 +1001,33 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 #100;
                 $finish;
-            end
-            if ((rprim == "SCRAP") || (rprim == "DATA")) begin
+            end else if ((rprim == "SCRAP") || (rprim == "DATA")) begin
 //                $display("[Device] LINK:      Bad primitives from the host, is data = %h, data = %h, transmission id = %d", linkIsData(0), linkGetData(0), id);
                 DEV_TITLE = "Bad primitives from the host #6";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, is data = %h, data = %h, reception id = %d @%t", DEV_TITLE, linkIsData(0), linkGetData(0), DEV_DATA, $time);
                 #100;
                 $finish;
-            end
-            else
-            if (rprim == "DMAT") begin
+            end else if (rprim == "DMAT") begin
 //                $display("[Device] LINK:      Transmission terminated by the host via DMAT, transmission id = %d", id);
-                DEV_TITLE = "Transmission terminated by the hostvia DMAT";
+                DEV_TITLE = "Transmission terminated by the host via DMAT";
                 DEV_DATA =  id;
                 $display("[Device] LINK:      %s, transmission id = %d @%t", DEV_TITLE, DEV_DATA, $time);
                 #100;
                 $finish;
-            end
-            else
-            if (pause > 0) begin
-//                $display("[Device] LINK:      Transmission is paused");
-                DEV_TITLE = "Transmission is paused";
-                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
-                linkSendPrim("HOLD");
-                pause = pause - 1;
-            end
-            else
-            if (rprim == "HOLD") begin
-//                $display("[Device] LINK:      The host asked for a pause, acknowledging");
+            end else if (xpause > 0) begin
+//                DEV_TITLE = "Transmission is paused";
+//                $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
+//                linkSendPrim("HOLD");
+                xpause = xpause - 1;
+            end else if (rprim == "HOLD") begin
                 DEV_TITLE = "The host asked for a pause, acknowledging transmission paused";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 linkSendPrim("HOLDA");
-            end
-            else begin 
+            end else begin
                 cnt = cnt + 1;
                 if (cnt < size) 
-                    pause = transmit_data_pause[cnt];
+                    xpause = transmit_data_pause[cnt];
             end
         end
     // L_SendCRC

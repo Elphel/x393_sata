@@ -684,8 +684,30 @@ module  ahci_top#(
 wire debug_data_in_ready;       // output
 wire debug_fis_end_w;           // output
 wire[1:0] debug_fis_end_r;      // output[1:0] 
-wire[1:0] debug_get_fis_busy_r; // output[1:0] 
+wire[1:0] debug_get_fis_busy_r; // output[1:0]
+ 
 
+localparam DATA_TYPE_DMA =      0;
+localparam DATA_TYPE_FIS_HEAD = 1;
+localparam DATA_TYPE_OK =       2;
+localparam DATA_TYPE_ERR =      3;
+
+reg [12:0] debug_d2h_length;
+reg [12:0] debug_d2h_length_prev;
+reg        was_good_bad;
+reg        was_good_bad_prev;
+
+always @(posedge mclk) if (d2h_ready && d2h_valid) begin
+    if      (d2h_type == DATA_TYPE_FIS_HEAD) debug_d2h_length_prev <= debug_d2h_length;
+
+    if      (d2h_type == DATA_TYPE_FIS_HEAD) debug_d2h_length <= 0;
+    else if (d2h_type == DATA_TYPE_DMA)      debug_d2h_length <= debug_d2h_length  + 1;
+
+    if      (d2h_type == DATA_TYPE_FIS_HEAD) was_good_bad_prev <= was_good_bad;
+
+    if      ((d2h_type == DATA_TYPE_OK) || (d2h_type == DATA_TYPE_ERR)) was_good_bad <= (d2h_type == DATA_TYPE_OK);
+    
+end
 
     axi_ahci_regs #(
         .ADDRESS_BITS          (ADDRESS_BITS),
@@ -745,12 +767,29 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),    // output 
+/*        
         .debug_in0        ({ debug_data_in_ready,       // output
                              debug_fis_end_w,           // output
                              xfer_cntr_zero,
                              debug_fis_end_r[0],        // debug_fis_end_r[1:0],      // output[1:0] 
                              debug_get_fis_busy_r[1:0], // output[1:0] 
                              debug_dma[25:0]}),       // input[31:0]
+ */                            
+        .debug_in0        ({ 2'b0,
+                             was_good_bad_prev,
+                             debug_d2h_length_prev[12:0],
+                             2'b0,
+                             was_good_bad,
+                             debug_d2h_length[12:0]
+                             }),
+                             
+/*
+reg [12:0] debug_d2h_length;
+reg [12:0] debug_d2h_length_prev;
+reg        was_good_bad;
+reg        was_good_bad_prev;
+
+*/                             
 //        .debug_in1        ({xclk_period[7:0], // lower 8 bits of 12-bit value. Same frequency would be 0x800 (msb opposite to 3 next bits)
 //                            debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
         .debug_in1        ({debug_in_link[15:8],
@@ -1003,6 +1042,8 @@ wire[1:0] debug_get_fis_busy_r; // output[1:0]
         .update_pio        (frcv_update_pio),        // input  update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
         
         .update_prdbc      (frcv_update_prdbc),      // input
+        .clear_prdbc       (fsnd_fetch_cmd),         // input save resources - clear prdbc for every commnad
+        
         .clear_bsy_drq     (frcv_clear_bsy_drq),     // input
         .clear_bsy_set_drq (frcv_clear_bsy_set_drq), // input
         

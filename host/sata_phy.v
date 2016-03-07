@@ -128,7 +128,9 @@ wire    [DATA_BYTE_WIDTH - 1:0]     rxcharisk_out;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxdisperr;
 wire    [DATA_BYTE_WIDTH - 1:0]     rxnotintable;
 wire                          [1:0] txbufstatus;                       
-
+`ifdef DEBUG_ELASTIC
+    wire [15:0]                     dbg_data_cntr; // output[11:0] reg 4 MSBs - got primitives during data receive
+`endif
 assign  ll_err_out = rxdisperr | rxnotintable;
 
 // once gtx_ready -> 1, gtx_configured latches
@@ -551,7 +553,7 @@ gtx_wrap
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
         .datascope_we      (datascope_we),      // output
         .datascope_di      (datascope_di),      // output[31:0] 
-        .datascope_trig    (datascope_trig)     // inpuit // external trigger event for the datascope     
+        .datascope_trig    (datascope_trig)     // input // external trigger event for the datascope     
 `endif
     
 `ifdef USE_DRP
@@ -564,6 +566,9 @@ gtx_wrap
         .drp_rdy        (drp_rdy),           // output
         .drp_do         (drp_do)             // output[15:0] 
 `endif 
+`ifdef DEBUG_ELASTIC
+        ,.dbg_data_cntr (dbg_data_cntr) // output[11:0] reg 
+`endif
     
 );
 
@@ -656,6 +661,12 @@ always @ (posedge clk) begin
     else if (dbg_rxphaligndone_down && dbg_rxphaligndone) dbg_rxphaligndone_second <= 1;
 */    
 end
+
+//reg [11:0] dbg_data_cntr_r;
+//always @ (posedge clk) begin
+//    if (datascope_trig) dbg_data_cntr_r <=dbg_data_cntr;
+//end
+
 /*
 assign debug_sata[ 3: 0] = debug_cntr1;
 assign debug_sata[ 7: 4] = debug_cntr2;
@@ -678,10 +689,17 @@ assign debug_sata[23:20] = debug_cntr4;
 //assign debug_sata = {debug_cntr6,debug_cntr5};
 //assign debug_sata = {8'b0, dbg_clk_align_cntr, 1'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
 `ifdef USE_DATASCOPE
-    assign debug_sata = {txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned,
-                         error_count[11:0],
+///    assign debug_sata = {txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned,
+///                         error_count[11:0],
+///                         2'b0,
+///                         datascope_waddr[9:0]};
+    assign debug_sata = {dbg_data_cntr[15:0], // latched at error from previous FIS (@sof) (otherwise overwritten by h2d rfis)
+    
+                         error_count[3:0],
                          2'b0,
                          datascope_waddr[9:0]};
+//dbg_data_cntr                         
+                         
 `else
     assign debug_sata = {8'b0, dbg_clk_align_cntr, txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
 `endif

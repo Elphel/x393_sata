@@ -7,6 +7,7 @@
   `define USE_DATASCOPE
   `define PRELOAD_BRAMS
   `define AHCI_SATA 1
+  `define DEBUG_ELASTIC  
 // Enviroment-dependent options
   `ifdef IVERILOG
     `define SIMULATION

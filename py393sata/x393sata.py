@@ -379,24 +379,35 @@ class x393sata(object):
         if quiet < 4 :
             print ("Reset OFF")
         self.reset(0xa)
-        self.set_zynq()
+        self.set_zynq_ssd()
         if quiet < 4 :
-            print("Use 'set_zynq()', 'set_esata()' or 'set_debug() to switch SSD connection")
+            print("Use ' sata.set_zynq_ssd()', 'sata.set_zynq_esata()' or 'sata.set_esata_ssd() to switch SSD connection")
         
-    def set_zynq(self):    
+    def set_zynq_ssd(self):    
         self.vsc3304.connect_zynq_ssd()
         if self.DEBUG_MODE:
             self.vsc3304.connection_status()
 
-    def set_esata(self):    
+    def set_zynq_esata(self):    
+        self.vsc3304.connect_zynq_esata()
+        if self.DEBUG_MODE:
+             self.vsc3304.connection_status()
+
+    def set_esata_ssd(self):    
         self.vsc3304.connect_esata_ssd()
         if self.DEBUG_MODE:
              self.vsc3304.connection_status()
         
-    def set_debug(self):    
+    def set_debug_oscilloscope(self):    
         self.vsc3304.connect_debug()
         if self.DEBUG_MODE:
              self.vsc3304.connection_status()
+             
+    def reinit_mux(self):
+        """
+        Set output port voltage level (possibly other port settings may be added)
+        """         
+        self.vsc3304.reinit()
 
     def erate(self, dly = 1.0):
         c0 = self.x393_mem.read_mem(0x80000ff0)
@@ -1200,6 +1211,7 @@ class x393sata(object):
         
     def err_count (self):
         return (self.x393_mem.read_mem(MAXI1_ADDR + DBG_OFFS + (2 << 2)) >> 12) & 0xfff    
+##        return (self.x393_mem.read_mem(MAXI1_ADDR + DBG_OFFS + (2 << 2)) >> 12) & 0x3f #temporarily reduced as same bits are used for other data
     
     def err_rate(self, dly = 0.1):
         ec0 = self.err_count()
@@ -1334,13 +1346,14 @@ class x393sata(object):
                                 return  pair[0].replace('p','h')
             return None
             
-        b =      ((dword >>  0) & 0xff, (dword >>  8) & 0xff)
-        k =      ((dword >> 16) & 0x1,  (dword >> 17) & 0x1)
-        d =      ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
-        t =      ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
-        aligned = (dword >> 22) & 0x1
-        comma =   (dword >> 24) & 0x1
-        realign = (dword >> 25) & 0x1
+        b =        ((dword >>  0) & 0xff, (dword >>  8) & 0xff)
+        k =        ((dword >> 16) & 0x1,  (dword >> 17) & 0x1)
+        d =        ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
+        t =        ((dword >> 18) & 0x1,  (dword >> 19) & 0x1)
+        aligned =   (dword >> 22) & 0x1
+        comma =     (dword >> 24) & 0x1
+        realign =   (dword >> 25) & 0x1
+        snd_align = (dword >> 26) & 0x1
         decor = []
         for nb in range(2):
             if k[nb]:
@@ -1365,7 +1378,7 @@ class x393sata(object):
                         decor.append("()")
                     else:
                         decor.append("__")
-        rslt =  " R"[realign]+" C"[comma]+"N "[aligned]
+        rslt =  " A"[snd_align]+" R"[realign]+" C"[comma]+"N "[aligned]
         p = replace_p(dword, prev_dword, next_dword)
         if p:
             return rslt+"%8s"%(p)
@@ -1429,6 +1442,7 @@ def init_sata():
     sata = x393sata(         debug_mode = 0, # 1,
                              dry_mode =   0,
                              pcb_rev =    None)
+    sata.reinit_mux()
     sata.bitstream(bitfile=None,
                    quiet=4) # 4 will be really quiet
 
@@ -1515,6 +1529,7 @@ sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']
 ('A', 'E', 'G', 'H')
 sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']=('E','G','H')
 
+#######################################
 reload (x393sata)
 sata = x393sata.x393sata()
     
@@ -1526,7 +1541,7 @@ import x393sata
 import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata() # 1,0,"10389B")
-#    def __init__(self, debug_mode=1,dry_mode=False, pcb_rev = "10389"):
+sata.reinit_mux()
 
 sata.bitstream()
 #sata.drp_write (0x20b,0x401) # bypass, clock align
@@ -1539,14 +1554,65 @@ sata.drp (0x59,0x8) # Use RXREC
 #sata.drp (0x59,0x48) 
 sata.reg_status()
 sata.reg_status()
-_=mem.mem_dump (0x80000ff0, 4,4)
-sata.reg_status(),sata.reset_ie(),sata.err_count()
+sata.arm_logger()
 
-_=mem.mem_dump (0x80000ff0, 4,4)                  
+
+_=sata.dd_read_dma_ext(0x80,4096,0x3000),sata.reg_status(),sata.reset_ie(),sata.err_count(),mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
+_=sata.reg_status(),sata.reset_ie(),sata.err_count(),mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
+
+_=sata.err_count(),mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
+
+_=sata.reg_status(),sata.reset_ie(),mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
+
+_=mem.mem_dump (0x80001000, 0x400,4), sata.datascope1()
+
+
+_=mem.mem_dump (0x80000ff0, 4,4)
+_=mem.mem_dump (0x80000800, 4,4) 
+_=mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
 _=mem.mem_dump (0x80001000, 0x120,4)              
 
 
+sata.arm_logger()
+sata.dd_read_dma_ext(0x80,4096,0x3000)
+_=mem.mem_dump (0x80000ff0, 4,4)
 
+Good:
+>>> _=sata.err_count(),mem.mem_dump (0x80000ff0, 4,4),mem.mem_dump (0x80000800, 4,4)
+
+0x80000ff0:24002004 9d000000 40200378 967ff03b 
+0x80000800:00030005 00003000 1f800010 00000000 
+
+Bad:
+>>> sata.dd_read_dma_ext(0x80,4096,0x3000)
+0x80000ff0:200407ff 9d010f00 933003c7 023ff90c 
+0x80000800:00030005 00003000 1f800010 00000000 
+
+good:
+_=mem.mem_dump (0x80000ff0, 4,4)
+0x80000ff0:24002004 9d000000 40200031 967ff03b 
+bad:
+0x80000ff0:200407ff 9d010f00 56500367 023ff90c 
+
+good:
+0x80000ff0:24002004 5d000000 402001f1 167ff03b 
+bad:
+0x80000ff0:200407ff 9d010f00 46c00308 023ff90c 
+
+good:
+0x80000ff0:24002004 5d000000 040203be 967ff03b 
+
+bad
+0x80000ff0:200407ff 5d010f00 c94102c3 023ff90c 
+{dbg_is_cont_w, dbg_is_hold_w, dbg_is_holda_w, dbg_is_wrtm_w} 
+
+
+sata.dd_read_dma_ext(0x80,4096,0x30000)
+
+
+
+
+sata.dd_read_dma(block, 1)
 hex(sata.get_reg_address('HBA_PORT__PxSCTL'))
 mem.write_mem(0x8000012c,1)
 mem.write_mem(0x8000012c,0)

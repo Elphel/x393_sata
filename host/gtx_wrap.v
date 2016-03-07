@@ -37,6 +37,7 @@
 //`include "gtx_elastic.v"
 // All computations have been done in assumption of GTX interface being 20 bits wide!
 //`include "system_defines.v"
+`define DEBUG_ELASTIC
 module gtx_wrap #(
 `ifdef USE_DATASCOPE
     parameter ADDRESS_BITS =         10, // for datascope
@@ -127,6 +128,10 @@ module gtx_wrap #(
     input      [15:0] drp_di,
     output            drp_rdy,
     output     [15:0] drp_do
+`endif
+`ifdef DEBUG_ELASTIC
+   ,output reg [15:0] dbg_data_cntr // 4 MSB - got other primitives during data receive
+
 `endif
 
 
@@ -727,6 +732,87 @@ wire    rxcominitdet_gtx;
         .full           (rxelsfull),                          // output
         .empty          (rxelsempty)                          // output
     );
+    
+    `ifdef DEBUG_ELASTIC
+        localparam ALIGN_PRIM = 32'h7B4A4ABC;
+        localparam SOF_PRIM =   32'h3737b57c;
+        localparam EOF_PRIM =   32'hd5d5b57c;
+        localparam CONT_PRIM =  32'h9999aa7c;
+        localparam HOLD_PRIM =  32'hd5d5aa7c;
+        localparam HOLDA_PRIM = 32'h9595aa7c;
+        localparam WTRM_PRIM =  32'h5858b57c;
+        
+    
+        reg            [15:0] dbg_data_in_r;
+        reg             [1:0] dbg_charisk_in_r;
+//        reg             [1:0] dbg_notintable_in_r;
+//        reg             [1:0] dbg_disperror_in_r;
+        reg                   dbg_aligned32_in_r;  // input data is word-aligned and got ALIGNp
+        reg                   dbg_msb_in_r;      // input contains MSB
+//        reg                   dbg_inc_waddr;
+        reg            [11:0] dbg_data_cntr_r;
+        reg             [3:0] got_prims_r;
+        reg                   dbg_frun;
+        reg dbg_is_alignp_r;
+        reg dbg_is_sof_r;
+        reg dbg_is_eof_r;
+        reg dbg_is_data_r;
+        
+        wire dbg_is_alignp_w = ({rxdata_dec_out,       dbg_data_in_r} ==       ALIGN_PRIM) && ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+
+        wire dbg_is_sof_w =    ({rxdata_dec_out,       dbg_data_in_r} ==       SOF_PRIM)   && ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        wire dbg_is_eof_w =    ({rxdata_dec_out,       dbg_data_in_r} ==       EOF_PRIM) &&   ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        
+        wire dbg_is_cont_w =   ({rxdata_dec_out,       dbg_data_in_r} ==       CONT_PRIM) &&  ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        wire dbg_is_hold_w =   ({rxdata_dec_out,       dbg_data_in_r} ==       HOLD_PRIM) &&  ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        wire dbg_is_holda_w =  ({rxdata_dec_out,       dbg_data_in_r} ==       HOLDA_PRIM) && ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        wire dbg_is_wrtm_w =   ({rxdata_dec_out,       dbg_data_in_r} ==       WTRM_PRIM) &&  ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h1);
+        
+        
+        wire dbg_is_data_w =   ({rxcharisk_dec_out,    dbg_charisk_in_r} ==    4'h0);
+        
+        always @ (posedge xclk) begin
+            dbg_data_in_r <= rxdata_dec_out;
+            dbg_charisk_in_r <= rxcharisk_dec_out;
+//            dbg_notintable_in_r <= rxnotintable_dec_out;
+//            dbg_disperror_in_r <= rxdisperr_dec_out;
+
+            dbg_is_alignp_r <=dbg_is_alignp_w;
+            dbg_is_sof_r <= dbg_is_sof_w;
+            dbg_is_eof_r <= dbg_is_eof_w;
+            dbg_is_data_r <=dbg_is_data_w && dbg_msb_in_r;
+
+            if (!dbg_aligned32_in_r && !dbg_is_alignp_w) dbg_msb_in_r <= 1;
+            else                                         dbg_msb_in_r <= !dbg_msb_in_r;
+            
+            if    (!state_aligned)                       dbg_aligned32_in_r <= 0;
+            else if (dbg_is_alignp_w)                    dbg_aligned32_in_r <= 1;
+            
+            if (!dbg_aligned32_in_r || dbg_is_sof_r)     got_prims_r <= 0;
+            else if (dbg_frun)                           got_prims_r <= got_prims_r | {dbg_is_cont_w, dbg_is_hold_w, dbg_is_holda_w, dbg_is_wrtm_w};
+            
+            
+ //           dbg_inc_waddr <= !dbg_msb_in_r || (dbg_is_alignp_w && !dbg_aligned32_in_r);
+            
+//            if (!dbg_aligned32_in_r || dbg_is_eof_w) dbg_frun <= 0;
+//            else if (dbg_is_sof_w)                   dbg_frun <= 1; 
+
+            if (!dbg_aligned32_in_r || dbg_is_eof_r) dbg_frun <= 0;
+            else if (dbg_is_sof_r)                   dbg_frun <= 1; 
+            
+//            if (!dbg_aligned32_in_r || dbg_is_sof_w)           dbg_data_cntr_r <= 0;
+//            else if (dbg_frun && dbg_is_data_w &&dbg_msb_in_r) dbg_data_cntr_r <=  dbg_data_cntr_r + 1;
+
+            if (!dbg_aligned32_in_r || dbg_is_sof_r)           dbg_data_cntr_r <= 0;
+            else if (dbg_frun && dbg_is_data_r)                dbg_data_cntr_r <=  dbg_data_cntr_r + 1;
+            
+//            if (!dbg_aligned32_in_r || dbg_is_sof_w)         dbg_data_cntr <= dbg_data_cntr_r; // copy previous value
+            if (!dbg_aligned32_in_r || dbg_is_sof_r)           dbg_data_cntr <= {got_prims_r, dbg_data_cntr_r}; // copy previous value
+        
+        end
+    
+    `endif // DEBUG_ELASATIC
+    
 
     reg rxresetdone_r;
     reg txresetdone_r;

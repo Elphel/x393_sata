@@ -291,7 +291,7 @@ module  ahci_fsm
     wire                           fsm_pre_act_w = fsm_actions && fsm_next; // use it as CS for generated actions (registered)
     
     reg                      [1:0] async_pend_r; // waiting to process cominit_got
-    reg                            async_from_st; // chnge to multi-bit if there will be more sources for async transitions
+    reg                            async_from_st; // change to multi-bit if there will be more sources for async transitions
 //    wire                           asynq_rq = (cominit_got && unsolicited_cominit_en) || pcmd_st_cleared;
     wire                           asynq_rq = (cominit_got && unsolicited_en) || pcmd_st_cleared;
                                    // OK to wait for some time fsm_act_busy is supposed to never hang up
@@ -396,8 +396,9 @@ module  ahci_fsm
         else if (fsm_pre_act_w) fsm_act_busy <= fsm_wait_act_w;
         else if (fsm_act_done)  fsm_act_busy <= 0;
         
-        if (pcmd_st_cleared) async_from_st <= 1;
-        else if   (asynq_rq) async_from_st <= 0;
+        if      (hba_rst)         async_from_st <= 0;
+        else if (pcmd_st_cleared) async_from_st <= 1;
+        else if (asynq_rq)        async_from_st <= 0;
         
         if (hba_rst) async_pend_r <= 0;
 ///        else async_pend_r <= {async_pend_r[0], asynq_rq | (async_pend_r[0] & ~async_ackn)};  

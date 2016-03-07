@@ -40,6 +40,11 @@ class x393_vsc3304(object):
     DRY_MODE= True # True
     DEBUG_MODE=1
     x393_mem=None
+    OUTPUT_LEVELS = {
+            "ESATA_A":        3,
+            "ESATA_B":        3,
+            "SSD_B":          2,
+            "ZYNQ_A":         2}
     PCB_CONNECTIONS = {
         "10389": {
             "INVERTED_PORTS": ("D","E","G","H"),
@@ -164,6 +169,8 @@ class x393_vsc3304(object):
             self.echo("1", "input_state_invert/"+self.in_port(port_letter))
             self.echo("10","output_mode/"+self.out_port(port_letter))
         self.echo("1", "forward_OOB/all")
+        for out_pair in self.OUTPUT_LEVELS:
+            self.echo(str(self.OUTPUT_LEVELS[out_pair]), "output_level/"+self.out_port(self.port_name(out_pair)))
         self.current_mode = "IDLE"
 
     def connect(self, mode):

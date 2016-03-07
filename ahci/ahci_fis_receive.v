@@ -63,6 +63,7 @@ module  ahci_fis_receive#(
     input                         update_err_sts,// update PxTFD.STS and PxTFD.ERR from the last received regs d2h
     input                         update_pio,    // update PxTFD.STS and PxTFD.ERR from pio_* (entry PIO:Update)
     input                         update_prdbc,  // update PRDBC in registers
+    input                         clear_prdbc,   // save resources - clear prdbc for every command - discard what is written there
     input                         clear_bsy_drq, // clear PxTFD.STS.BSY and PxTFD.STS.DRQ, update
     input                         clear_bsy_set_drq, // clear PxTFD.STS.BSY and sets PxTFD.STS.DRQ, update
     input                         set_bsy,       // set PxTFD.STS.BSY, update
@@ -76,7 +77,12 @@ module  ahci_fis_receive#(
     
     input                         pcmd_fre,      // control bit enables saving FIS to memory (will be ignored for signature)
     
-    // TODO: Add writing PRDBC here?
+    // TODO: Add writing PRDBC here? Yes, the following. B ut data may be discarded as only 0 is supposed to be written
+//    input      [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
+//    input                  [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
+//    input                         soft_write_en,     // write enable for data write
+    
+    
     output reg                    pPioXfer,      // state variable
     output                  [7:0] tfd_sts,       // Current PxTFD status field (updated after regFIS and SDB - certain fields)
                                                  // tfd_sts[7] - BSY, tfd_sts[3] - DRQ, tfd_sts[0] - ERR
@@ -126,9 +132,10 @@ CLB_OFFS = 0x800 # In the second half of the register space (0x800..0xbff - 1KB)
 FB_OFFS =  0xc00 # Needs 0x100 bytes 
 #HBA_PORT0 = 0x100 Not needed, always HBA_OFFS + 0x100
 
-
-
 */
+
+`include "includes/ahci_localparams.vh" // @SuppressThisWarning VEditor : Unused localparams
+
 localparam CLB_OFFS32 =        'h200; //  # In the second half of the register space (0x800..0xbff - 1KB)
 localparam HBA_OFFS32 =         0;
 localparam HBA_PORT0_OFFS32  = 'h40;
@@ -387,8 +394,18 @@ localparam DATA_TYPE_ERR =      3;
         else if ((decr_dwcw || decr_dwcr) && !xfer_cntr_zero_r) xfer_cntr_r[31:2] <= {xfer_cntr_r[31:2]} - 
                                                                                      {18'b0, decr_dwcr? data_in_dwords: decr_DXC_dw[11:0]};
         
-        if (hba_rst || reg_sdb[0] || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
-        else if (decr_dwcw || decr_dwcr)                      prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_dwcr? data_in_dwords: decr_DXC_dw[11:0]};
+        // no - it should only be updated when written by software
+        //CLB_OFFS32 + 1; // location of PRDBC
+/*
+    input      [ADDRESS_BITS-1:0] soft_write_addr,  // register address written by software
+    input                  [31:0] soft_write_data,  // register data written (after applying wstb and type (RO, RW, RWC, RW1)
+    input                         soft_write_en,     // write enable for data write
+*/        
+//        if (hba_rst || reg_sdb[0] || reg_ps[4] || reg_ds[5])  prdbc_r[31:2] <= 0;
+//        if (soft_write_en && (soft_write_addr == (CLB_OFFS32 + 1))) prdbc_r[31:2] <= soft_write_data[31:2];
+
+        if (clear_prdbc || hba_rst)             prdbc_r[31:2] <= 0;
+        else if (decr_dwcw || decr_dwcr)        prdbc_r[31:2] <= {prdbc_r[31:2]} + {18'b0, decr_dwcr? data_in_dwords: decr_DXC_dw[11:0]};
         
         xfer_cntr_zero_r <=                     xfer_cntr_r[31:2] == 0;
         
