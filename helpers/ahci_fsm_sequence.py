@@ -141,8 +141,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'P:NotRunning'},
             
             {LBL:'P:RegFisUpdate',      ACT: 'GET_RFIS*'},           # get_rfis
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'P:RegFisAccept'},
 
             {LBL:'P:RegFisAccept',      ACT: 'R_OK'},                # send R_OK
@@ -162,8 +162,11 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {LBL:'P:Offline',           ACT: 'SET_OFFLINE'},         # set_offline
             {                           ACT: 'SCTL_DET_CLEAR'},      # sctl_det_reset
             {                           GOTO:'P:NotRunning'},
-            
-            {LBL:'P:StartBitCleared',   ACT: 'PXCI0_CLEAR'},         # pxci0_clear
+
+            {LBL:'P:StartBitCleared',   ACT: 'R_ERR'},               # While it forever loop after Fatal, LL may miss incoming FIS waiting for R_OK/R_ERR
+                                                                     # Maybe we need to check for that FIS, but for now just reject it (nothing will happen
+                                                                     # if LINK was not waiting for the R_OK/R_ERR)
+            {                           ACT: 'PXCI0_CLEAR'},         # pxci0_clear
             {                           ACT: 'DMA_ABORT*'},          # dma_cmd_abort (should eventually clear PxCMD.CR)?
             {                           ACT: 'PCMD_CR_CLEAR'},       # pcmd_cr_reset
             {                           ACT: 'XFER_CNTR_CLEAR'},     # clear_xfer_cntr
@@ -209,18 +212,18 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
 
             {LBL:'NDR:Entry',           ACT: 'NOP'},
-#            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},      # 1. fis_err
-#            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},          # 2. fis_ferr
+#            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},      # 1. fis_err
+#            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},          # 2. fis_ferr
             {                           GOTO:'NDR:Accept'},          # 4.
 
             {LBL:'NDR:IgnoreNR',        ACT: 'GET_IGNORE*'},          # get_ignore This one is not in docs, just to empty FIS FIFO
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'P:OkIdle'},            #
 
             {LBL:'NDR:IgnoreIdle',      ACT: 'GET_IGNORE*'},          # get_ignore This one is not in docs, just to empty FIS FIFO
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'P:OkNotRunning'},      #
             
             
@@ -279,8 +282,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'PIO:Update'},          # 2.
 #5.3.8 D2H Register FIS Receive States
             {LBL:'RegFIS:Entry',        ACT: 'GET_RFIS*'},           # get_rfis
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'RegFIS:Accept'},       #
             
             {LBL:'RegFIS:Accept',       ACT: 'R_OK'},                # send R_OK
@@ -306,8 +309,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
 #RegFIS:SetSig skipped, done in RegFIS:UpdateSig
 #5.3.9 PIO Setup Receive States
             {LBL:'PIO:Entry',           ACT: 'GET_PSFIS*'},          # get_psfis, includes all steps 1..9
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'PIO:Accept' },
             
             {LBL:'PIO:Accept',          ACT: 'R_OK'},                # get_psfis, includes all steps 1..9
@@ -336,8 +339,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
 #PIO:SetIS, PIO:GenIntr are handled by hardware, skipping
 #5.3.10 Data Transmit States
             {LBL:'DX:EntryIgnore',      ACT: 'GET_IGNORE*'},          # Read/Ignore FIS in FIFO (not in docs)
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'DX:Accept'},           #
             
             {LBL:'DX:Accept',           ACT: 'R_OK'},                # send R_OK
@@ -369,10 +372,10 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'DR:Receive'},
             
             {LBL:'DR:Receive',          ACT: 'GET_DATA_FIS*'},       # get_data_fis
-            {IF: 'FIS_ERR',             GOTO:'ERR:Fatal_R_ERR'},           # 3. fis_err - checking for errors first to give some time for fis_extra
+            {IF: 'FIS_ERR',             GOTO:'ERR:Fatal'},           # 3. fis_err - checking for errors first to give some time for fis_extra
                                                                      # to reveal itself from the ahci_dma module (ahci_fis_receive does not need it)
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 3a.  fis_ferr 
-            {IF: 'FIS_EXTRA',           GOTO:'ERR:Non-Fatal_R_ERR'},       # 1.  fis_extra 
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 3a.  fis_ferr 
+            {IF: 'FIS_EXTRA',           GOTO:'ERR:Non-Fatal'},       # 1.  fis_extra 
             {                           GOTO:'DR:UpdateByteCount'},  # 2. fis_ok implied
             
             {LBL:'DR:UpdateByteCount',  ACT: 'R_OK'},                # send_R_OK to device
@@ -384,8 +387,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
 # 5.3.12 DMA Setup Receive States
             {LBL:'DmaSet:Entry',        ACT: 'GET_DSFIS*'},          # get_dsfis
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'DmaSet:Accept'},       # 
 
             {LBL:'DmaSet:Accept',       ACT: 'R_OK'},                # send R_OK
@@ -400,8 +403,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'P:Idle' },             # 3.
 #5.3.13 Set Device Bits States
             {LBL:'SDB:Entry',           ACT: 'GET_SDBFIS*'},         # get_sdbfis Is in only for Native CC ?
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'SDB:Accept' },         # 3.
             
             {LBL:'SDB:Accept',          ACT: 'R_OK'},                # get_sdbfis Is in only for Native CC ?
@@ -417,8 +420,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'PM:Aggr' },            # 5.
 #5.3.14 Unknown FIS Receive States
             {LBL:'UFIS:Entry',          ACT: 'GET_UFIS*'},           # get_ufis
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'UFIS:Accept' },        # 
             
             {LBL:'UFIS:Accept',         ACT: 'R_OK'},                # get_ufis
@@ -428,8 +431,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             
 #5.3.15 BIST States 
             {LBL:'BIST:FarEndLoopback', ACT: 'GET_IGNORE*'},         # get_ignore
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'BIST:FarEndLoopbackAccept'}, # 1. (IRQ states are handled)
 
             {LBL:'BIST:FarEndLoopbackAccept', ACT: 'R_OK'},          # send R_OK
@@ -437,8 +440,8 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           GOTO:'BIST:TestLoop'},       # 1.
             
             {LBL:'BIST:TestOngoing',    ACT: 'GET_IGNORE*'},         # get_ignore
-            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal_R_ERR'},       # 1. fis_err
-            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal_R_ERR'},           # 2. fis_ferr
+            {IF: 'FIS_ERR',             GOTO:'ERR:Non-Fatal'},       # 1. fis_err
+            {IF: 'FIS_FERR',            GOTO:'ERR:Fatal'},           # 2. fis_ferr
             {                           GOTO:'BIST:TestLoopAccept'}, # 
 
             {LBL:'BIST:TestLoopAccept', ACT: 'R_OK'},                #
@@ -451,22 +454,19 @@ sequence = [{LBL:'POR',      ADDR: 0x0, ACT: NOP},
             {                           ACT: 'SIRQ_IF'},             # sirq_IF
             {                           GOTO:'ERR:WaitForClear'  },
             
-            {LBL:'ERR:Fatal_R_ERR',     ACT: 'R_ERR'},               # Send 'R_ERR' to device. SATA sais it should be Transport L, AHCI - Link L
-            {                           GOTO:'ERR:Fatal'  },         # 
             
-            {LBL:'ERR:Fatal',           ACT: 'SIRQ_IF'},             # sirq_IF
+            {LBL:'ERR:Fatal',           ACT: 'R_ERR'},               # Link layer auto-sends R_ERR on CRC, but extra request won't hurt (it will be ignored)
+            {                           ACT: 'SIRQ_IF'},             # sirq_IF
             {                           GOTO:'ERR:WaitForClear'  },
             
-            {LBL:'ERR:FatalTaskfile',   ACT: 'SIRQ_TFE'},             # sirq_TFE
+            {LBL:'ERR:FatalTaskfile',   ACT: 'SIRQ_TFE'},            # sirq_TFE #R_OK already sent
             {                           GOTO:'ERR:WaitForClear'  },
             
             {LBL:'ERR:WaitForClear',    ACT: 'NOP'},                 #
             {                           GOTO:'ERR:WaitForClear'  },  # Loop until PxCMD.ST is cleared by software
             
-            {LBL:'ERR:Non-Fatal_R_ERR', ACT: 'R_ERR'},               # Send 'R_ERR' to device. SATA says it should be Transport L, AHCI - Link L
-            {                           GOTO:'ERR:Non-Fatal'  },     # 
-
-            {LBL:'ERR:Non-Fatal',       ACT: 'SIRQ_INF'},            # sirq_INF            
+            {LBL:'ERR:Non-Fatal',       ACT: 'R_ERR'},               # Link layer auto-sends R_ERR on CRC, but extra request won't hurt (it will be ignored)
+            {                           ACT: 'SIRQ_INF'},            # sirq_INF            
             {                           GOTO:'P:Idle'},              #
             ]
 def get_cnk (start,end,level):

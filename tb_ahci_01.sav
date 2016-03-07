@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Mon Mar  7 02:46:09 2016
+[*] Mon Mar  7 17:54:44 2016
 [*]
-[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160306192631093.fst"
-[dumpfile_mtime] "Mon Mar  7 02:28:25 2016"
-[dumpfile_size] 14586310
+[dumpfile] "/home/andrey/git/x393_sata/simulation/tb_ahci-20160307105210141.fst"
+[dumpfile_mtime] "Mon Mar  7 17:54:09 2016"
+[dumpfile_size] 15120516
 [savefile] "/home/andrey/git/x393_sata/tb_ahci_01.sav"
-[timestart] 33393100
-[size] 1823 1180
-[pos] 1920 60
-*-16.114683 33642778 32476228 47988010 32736600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+[timestart] 32540300
+[size] 1817 609
+[pos] 1923 0
+*-16.022064 32722870 32476228 47988010 32736600 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.
@@ -64,7 +64,7 @@
 [sst_width] 252
 [signals_width] 349
 [sst_expanded] 1
-[sst_vpaned_height] 577
+[sst_vpaned_height] 259
 @820
 tb_ahci.TESTBENCH_TITLE[639:0]
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.HOST_OOB_TITLE[639:0]
@@ -4067,7 +4067,9 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.rcvd_dword[15:0]
 -group_end
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.next_will_be_data
+@29
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_rcvr_data
+@28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_data
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_rcvr_shold
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_shold
@@ -4193,6 +4195,8 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.link.state_rcvr_badend
 @1000200
 -states
 @28
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.got_escape
+tb_ahci.dut.sata_top.ahci_sata_layers_i.link.clr_rcvr_goodend
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.link_reset
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_align
 tb_ahci.dut.sata_top.ahci_sata_layers_i.link.set_nocommerr
@@ -4642,7 +4646,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtx_comma_align.comma_detec
 -
 @1401200
 -comma
-@c00201
+@c00200
 -elastic_phy
 @c00022
 tb_ahci.dut.sata_top.ahci_sata_layers_i.debug_phy0[31:0]
@@ -4694,7 +4698,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.elastic1632_i.inc_waddr
 tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.elastic1632_i.waddr[4:0]
 @200
 -
-@1401201
+@1401200
 -elastic_phy
 @c00200
 -elastic_slow

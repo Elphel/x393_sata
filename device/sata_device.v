@@ -874,7 +874,7 @@ task send_incrementing_data_pause; // @SuppressThisWarning VEditor - Used in tes
     begin
         clear_transmit_pause(0);
         for (i=0;i<len;i=i+8) begin
-            transmit_data_pause[i+1] = i; // each 8-th have increainsg pause
+            transmit_data_pause[i+1] = i / 8; // each 8-th have increainsg pause 1,2,3...
         end    
         transmit_data[0] = FIS_DATA;
         for (i=0;i<len;i=i+1) begin

@@ -77,7 +77,8 @@ module link #(
     output  wire    incom_invalidate,                        // if incoming transition had errors
     output  wire    incom_sync_escape,                       // particular type - got sync escape
     input   wire    incom_ack_good,                          // transport layer responds on a completion of a FIS
-    input   wire    incom_ack_bad,
+    input   wire    incom_ack_bad,                           // Reject frame even if it had good CRC (Bad will be responded automatically)
+                                                             // It is OK to send extra incom_ack_bad from transport - it will be discarded
     input   wire    link_reset,                              // oob sequence is reinitiated and link now is not established or rxelecidle
     input   wire    sync_escape_req,                         // TL demands to brutally cancel current transaction
     output  wire    sync_escape_ack,                         // acknowlegement of a successful reception
@@ -416,12 +417,13 @@ assign  set_rcvr_data       = state_rcvr_rdy    & dword_val    &  rcvd_dword[COD
 //                            | state_rcvr_rhold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
                             | state_rcvr_rhold  & next_will_be_data & ~data_busy_in
 //                            | state_rcvr_shold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
-                            | state_rcvr_shold  & next_will_be_data; // So it will not be align
+                            | state_rcvr_shold  & next_will_be_data  // So it will not be align
+                            | state_rcvr_data   & next_will_be_data; // to skip over single-cycle CODE_HOLDP
 //next_will_be_data                            
 assign  set_rcvr_rhold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_DATA]  &  data_busy_in;
 
-assign  set_rcvr_shold      = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_HOLDP]
-                            | state_rcvr_rhold  & dword_val    &  rcvd_dword[CODE_HOLDP] & ~data_busy_in;
+assign  set_rcvr_shold      = state_rcvr_data   & dword_val    &  (rcvd_dword[CODE_HOLDP] & ~next_will_be_data)
+                            | state_rcvr_rhold  & dword_val    &  (rcvd_dword[CODE_HOLDP] & ~next_will_be_data) & ~data_busy_in;
                             
 assign  set_rcvr_eof        = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_EOFP]
                             | state_rcvr_rhold  & dword_val    &  rcvd_dword[CODE_EOFP]
@@ -431,9 +433,9 @@ assign  set_rcvr_goodcrc    = state_rcvr_eof    & crc_good;
 
 assign  set_rcvr_goodend    = state_rcvr_goodcrc& incom_ack_good_or_pend; // incom_ack_good; // may arrive at aligns_pair
 
-assign  set_rcvr_badend     = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_WTRMP]
-                            | state_rcvr_eof    & crc_bad
-                            | state_rcvr_goodcrc& incom_ack_bad_or_pend; // incom_ack_bad;   // may arrive at aligns_pair
+assign  set_rcvr_badend     = state_rcvr_data   & dword_val    &  rcvd_dword[CODE_WTRMP]     // Missed EOF
+                            | state_rcvr_eof    & crc_bad                                    // Got bad CRC
+                            | state_rcvr_goodcrc& incom_ack_bad_or_pend; // incom_ack_bad;   // Transport didn't like it (may arrive at aligns_pair)
 
 assign  clr_sync_esc        = set_nocommerr | set_reset                | dword_val & (rcvd_dword[CODE_RRDYP] | rcvd_dword[CODE_SYNCP]);
 assign  clr_nocommerr       =                 set_reset                | set_nocomm;

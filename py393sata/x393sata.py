@@ -1529,10 +1529,10 @@ sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']
 ('A', 'E', 'G', 'H')
 sata.vsc3304.PCB_CONNECTIONS['10389B']['INVERTED_PORTS']=('E','G','H')
 
-#######################################
 reload (x393sata)
 sata = x393sata.x393sata()
     
+#######################################
 cd /mnt/mmc/local/bin
 python    
 from __future__ import print_function
@@ -1541,6 +1541,8 @@ import x393sata
 import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata() # 1,0,"10389B")
+
+
 sata.reinit_mux()
 
 sata.bitstream()
@@ -1554,6 +1556,7 @@ sata.drp (0x59,0x8) # Use RXREC
 #sata.drp (0x59,0x48) 
 sata.reg_status()
 sata.reg_status()
+#need to sleep here !!
 sata.arm_logger()
 
 
