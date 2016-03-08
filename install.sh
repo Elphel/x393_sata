@@ -9,7 +9,7 @@ if [ -z "$1" ]
 fi
 install -d -v $1/usr/local/verilog/
 install -d -v $1/usr/local/bin/
-install -v -m 0755 py393sata/*.py $1/usr/local/bin/
-install -v -m 0644 x393_sata.bit $1/usr/local/verilog/
+install -v -m 0755 $SCRIPTPATH/py393sata/*.py $1/usr/local/bin/
+install -v -m 0644 $SCRIPTPATH/x393_sata.bit $1/usr/local/verilog/
 
 exit 0
