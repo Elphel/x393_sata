@@ -983,7 +983,7 @@ task linkTransmitFIS; // @SuppressThisWarning VEditor - Used in testbench
                 DEV_TITLE = "Transmission is paused";
                 $display("[Device] LINK:      %s @%t", DEV_TITLE, $time);
                 linkSendPrim("HOLD");
-                xpause = xpause - 1;
+//                xpause = xpause - 1;
             end else begin
                 scrambler_value = scrambleFunc({16'b0,scrambler_value[31:16]});
                 linkSendData(transmit_data[cnt] ^ scrambler_value);

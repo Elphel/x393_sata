@@ -793,5 +793,9 @@
 // RW: Program address/data for programming AHCI state machine
     localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__ADDR = 'h5d;
     localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__MASK = 'h3ffff;
-    localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__DFLT = 'h3;
+    localparam HBA_PORT__PGM_AHCI_SM__PGM_AD__DFLT = 'h0;
+// RW: 3-bit tag to add to the recorded timestamp
+    localparam HBA_PORT__PunchTime__TAG__ADDR = 'h5e;
+    localparam HBA_PORT__PunchTime__TAG__MASK = 'h7;
+    localparam HBA_PORT__PunchTime__TAG__DFLT = 'h0;
 

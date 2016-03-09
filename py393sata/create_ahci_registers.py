@@ -436,9 +436,13 @@ src=[{gN:"PCI_Header", gS: PCIHEAD, gE:PCIHEAD+0x3f, gD:" PCI header emulation w
             [{            fS:25, fE:31, fT:RO, fC:0, fD:"Reserved"},
              {fN:"AnD",   fS:24,        fT:RW, fC:0, fD:"Address/not data for programming AHCI state machine"},
              {            fS:18, fE:23, fT:RO, fC:0, fD:"Reserved"},             
-             {fN:"PGM_AD",fS: 0, fE:17, fT:RW, fC:3, fD:"Program address/data for programming AHCI state machine"},
+             {fN:"PGM_AD",fS: 0, fE:17, fT:RW, fC:0, fD:"Program address/data for programming AHCI state machine"},
              ]},
-        {rN:"PxVS",    rS:0x78, rE:0x7f,             rD:"Other Port x Vendor Specific", rC:
+        {rN:"PunchTime",  rS:0x78, rE:0x7b,          rD:"Record current time to the datascope", rC:
+            [{            fS:3,  fE:31, fT:RO, fC:0, fD:"Reserved"},
+             {fN:"TAG",   fS:0,  fE:2,  fT:RW, fC:0, fD:"3-bit tag to add to the recorded timestamp"},
+             ]},
+        {rN:"PxVS",    rS:0x7c, rE:0x7f,             rD:"Other Port x Vendor Specific", rC:
             [{                          fT:RW, fC:0, fD:"Vendor-specific data - 96 bits"}
              ]},
        

@@ -1347,6 +1347,7 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxSERR__DIAG__X__ADDR << 2,"re-read: HBA_PORT__PxSERR"); //
      
 //HBA_PORT__PxIS__DHRS__ADDR    
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 1); // Record current time in datascope with a 3-bit tag==1
 
     maxigp1_print        (PXSIG_OFFS32 << 2,"PXSIG_OFFS32");
     maxigp1_print        (PXTFD_OFFS32 << 2,"PXTFD_OFFS32");
@@ -1365,6 +1366,15 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxCMD__FRE__ADDR << 2,"HBA_PORT__PxCMD__FRE__ADDR");
     
     maxigp1_print        (HBA_PORT__PxSSTS__DET__ADDR << 2,"HBA_PORT__PxSSTS__DET__ADDR");
+
+    drp_write ('h20b, 'hc401); // bypass, clock align, invert xclk, arm datascope1
+//    drp_write ('h20b, 'h8401); // bypass, clock align and invert xclk that will stop datascope1
+/*
+`ifdef USE_DATASCOPE
+    parameter DATASCOPE_START_BIT =  14, // bit of DRP "other_control" to start recording after 0->1 (needs DRP)
+    parameter DATASCOPE_POST_MEAS = 256, // 16, // number of measurements to perform after event
+`endif
+*/    
     
 //  setup_pio_read_identify_command_simple(512,1); // prdt interrupt for entry 0
 
@@ -1372,12 +1382,17 @@ initial begin //Host
 ///  setup_pio_read_identify_command_shifted(1); // prdt interrupt for entry 0
 
 /// setup_pio_read_identify_command_multi4(0,27,71,83); // No prdt interrupts
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 2); // Record current time in datascope with a 3-bit tag
     setup_dma_read_ext_command_multi4(0,64,64,64);     // No prdt interrupts, 4 64-word chunks
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 3); // Record current time in datascope with a 3-bit tag
     
 /// setup_pio_read_identify_command_multi4(1,27,64,83); // prdt interrupt for entry 0
 ///    setup_pio_read_identify_command_multi4(1,64,63,64); // prdt interrupt for entry 0 // last used
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
-`ifdef TEST_ABORT_COMMAND    
+`ifdef TEST_ABORT_COMMAND
+    TESTBENCH_TITLE = "ABORT start";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
+    
 // Abort command by clearing ST    
     maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, 0-> ST
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
@@ -1386,6 +1401,8 @@ initial begin //Host
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
 //    maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); // Enable FR, 0-> ST
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+    TESTBENCH_TITLE = "ABORT end";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
 `endif     
     
 // TODO change to ifdef - this is for identify command    
@@ -1395,8 +1412,10 @@ initial begin //Host
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow DHR only interrupts (PIO setup)
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // clear that interrupt
     
-    
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 3); // Record current time in datascope with a 3-bit tag
     wait (IRQ);
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 4); // Record current time in datascope with a 3-bit tag
+    
 //    TESTBENCH_TITLE = "Got Identify";
     TESTBENCH_TITLE = "Got D2HRFIS";
     $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
@@ -1406,10 +1425,11 @@ initial begin //Host
     wait (~IRQ);
     
 // Reset command with abort_dma
-
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 5); // Record current time in datascope with a 3-bit tag
     maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); //  ST: 1 -> 0
     repeat (50)  @(posedge CLK);
     maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK |HBA_PORT__PxCMD__ST__MASK); // ST: 0 -> 1 
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 6); // Record current time in datascope with a 3-bit tag
 
     
     
@@ -1433,7 +1453,8 @@ initial begin //Host
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow only D2H Register interrupts
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts for port 0 (the only one)
     wait (~IRQ);
-
+    TESTBENCH_TITLE = "Setting up Identify";
+    $display("[Testbench]:       %s @%t", TESTBENCH_TITLE, $time);
     setup_pio_read_identify_command_simple(512,1);                                         // prdt interrupt for entry 0
     maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
     maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
@@ -1445,6 +1466,7 @@ initial begin //Host
     maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear PS interrupt
     maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
     wait (~IRQ);
+    maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 7); // Record current time in datascope with a 3-bit tag
 
 // end of the second identify insertion
 

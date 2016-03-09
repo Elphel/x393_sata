@@ -308,8 +308,32 @@ assign debug_phy = debug_phy0;
 //        .cominit_got     (cominit_got),       // output wire 
 //        .comwake_got     (serr_DW),            // output wire 
     
-    
-    assign datascope_di   = {5'b0,debug_link[5],datascope0_di[25:0]};// aligns_pair tx
+    `ifdef DATASCOPE_INCOMING_RAW
+        assign datascope_di   = {5'b0,debug_link[5],datascope0_di[25:0]};// aligns_pair tx
+    `else
+        // Mix transmitted alignes pair, but only to the closest group of 6 primitives
+        reg dbg_was_link5; // alignes pair sent
+        wire dbg_was_link5_xclk; // alignes pair sent
+
+        always @ (posedge datascope_clk) begin
+            if (dbg_was_link5_xclk) dbg_was_link5 <= 1;
+            else if (datascope_we)  dbg_was_link5 <= 0; 
+        end        
+
+        pulse_cross_clock #(
+            .EXTRA_DLY(0)
+        ) dbg_was_link5_i (
+            .rst       (rst),                // input
+            .src_clk   (clk),                // input
+            .dst_clk   (datascope_clk),      // input
+            .in_pulse  (debug_link[5]),      // input// is actually a two-cycle
+            .out_pulse (dbg_was_link5_xclk), // output
+            .busy()                          // output
+        );
+
+        assign datascope_di   = {dbg_was_link5,datascope0_di[30:0]};// aligns_pair tx
+        
+    `endif
     link #(
         .DATA_BYTE_WIDTH(4)
     ) link (

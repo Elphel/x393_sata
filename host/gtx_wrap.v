@@ -115,7 +115,8 @@ module gtx_wrap #(
    ,output                    datascope_clk,
     output [ADDRESS_BITS-1:0] datascope_waddr,
     output                    datascope_we,
-    output reg         [31:0] datascope_di,
+//    output reg         [31:0] datascope_di,
+    output             [31:0] datascope_di,
     input                     datascope_trig // external trigger event for the datascope     
 `endif    
     
@@ -1363,6 +1364,47 @@ gtxe2_channel_wrapper(
 
 
 `ifdef USE_DATASCOPE
+    `ifdef DATASCOPE_INCOMING_RAW
+        datascope_incoming_raw #(
+            .ADDRESS_BITS        (ADDRESS_BITS),
+            .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS)
+        ) datascope_incoming_i (
+            .clk              (xclk), // input
+            .charisk          (rxcharisk_dec_out[1:0]), // input[1:0] 
+            .rxdata           (rxdata_dec_out[15:0]), // input[15:0] 
+            .realign          (realign), // input
+            .comma            (comma), // input
+            .aligned          (state_aligned), // input
+            .not_in_table     (rxnotintable_dec_out[1:0]), // input[1:0] 
+            .disp_err         (rxdisperr_dec_out[1:0]), // input[1:0] 
+            .datascope_arm    (other_control[DATASCOPE_START_BIT]), // input
+            .datascope_clk    (datascope_clk), // output
+            .datascope_waddr  (datascope_waddr), // output[9:0] 
+            .datascope_we     (datascope_we), // output
+            .datascope_di     (datascope_di), // output[31:0] reg 
+            .datascope_trig   (datascope_trig) // input
+        );
+    `else //  DATASCOPE_INCOMING_RAW
+        datascope_incoming #(
+            .ADDRESS_BITS        (ADDRESS_BITS),
+            .DATASCOPE_POST_MEAS (DATASCOPE_POST_MEAS)
+        ) datascope_incoming_i (
+            .clk              (xclk), // input
+            .charisk          (rxcharisk_dec_out[1:0]), // input[1:0] 
+            .rxdata           (rxdata_dec_out[15:0]), // input[15:0] 
+            .aligned          (state_aligned), // input
+            .not_in_table     (rxnotintable_dec_out[1:0]), // input[1:0] 
+            .disp_err         (rxdisperr_dec_out[1:0]), // input[1:0] 
+            .datascope_arm    (other_control[DATASCOPE_START_BIT]), // input
+            .datascope_clk    (datascope_clk), // output
+            .datascope_waddr  (datascope_waddr), // output[9:0] 
+            .datascope_we     (datascope_we), // output
+            .datascope_di     (datascope_di), // output[31:0] reg 
+            .datascope_trig   (datascope_trig) // input
+        );
+    
+    `endif //  not DATASCOPE_INCOMING_RAW
+/*
     reg [ADDRESS_BITS - 1:0 ] datascope_post_cntr;
     reg [ADDRESS_BITS - 1:0 ] datascope_waddr_r;
     reg                 [2:0] datascope_start_r;
@@ -1410,9 +1452,256 @@ gtxe2_channel_wrapper(
                                    rxcharisk_dec_out[1:0],    // 17:16
                                    rxdata_dec_out[15:0]};     // 15: 0
     end
+*/    
 `endif
 
-always @ (posedge gtrefclk)
-    debug <= ~rxelecidle | debug;
+    always @ (posedge gtrefclk)
+        debug <= ~rxelecidle | debug;
 
 endmodule
+
+
+
+module  datascope_incoming_raw#(
+    parameter ADDRESS_BITS =         10, // for datascope
+    parameter DATASCOPE_POST_MEAS =  16  // number of measurements to perform after event
+)(
+    input                     clk, // source-synchronous clock (150MHz)
+    input               [1:0] charisk,
+    input              [15:0] rxdata,
+    input                     realign,
+    input                     comma,
+    input                     aligned,
+    input               [1:0] not_in_table,
+    input               [1:0] disp_err,
+    input                     datascope_arm,
+    output                    datascope_clk,
+    output [ADDRESS_BITS-1:0] datascope_waddr,
+    output                    datascope_we,
+    output reg         [31:0] datascope_di,
+    input                     datascope_trig // external trigger event for the datascope
+);
+
+    reg [ADDRESS_BITS - 1:0 ] datascope_post_cntr;
+    reg [ADDRESS_BITS - 1:0 ] datascope_waddr_r;
+    reg                 [2:0] datascope_start_r;
+    wire                      datascope_event;
+    reg                       datascope_event_r;
+    reg                       datascope_run;
+    reg                       datascope_post_run;
+//    wire                      datascope_start_w = other_control[DATASCOPE_START_BIT]; // datascope requires USE_DRP to be defined
+    wire                      datascope_stop =  (DATASCOPE_POST_MEAS == 0) ? datascope_event: (datascope_post_cntr == 0);
+    reg                 [2:0] datascope_trig_r;      
+    assign datascope_waddr =  datascope_waddr_r;
+    assign datascope_we =     datascope_run;
+    assign datascope_clk =    clk;
+    assign datascope_event = (not_in_table) || (disp_err) || realign || (datascope_trig_r[1] && !datascope_trig_r[2]) ;
+    
+    
+    always @ (posedge clk) begin
+        datascope_trig_r <= {datascope_trig_r[1:0], datascope_trig};
+    
+        datascope_start_r <= {datascope_start_r[1:0],datascope_arm};
+        
+        datascope_event_r <=datascope_event;
+        
+        if      (!datascope_start_r[1]) datascope_run <= 0;
+        else if (!datascope_start_r[2]) datascope_run <= 1;
+        else if (datascope_stop)        datascope_run <= 0; 
+
+        if      (!datascope_run)        datascope_post_run <= 0;
+        else if (datascope_event_r)     datascope_post_run <= 1;
+        
+        if (!datascope_post_run) datascope_post_cntr <= DATASCOPE_POST_MEAS;
+        else                     datascope_post_cntr <= datascope_post_cntr  - 1;  
+        
+        if (!datascope_start_r[1] && datascope_start_r[0]) datascope_waddr_r <= 0; // for simulator
+        else if (datascope_run)                            datascope_waddr_r <=  datascope_waddr_r + 1;
+        
+        if (datascope_start_r[1]) datascope_di <= {
+                                   6'b0,
+                                   realign,           // 25  
+                                   comma,             // 24
+                                   1'b0,              // 23 
+                                   aligned,           // 22   
+                                   not_in_table[1:0], // 21:20
+                                   disp_err[1:0],     // 19:18
+                                   charisk[1:0],      // 17:16
+                                   rxdata[15:0]};     // 15: 0
+    end
+
+endmodule
+
+module  datascope_incoming#( 
+    parameter ADDRESS_BITS =         10, // for datascope
+    parameter DATASCOPE_POST_MEAS =  16  // number of measurements to perform after event
+)(
+    input                     clk, // source-synchronous clock (150MHz)
+    input               [1:0] charisk,
+    input              [15:0] rxdata,
+    input                     aligned,
+    input               [1:0] not_in_table,
+    input               [1:0] disp_err,
+    input                     datascope_arm,
+    output                    datascope_clk,
+    output [ADDRESS_BITS-1:0] datascope_waddr,
+    output                    datascope_we,
+    output             [31:0] datascope_di,
+    input                     datascope_trig // external trigger event for the datascope
+    
+);
+    localparam ALIGN_PRIM =   32'h7b4a4abc;
+    localparam CONT_PRIM =    32'h9999aa7c;
+    localparam DMAT_PRIM =    32'h3636b57c;
+    localparam EOF_PRIM =     32'hd5d5b57c;
+    localparam HOLD_PRIM =    32'hd5d5aa7c;
+    localparam HOLDA_PRIM =   32'h9595aa7c;
+    localparam PMACK_PRIM =   32'h9595957c;
+    localparam PMNAK_PRIM =   32'hf5f5957c;
+    localparam PMREQ_P_PRIM = 32'h1717b57c;
+    localparam PMREQ_S_PRIM = 32'h7575957c;
+    localparam R_ERR_PRIM =   32'h5656b57c;
+    localparam R_IP_PRIM =    32'h5555b57c;
+    localparam R_OK_PRIM =    32'h3535b57c;
+    localparam R_RDY_PRIM =   32'h4a4a957c;
+    localparam SOF_PRIM =     32'h3737b57c;
+    localparam SYNC_PRIM =    32'hb5b5957c;
+    localparam WTRM_PRIM =    32'h5858b57c;
+    localparam X_RDY_PRIM =   32'h5757b57c;
+    
+    localparam NUM_NIBBLES = 6;
+    reg                [15:0] rxdata_r;
+    reg                [ 1:0] charisk_r;
+    
+    wire is_alignp =  ({rxdata, rxdata_r} == ALIGN_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_cont =    ({rxdata, rxdata_r} == CONT_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_dmat =    ({rxdata, rxdata_r} == DMAT_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_eof =     ({rxdata, rxdata_r} == EOF_PRIM)     && ({charisk, charisk_r} ==    4'h1);
+    wire is_hold =    ({rxdata, rxdata_r} == HOLD_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_holda =   ({rxdata, rxdata_r} == HOLDA_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_pmack =   ({rxdata, rxdata_r} == PMACK_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_pmnak =   ({rxdata, rxdata_r} == PMNAK_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_pmreq_p = ({rxdata, rxdata_r} == PMREQ_P_PRIM) && ({charisk, charisk_r} ==    4'h1);
+    wire is_pmreq_s = ({rxdata, rxdata_r} == PMREQ_S_PRIM) && ({charisk, charisk_r} ==    4'h1);
+    wire is_r_err =   ({rxdata, rxdata_r} == R_ERR_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_r_ip =    ({rxdata, rxdata_r} == R_IP_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_r_ok =    ({rxdata, rxdata_r} == R_OK_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_r_rdy =   ({rxdata, rxdata_r} == R_RDY_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+    wire is_sof =     ({rxdata, rxdata_r} == SOF_PRIM)     && ({charisk, charisk_r} ==    4'h1);
+    wire is_sync =    ({rxdata, rxdata_r} == SYNC_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_wrtm =    ({rxdata, rxdata_r} == WTRM_PRIM)    && ({charisk, charisk_r} ==    4'h1);
+    wire is_xrdy =    ({rxdata, rxdata_r} == X_RDY_PRIM)   && ({charisk, charisk_r} ==    4'h1);
+
+    wire        is_data_w =      {charisk, charisk_r} ==    4'h0;
+    
+    wire [17:0] is_prim_w = {is_alignp,
+                           is_cont,
+                           is_dmat,
+                           is_eof,
+                           is_hold,
+                           is_holda,
+                           is_pmack,
+                           is_pmnak,
+                           is_pmreq_p,
+                           is_pmreq_s,
+                           is_r_err,
+                           is_r_ip,
+                           is_r_ok,
+                           is_r_rdy,
+                           is_sof,
+                           is_sync,
+                           is_wrtm,
+                           is_xrdy};
+    wire [ 2:0] is_err_w = {~aligned, |not_in_table, |disp_err};
+
+    reg  [17:0] is_prim_r;
+    reg         is_data_r;
+    reg  [ 2:0] is_err_r;
+
+    reg  [17:0] is_prim_r2;
+    reg         is_data_r2;
+    reg  [ 3:0] is_err_r2;
+    wire [31:0] states = {9'b0, is_err_r2[3:0], is_prim_r2[17:0], is_data_r2}; // to add more states ?
+    wire [ 4:0] encoded_states_w ={(|states[31:16]),
+                                   (|states[31:24]) | (|states[15:8]),
+                                   (|states[31:28]) | (|states[23:20]) | (|states[15:12]) | (|states[7:4]),
+                                   (|states[31:30]) | (|states[27:26]) | (|states[23:22]) | (|states[19:18]) | (|states[15:14]) | (|states[11:10]) | (|states[7:6]) | (|states[3:2]), 
+                                    states[31] | states[29] | states[27] | states[25] | states[23] | states[21] | states[19] | states[17] |
+                                    states[15] | states[13] | states[11] | states[9] | states[7] | states[5] | states[3] | states[1]};
+//    wire        stop =  (DATASCOPE_POST_MEAS == 0) ? datascope_trig: (post_cntr == 0);
+                                    
+    reg   [5*NUM_NIBBLES-1:0] encoded_states_r3;
+    reg [ADDRESS_BITS - 1:0 ] post_cntr;
+    reg                       post_run;
+    reg [ADDRESS_BITS - 1:0 ] waddr_r;
+    
+    reg                 [2:0] arm_r;
+    reg                 [2:0] trig_r;
+    reg     [NUM_NIBBLES-1:0] wen;
+    reg                       run_r = 0;
+    wire                      event_w = trig_r[1] && !trig_r[2]; // re-clocked single-cycle external trigger
+    reg                       event_r;
+    wire                      stop =  (DATASCOPE_POST_MEAS == 0) ? event_w: (post_cntr == 0);
+    reg                 [1:0] we_r=0;
+    reg                       msb_in_r;
+    
+    reg                       is_aligned_r; // input aligned and got ALIGNp
+
+    assign datascope_clk  =  clk;
+    assign datascope_waddr = waddr_r;
+    assign datascope_we =    we_r[1];
+    assign datascope_di = {1'b0, post_run, encoded_states_r3};
+    
+    always @ (posedge clk) begin
+        if    (!aligned)    is_aligned_r <= 0;
+        else if (is_alignp) is_aligned_r <= 1;
+
+        if (!is_aligned_r && !is_alignp) msb_in_r <= 1;
+        else                             msb_in_r <= !msb_in_r;
+
+
+        rxdata_r <=  rxdata;
+        charisk_r <= charisk;
+        
+        
+        arm_r <=  {arm_r[1:0], datascope_arm};
+        trig_r <= {trig_r[1:0],datascope_trig};
+        
+        if      (!arm_r[1])     run_r <= 0;
+        else if (!arm_r[2])     run_r <= 1;
+        else if (stop)          run_r <= 0;
+        
+        event_r <= event_w;
+        
+        if      (!run_r)        post_run <= 0;
+        else if (event_r)       post_run <= 1;
+
+        if (msb_in_r) begin
+            is_prim_r <= is_prim_w;
+            is_err_r <=  is_err_w;
+            is_data_r <= is_data_w;
+
+            is_prim_r2 <= {18{~(|is_err_r)}} & is_prim_r;
+            is_err_r2 <=  {is_err_r[2],is_err_r[1] & ~is_err_r[2],is_err_r[0] & ~(|is_err_r[2:1]), ~(|is_prim_r) & ~is_data_r & ~(|is_err_r)}; // make errors 1-hot by priority
+            is_data_r2 <= is_data_r & ~(|is_err_r);
+
+            encoded_states_r3 <= {encoded_states_w, encoded_states_r3[5*NUM_NIBBLES-1:5]};
+
+            if (!run_r) wen <= 0;
+            else        wen <= {wen[NUM_NIBBLES-2:0],~(|wen[NUM_NIBBLES-2:0])};
+
+
+            we_r[0] <= run_r && wen[NUM_NIBBLES-1];
+        end
+        
+        we_r[1] <=we_r[0] && !msb_in_r;
+
+        if (!arm_r[1] && arm_r[0])   waddr_r <= 0; // for simulator
+        else if (we_r[1])            waddr_r <= waddr_r + 1;
+        
+        if (!post_run)               post_cntr <= DATASCOPE_POST_MEAS;
+        else if (we_r[1])            post_cntr <= post_cntr  - 1;
+
+    end
+endmodule
+

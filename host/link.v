@@ -37,7 +37,8 @@ module link #(
     // 4 = dword. 4-bytes aligned data transfers TODO 2 = word - easy, 8 = qword - difficult
     parameter DATA_BYTE_WIDTH = 4,
 `ifdef SIMULATION
-    parameter ALIGNES_PERIOD =  10 // period of sending ALIGNp pairs
+//    parameter ALIGNES_PERIOD =  10 // period of sending ALIGNp pairs
+    parameter ALIGNES_PERIOD =  100 // period of sending ALIGNp pairs
 `else
     parameter ALIGNES_PERIOD =  252 // period of sending ALIGNp pairs
 `endif    

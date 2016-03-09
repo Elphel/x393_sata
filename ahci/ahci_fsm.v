@@ -270,7 +270,8 @@ module  ahci_fsm
     reg                      [2:0] fsm_jump;
     wire                           fsm_next;
 //    reg                            fsm_next_r;
-    reg                            fsm_actions;     // processing actions
+    reg                            fsm_actions;    // processing actions
+    reg                            dis_actions;    // disable actions during async jump
     reg                            fsm_act_busy;
     reg                      [1:0] fsm_transitions; // processing transitions
     reg                            fsm_preload;    // read first sequence data (2 cycles for regen)
@@ -288,7 +289,7 @@ module  ahci_fsm
     wire                           fsm_wait_act_w = pgm_data[16]; // this action requires waiting for done
     wire                           fsm_last_act_w = pgm_data[17];
 
-    wire                           fsm_pre_act_w = fsm_actions && fsm_next; // use it as CS for generated actions (registered)
+    wire                           fsm_pre_act_w = !dis_actions && fsm_actions && fsm_next; // use it as CS for generated actions (registered)
     
     reg                      [1:0] async_pend_r; // waiting to process cominit_got
     reg                            async_from_st; // change to multi-bit if there will be more sources for async transitions
@@ -380,6 +381,11 @@ module  ahci_fsm
         if      (hba_rst)                                   fsm_actions <= 0;
         else if (fsm_jump[2])                               fsm_actions <= 1;
         else if (fsm_last_act_w && fsm_next)                fsm_actions <= 0;
+        
+        if      (hba_rst)                                   dis_actions <= 0;
+        else if (|async_pend_r)                             dis_actions <= 1;
+        else if (fsm_jump[2])                               dis_actions <= 0;
+        
         
         if (fsm_actions && fsm_next)                        was_last_action_r <= fsm_last_act_w;
         

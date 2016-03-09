@@ -5,6 +5,7 @@
   `define ALIGN_CLOCKS
   `define STRAIGHT_XCLK
   `define USE_DATASCOPE
+//  `define DATASCOPE_INCOMING_RAW
   `define PRELOAD_BRAMS
   `define AHCI_SATA 1
   `define DEBUG_ELASTIC  
