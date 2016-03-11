@@ -1,6 +1,6 @@
 FPGA_project_0_SimulationTopFile=tb/tb_top.v
 FPGA_project_1_SimulationTopModule=tb
-FPGA_project_2_ImplementationTopFile=dma/top.v
+FPGA_project_2_ImplementationTopFile=top.v
 FPGA_project_3_ImplementationTopModule=top
 FPGA_project_4_part=xc7z030fbg484-1
 FPGA_project_5_part=xc7z030fbg484-1
