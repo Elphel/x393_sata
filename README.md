@@ -3,7 +3,8 @@ SATA controller for x393 camera
 Board: Zynq 7z30
 FPGA: Kintex-7
 
-# Install VDT plugin - see instructions on https://github.com/Elphel/vdt-plugin
+# Install VDT plugin
+See instructions on https://github.com/Elphel/vdt-plugin
 
 # Clone
 
