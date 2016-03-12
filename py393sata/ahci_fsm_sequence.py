@@ -42,6 +42,7 @@ condition_mux_verilog_path=  '../generated/condition_mux.v'
 condition_mux_module_name=   'condition_mux'
 condition_mux_fanout =       8 
 code_rom_path=  '../includes/ahxi_fsm_code.vh'
+ahci_fsm_sequence_path=  '../generated/ahci_fsm_sequence.lst'
 #Set actions, conditions to empty string to rebuild list. Then edit order and put here
 actions = ['NOP',
     # CTRL_STAT
@@ -723,6 +724,7 @@ while ln < len(sequence):
     ln += 1
 
 labels = {}
+async_labels=set()
 jumps = set()
 for ln, line in enumerate(sequence):
     if LBL in line:
@@ -731,6 +733,8 @@ for ln, line in enumerate(sequence):
             print ("Duplicate label '%s': line #%d and line # %d"%(label, labels[label], ln))
         else:
             labels[label]=ln
+        if ADDR in line:
+            async_labels.add(label)    
     if GOTO in line:
         jumps.add(line[GOTO])
 
@@ -749,30 +753,55 @@ if not conditions:
         if IF in line:
             if not line[IF] in conditions:
                 conditions.append(line[IF])
-
+listing = []
+listing.append("Checking for undefined labels:")
 print ("Checking for undefined labels:")
 undef_jumps = []
 for label in jumps:
     if not label in labels:
         undef_jumps.append(label)
 if undef_jumps:
-    print ("Undefined jumps:")
+    listing.append("Undefined jumps:")
+    print         ("Undefined jumps:")
     for i,jump in enumerate(undef_jumps):
-        print("%d: '%s'"%(i,jump))
+        listing.append("%d: '%s'"%(i,jump))
+        print         ("%d: '%s'"%(i,jump))
 else:
-    print ("All jumps are to defined labels")
-    
-print ("Checking for unused labels:")
+    listing.append("All jumps are to the defined labels")
+    print         ("All jumps are to the defined labels")
+print         ("")
+listing.append("")
+
+print         ("Checking for unused labels:")
+listing.append("Checking for unused labels:")
 unused_labels = []
 for label in labels:
-    if not label in jumps:
+#    print("label=%s, labels[label] = %s"%(label, str(labels[label])))
+    if (not label in jumps) and (not label in async_labels):
         unused_labels.append(label)
 if unused_labels:
-    print ("Unused labels:")
+    print         ("Unused labels:")
+    listing.append("Unused labels:")
     for i,label in enumerate(unused_labels):
-        print("%d: '%s'"%(i,label))
+        print         ("%d: '%s'"%(i,label))
+        listing.append("%d: '%s'"%(i,label))
 else:
-    print ("All labels are used")
+    print          ("All labels are used")
+    listing.append ("All labels are used")
+print         ("")
+listing.append("")
+
+if async_labels:    
+    print         ("Asynchronous transitions labels:")
+    listing.append("Asynchronous transitions labels:")
+    async_entries={}
+    for label in async_labels:
+        async_entries[labels[label]] = label
+    for k in sorted(async_entries.keys()):
+        listing.append ("0x%03x: %s"%(k,async_entries[k]))
+    print         ("")
+    listing.append("")
+    
 wait_actions=[]
 fast_actions=[]
 for a in actions:
@@ -806,33 +835,28 @@ vals = bin_cnk (*conditions_cnk)
 for i, v in enumerate (conditions):
     condition_vals[v]= vals[i]
     
+listing.append ("Number of lines :  %d"%(len(sequence)))
+listing.append ("Number of labels : %d"%(len(labels)))
+listing.append ("Number of actions : %d"%(len(actions)))
+listing.append ("Number of conditions : %d"%(len(conditions)))
+
 print ("Number of lines :  %d"%(len(sequence)))
 print ("Number of labels : %d"%(len(labels)))
 print ("Number of actions : %d"%(len(actions)))
 print ("Number of conditions : %d"%(len(conditions)))
-#print ("\nActions:")
-#for i,a in enumerate(actions):
-#    print ("%02d: %s"%(i,a))
-print ("\nActions that do not wait for done (%d):"%(len(fast_actions)))
+
+listing.append ("\nActions that do not wait for done (%d):"%(len(fast_actions)))
 for i,a in enumerate(fast_actions):
-#    print ("%02d: %s"%(i,a))
-    print ("%s"%(a))
-print ("\nActions that wait for done (%d):"%(len(wait_actions)))
+    listing.append ("%s"%(a))
+listing.append ("\nActions that wait for done (%d):"%(len(wait_actions)))
 for i,a in enumerate(wait_actions):
-#    print ("%02d: %s"%(i,a))
-    print ("%s"%(a))
+    listing.append ("%s"%(a))
 
 
-print ("\nConditions(%d):"%(len(conditions)))
+listing.append ("\nConditions(%d):"%(len(conditions)))
 for i,c in enumerate(conditions):
-#    print ("%02d: %s"%(i,c))
-    print ("%s"%(c))
+    listing.append ("%s"%(c))
 
-#print ("action_vals=",   action_vals)    
-#print ("condition_vals=",condition_vals)    
-
-#for i, line in enumerate(sequence):
-#    print ("%03x: %s"%(i,line))
 
 if not action_decoder_verilog_path:
     action_decoder_verilog(actions, action_vals, action_decoder_module_name)
@@ -850,25 +874,22 @@ else:
 
 code = code_generator (sequence, action_vals, condition_vals, labels)
 
-#print_params(create_with_parity(code, 18, 0, False),os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path)))
 print_params(create_with_parity(code, 18, False),os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path)))
 print ("AHCI FSM code data is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), code_rom_path))))
 
 
-#longest_label = max([len(labels[l]) for l in labels.keys()])
 longest_label = max([len(l) for l in labels])
 longest_act =   max([len(act) for act in actions])
 longest_cond =  max([len(cond) for cond in conditions])
 format_act = "%%%ds do %%s%%s"%(longest_label+1) 
 format_cond = "%%%ds %%%ds goto %%s"%(longest_label+1, longest_cond+3)
-#print ("format_act=", format_act) 
-#print ("format_cond=",format_cond) 
-print ("\n code:")
+listing.append ("\n code:")
 for a,c in enumerate(code):
     l = sequence[a]
     if LBL in l:
-        print()
-    print ("%03x: %05x #"%(a,c),end = "")
+        listing.append("")
+#    listing.append ("%03x: %05x #"%(a,c),end = "")
+    line_start="%03x: %05x #"%(a,c)
     if (ACT in l) or (LBL in l):
         try:
             lbl = l[LBL]+":"
@@ -882,15 +903,19 @@ for a,c in enumerate(code):
         if act.endswith('*'):
             wait = ", WAIT DONE"
             act = act[0:-1]
-        print(format_act%(lbl,act,wait))    
+        listing.append(line_start+(format_act%(lbl,act,wait)))    
     else:
         try:
             cond = "if "+l[IF]
         except:
             cond = "always"
         cond += ' '*(longest_cond+3-len(cond))    
-        print(format_cond%("",cond,l[GOTO]))    
-#    print ("%03x: %05x # %s"%(a,c,str(sequence[a])))
+        listing.append(line_start+(format_cond%("",cond,l[GOTO])))
+            
+with open(os.path.abspath(os.path.join(os.path.dirname(__file__), ahci_fsm_sequence_path)),"w") as lst_file:
+    print ("This file is auto-generated by %s\n\n"%(os.path.basename(__file__)), file=lst_file)
+    for l in listing:
+        print(l,file=lst_file)
 
-#condition_mux_verilog(conditions, condition_vals, 'condition_mux',100, file=None)
+print ("AHCI FSM listing is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), ahci_fsm_sequence_path))))
             

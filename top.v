@@ -40,7 +40,7 @@
 `include "system_defines.vh" 
 
 module top #(
-`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
+//`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
 (
 // sata serial data iface
@@ -164,11 +164,7 @@ axi_hp_clk #(
     .clk_axihp    (hclk), // output
     .locked_axihp () // output // not controlled?
 );
-`ifdef AHCI_SATA
 sata_ahci_top sata_top(
-`else
-sata_top sata_top(
-`endif
     .sata_clk                   (sclk),
     // reliable clock to source drp and cpll lock det circuits
     .reliable_clk               (axi_aclk0),

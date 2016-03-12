@@ -72,8 +72,8 @@ reg  [31:0] TESTBENCH_DATA;
 reg  [11:0] TESTBENCH_ID;
 
 reg [639:0] DEVICE_TITLE = 'bz; // to show human-readable state in the GTKWave
-reg  [31:0] DEVICE_DATA;
-reg  [11:0] Device_ID;
+///reg  [31:0] DEVICE_DATA;
+///reg  [11:0] Device_ID;
 
 initial #1 $display("HI THERE");
 initial

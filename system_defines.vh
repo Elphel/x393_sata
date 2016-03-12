@@ -7,7 +7,7 @@
   `define USE_DATASCOPE
 //  `define DATASCOPE_INCOMING_RAW
   `define PRELOAD_BRAMS
-  `define AHCI_SATA 1
+//  `define AHCI_SATA 1
   `define DEBUG_ELASTIC  
 // Enviroment-dependent options
   `ifdef IVERILOG
