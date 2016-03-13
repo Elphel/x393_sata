@@ -149,19 +149,11 @@ module  ahci_sata_layers #(
     wire        [ 1:0] ll_d2h_mask_out;
     wire               ll_d2h_valid;
     wire               ll_d2h_almost_full;
-//    wire               ll_d2h_last; // may loose ll timing and send 'last' after data. Now assuming no data comes next xyxle after last
-//    wire         [1:0] d2h_type_in;
     reg          [1:0] d2h_type_in;
     reg                fis_over_r;  // push 1 more DWORD (ignore) + type (ERR/OK) when received FIS is done/error         
     
-//    wire ll_frame_req_w;       // pre ll_frame_req
     reg  ll_frame_req;         // -> link // request for a new frame transition
     wire ll_frame_ackn;        // acknowledge for ll_frame_req
-//    wire ll_frame_busy;        // link -> // a little bit of overkill with the cound of response signals, think of throwing out 1 of them // LL tells back if it cant handle the request for now
-//    wire ll_frame_ack;         // link -> // LL tells if the request is transmitting not used
-//    wire ll_frame_rej;         // link -> // or if it was cancelled because of simultanious incoming transmission
-//    wire ll_frame_done_good;   // link -> // TL tell if the outcoming transaction is done and how it was done
-//    wire ll_frame_done_bad;    // link ->
      
     wire ll_incom_start;       // link -> // if started an incoming transaction    assuming this and next 2 are single-cycle
     wire ll_incom_done;        // link -> // if incoming transition was completed
@@ -169,12 +161,7 @@ module  ahci_sata_layers #(
     reg ll_incom_invalidate_r; // error delayed by 1 clock - if eof was incorrect (because of earlier data error)
                                // let last data dword to pass through
     
-//    wire incom_ack_good = send_R_OK;    // -> link  // transport layer responds on a completion of a FIS
-//    wire incom_ack_bad = send_R_ERR;     // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle
-    
     wire ll_link_reset = ~phy_ready;        // -> link  // oob sequence is reinitiated and link now is not established or rxelecidle //TODO Alexey:mb it shall be independent
-    
-//    wire ll_incom_stop_req;    // -> link  // TL demands to stop current recieving session (use !PxCMD.ST)?
     
     wire [DATA_BYTE_WIDTH*8 - 1:0] ph2ll_data_out;
     wire [DATA_BYTE_WIDTH   - 1:0] ph2ll_charisk_out; // charisk
@@ -187,14 +174,12 @@ module  ahci_sata_layers #(
     wire     [FIFO_ADDR_WIDTH-1:0] h2d_waddr;
     wire       [FIFO_ADDR_WIDTH:0] h2d_fill;
     wire                           h2d_nempty;
-//    wire                           h2d_under;
     
     wire     [FIFO_ADDR_WIDTH-1:0] d2h_raddr;
     wire                     [1:0] d2h_fifo_re_regen;    
     wire     [FIFO_ADDR_WIDTH-1:0] d2h_waddr;
     wire       [FIFO_ADDR_WIDTH:0] d2h_fill;
     wire                           d2h_nempty;
-//    wire                           d2h_over;
     wire                           h2d_fifo_rd = h2d_nempty && ll_strobe_out; // TODO: check latency in link.v
     wire                           h2d_fifo_wr = h2d_valid;
     
@@ -202,112 +187,59 @@ module  ahci_sata_layers #(
     wire                           d2h_fifo_wr = ll_d2h_valid || fis_over_r; // fis_over_r will push FIS end to FIFO
     reg                            h2d_pending;    // HBA started sending FIS to fifo
     
- //   wire                    [31:0] debug_phy;
- //   wire                    [31:0] debug_link;
-
     wire                           rxelsfull; 
     wire                           rxelsempty; 
     wire                           xclk;             // output receive clock, just to measure frequency
-//    wire  [FREQ_METER_WIDTH - 1:0] xclk_period;      // relative (to 2*clk) xclk period
     
     wire debug_detected_alignp; // oob detects ALIGNp, but not the link layer
     wire                    [31:0] debug_phy0;
-    
+`ifdef USE_DATASCOPE
     wire [31:0]                    datascope0_di;
-    
-//    assign debug_sata = {link_established, phy_ready, debug_phy[29:16],debug_link[15:0]}; // 
-//    assign debug_sata = debug_link[31:0]; // 
-///    assign debug_sata = debug_phy;
-    
-//    assign debug_sata = {debug_link[31:4],debug_phy[3:0]} ; // 
-//    assign debug_sata = {debug_link[31:8],debug_phy[7:0]} ; // 
-//    assign debug_sata = {debug_link[27:20],debug_phy[23:0]} ; // 
-    
-    assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
-    assign d2h_valid = d2h_nempty;
-    assign d2h_many =  |d2h_fill[FIFO_ADDR_WIDTH:3]; // 
-    
-    assign h2d_ready = !h2d_fill[FIFO_ADDR_WIDTH] && !(&h2d_fill[FIFO_ADDR_WIDTH:3]);
-    assign ll_d2h_almost_full   = d2h_fill[FIFO_ADDR_WIDTH] || &d2h_fill[FIFO_ADDR_WIDTH-1:6]; // 63 dwords (maybe use :5?) - time to tell device to stop 
-    
+`endif    
+assign ll_h2d_last =  (h2d_type_out == H2D_TYPE_FIS_LAST); 
+assign d2h_valid = d2h_nempty;
+assign d2h_many =  |d2h_fill[FIFO_ADDR_WIDTH:3]; // 
+
+assign h2d_ready = !h2d_fill[FIFO_ADDR_WIDTH] && !(&h2d_fill[FIFO_ADDR_WIDTH:3]);
+assign ll_d2h_almost_full   = d2h_fill[FIFO_ADDR_WIDTH] || &d2h_fill[FIFO_ADDR_WIDTH-1:6]; // 63 dwords (maybe use :5?) - time to tell device to stop 
+
 //    assign ll_frame_req_w = !ll_frame_busy && h2d_pending && (((h2d_type == H2D_TYPE_FIS_LAST) && h2d_fifo_wr ) || (|h2d_fill[FIFO_ADDR_WIDTH : BITS_TO_START_XMIT]));
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
 //assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val &  rcvd_dword[CODE_WTRMP];
 //    assign phy_speed = phy_ready ? PHY_SPEED:0;
 //    assign serr_DB = phy_ready && (|ph2ll_err_out);
 //    assign serr_DH = phy_ready && (xmit_err);
-    assign phy_speed = link_established ? PHY_SPEED:0;
-    assign serr_DB =   link_established && (|ph2ll_err_out);
-    assign serr_DH =   link_established && (xmit_err);
-    //
-    
+assign phy_speed = link_established ? PHY_SPEED:0;
+assign serr_DB =   link_established && (|ph2ll_err_out);
+assign serr_DH =   link_established && (xmit_err);
+//
+
 // not yet assigned errors
 ///    assign serr_DT = phy_ready && (comreset_send); // RWC: Transport state transition error
 ///    assign serr_DS = phy_ready && (cominit_got);   // RWC: Link sequence error
 ///    assign serr_DC = phy_ready && (serr_DW);       // RWC: CRC error in Link layer
-    assign serr_DT = phy_ready && (0); // RWC: Transport state transition error
+assign serr_DT = phy_ready && (0); // RWC: Transport state transition error
 //    assign serr_DS = phy_ready && (0);   // RWC: Link sequence error
 //    assign serr_DC = phy_ready && (0);       // RWC: CRC error in Link layer
 //    assign serr_DB = phy_ready && (0);   // RWC: 10B to 8B decode error
-    assign serr_EE = phy_ready && (rxelsfull || rxelsempty);
-    assign serr_DI = phy_ready && (0);   // rxelsfull);   // RWC: PHY Internal Error // just debugging
-    assign serr_EP = phy_ready && (0);   // rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
-    assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
-    assign serr_ET = phy_ready && (0);   // RWC: Transient Data Integrity Error (error not recovered by the interface)
-    assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
-    assign serr_EI = phy_ready && (0);   // RWC: Recovered Data integrity Error
-    
-    reg [1:0] debug_last_d2h_type_in;
-    reg [1:0] debug_last_d2h_type;
-    
-    always @ (posedge clk) begin
-        if (d2h_fifo_wr) debug_last_d2h_type_in<= d2h_type_in;
-        if (d2h_fifo_rd) debug_last_d2h_type<=    d2h_type;
-    end
-    /*
-    assign debug_phy = {h2d_type_out[1:0],h2d_type[1:0],
-                        ll_h2d_last,d2h_valid,  d2h_type[1:0],
-                        debug_last_d2h_type_in, d2h_type_in[1:0],
-                        debug_last_d2h_type[1:0],
-                        d2h_fill[1:0],
-                        1'b0,
-                        d2h_fifo_wr,
-                        d2h_fifo_re_regen[1:0],
-                        d2h_waddr[1:0],
-                        d2h_raddr[1:0],
-                        debug_phy0[ 7:0]};
-*/
-/*                        
-    assign debug_phy = {h2d_type_out[1:0],h2d_type[1:0],
-                        ll_h2d_last,d2h_valid,  d2h_type[1:0],
-//                        debug_last_d2h_type_in, d2h_type_in[1:0],
-//                        debug_last_d2h_type[1:0],
-//                        d2h_fill[1:0],
-//                        1'b0,
-//                        d2h_fifo_wr,
-//                        d2h_fifo_re_regen[1:0],
-//                        d2h_waddr[1:0],
-//                        d2h_raddr[1:0],
-                        debug_phy0[23:0]};
-*/
-assign debug_phy = debug_phy0; 
+assign serr_EE = phy_ready && (rxelsfull || rxelsempty);
+assign serr_DI = phy_ready && (0);   // rxelsfull);   // RWC: PHY Internal Error // just debugging
+assign serr_EP = phy_ready && (0);   // rxelsempty);   // RWC: Protocol Error - a violation of SATA protocol detected // just debugging
+assign serr_EC = phy_ready && (0);   // RWC: Persistent Communication or Data Integrity Error
+assign serr_ET = phy_ready && (0);   // RWC: Transient Data Integrity Error (error not recovered by the interface)
+assign serr_EM = phy_ready && (0);   // RWC: Communication between the device and host was lost but re-established
+assign serr_EI = phy_ready && (0);   // RWC: Recovered Data integrity Error
 
-//                        debug_phy0[15:0]};
-//                        debug_phy0[19:0]};
+reg [1:0] debug_last_d2h_type_in;
+reg [1:0] debug_last_d2h_type;
+
+always @ (posedge clk) begin
+    if (d2h_fifo_wr) debug_last_d2h_type_in<= d2h_type_in;
+    if (d2h_fifo_rd) debug_last_d2h_type<=    d2h_type;
+end
+assign debug_phy = debug_phy0; 
     
-/*
-// Data/type FIFO, device -> host
-    output      [31:0] d2h_data,         // FIFO input  data
-    output      [ 1:0] d2h_mask,     // set to 2'b11
-    output      [ 1:0] d2h_type,    // 0 - data, 1 - FIS head, 2 - R_OK, 3 - R_ERR (last two - after data, so ignore data with R_OK/R_ERR)
-    output             d2h_valid,  // Data available from the transport layer in FIFO                
-    output             d2h_many,    // Multiple DWORDs available from the transport layer in FIFO           
-    input              d2h_ready,   // This module or DMA consumes DWORD
-*/    
-//        .comreset_send   (comreset_send),     // input
-//        .cominit_got     (cominit_got),       // output wire 
-//        .comwake_got     (serr_DW),            // output wire 
-    
+`ifdef USE_DATASCOPE
     `ifdef DATASCOPE_INCOMING_RAW
         assign datascope_di   = {5'b0,debug_link[5],datascope0_di[25:0]};// aligns_pair tx
     `else
@@ -332,8 +264,8 @@ assign debug_phy = debug_phy0;
         );
 
         assign datascope_di   = {dbg_was_link5,datascope0_di[30:0]};// aligns_pair tx
-        
     `endif
+`endif    
     link #(
         .DATA_BYTE_WIDTH(4)
     ) link (

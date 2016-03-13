@@ -767,14 +767,6 @@ end
         .afi_cache_set    (set_axi_cache_mode), // output
         .was_hba_rst      (was_hba_rst),     // output 
         .was_port_rst     (was_port_rst),    // output 
-/*        
-        .debug_in0        ({ debug_data_in_ready,       // output
-                             debug_fis_end_w,           // output
-                             xfer_cntr_zero,
-                             debug_fis_end_r[0],        // debug_fis_end_r[1:0],      // output[1:0] 
-                             debug_get_fis_busy_r[1:0], // output[1:0] 
-                             debug_dma[25:0]}),       // input[31:0]
- */                            
         .debug_in0        ({ 2'b0,
                              was_good_bad_prev,
                              debug_d2h_length_prev[12:0],
@@ -783,13 +775,6 @@ end
                              debug_d2h_length[12:0]
                              }),
                              
-/*
-reg [12:0] debug_d2h_length;
-reg [12:0] debug_d2h_length_prev;
-reg        was_good_bad;
-reg        was_good_bad_prev;
-
-*/                             
 //        .debug_in1        ({xclk_period[7:0], // lower 8 bits of 12-bit value. Same frequency would be 0x800 (msb opposite to 3 next bits)
 //                            debug_dma1[23:0]}),      // debug_in_link),   // input[31:0]
         .debug_in1        ({debug_in_link[15:8],
@@ -798,10 +783,13 @@ reg        was_good_bad_prev;
 //        .debug_in3        ({22'b0, last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
         .debug_in3        ({debug_in_link[7:0],
                             frcv_busy,frcv_ok, // 2'b0,
+`ifdef USE_DATASCOPE
                              datascope_waddr[9:0],
+`else
+                             10'b0,
+`endif                             
                             frcv_err,frcv_ferr, // 2'b0,
                              last_jump_addr[9:0]}) // input[31:0]// Last jump address in the AHDCI sequencer
-        
 `ifdef USE_DRP
        ,.drp_en           (drp_en),          // output reg 
         .drp_we           (drp_we),          // output reg 

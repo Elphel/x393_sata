@@ -37,7 +37,7 @@
 //`include "gtx_elastic.v"
 // All computations have been done in assumption of GTX interface being 20 bits wide!
 //`include "system_defines.v"
-`define DEBUG_ELASTIC
+//`define DEBUG_ELASTIC
 module gtx_wrap #(
 `ifdef USE_DATASCOPE
     parameter ADDRESS_BITS =         10, // for datascope
@@ -61,10 +61,9 @@ module gtx_wrap #(
     input   wire    cplllockdetclk,
     input   wire    cpllreset,
     input   wire    gtrefclk,
-    input   wire    drpclk,
     input   wire    rxuserrdy,
     input   wire    txuserrdy,
-    input   wire    rxusrclk,
+//    input   wire    rxusrclk,
     input   wire    rxusrclk2,
     input   wire    rxp,
     input   wire    rxn,
@@ -175,9 +174,9 @@ wire    txcomwake_gtx;
 wire    txelecidle_gtx;
 
 `ifdef USE_DRP
-    wire  [1:0] drp_en_w; // [0] - select GTX, [1] - select sipo_to_xclk_measure 
-    wire  [1:0] drp_we_w; // [0] - select GTX, [1] - select sipo_to_xclk_measure 
-    reg   [1:0] drp_sel; // [0] - select GTX, [1] - select sipo_to_xclk_measure
+    wire  [1:0] drp_en_w; // [0] - select GTX, [1] - select drp_other_registers 
+    wire  [1:0] drp_we_w; // [0] - select GTX, [1] - select drp_other_registers 
+    reg   [1:0] drp_sel; // [0] - select GTX, [1] - select drp_other_registers
     wire [15:0] drp_do_gtx;
     wire [15:0] drp_do_meas;
     wire        drp_rdy_gtx;
@@ -411,21 +410,20 @@ wire             RXDLYOVRDEN;  //  9 (1'b0),
 wire             RXDDIEN;      // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
 wire             RXLPMEN;      // 11 (1'b0) 1 - enable LP, 0 - DXE 
 
+reg     [19:0]  rxdata_comma_in_r;
+assign rxdata_comma_in = rxdata_comma_in_r;
+always @ (posedge xclk) 
+    rxdata_comma_in_r <= gtx_rx_data20;
+
 `ifdef USE_DRP
-    sipo_to_xclk_measure #(
-        .DATA_WIDTH        (20),
-        .DRP_ABITS          (8),
-        .DRP_MASK_ADDR      (0),
-        .DRP_MASK_BITS      (3),
-        .DRP_TIMER_ADDR     (8),
-        .DRP_EARLY_ADDR     (9),
-        .DRP_LATE_ADDR      (10),
-        .DRP_OTHERCTRL_ADDR (11)
-    ) sipo_to_xclk_measure_i (
-        .xclk          (xclk),            // input
-        .drp_rst       (drp_rst),         //
-        .sipo_di       (gtx_rx_data20),   // input[19:0] 
-        .sipo_do       (rxdata_comma_in), // output[19:0] //sipo_di registered @ (posedge xclk)
+    drp_other_registers #(
+        .DRP_ABITS(8),
+        .DRP_REG0(8),
+        .DRP_REG1(9),
+        .DRP_REG2(10),
+        .DRP_REG3(11)
+    ) drp_other_registers_i (
+        .drp_rst       (drp_rst), // input
         .drp_clk       (drp_clk),         // input
         .drp_en        (drp_en_w[1]),     // input
         .drp_we        (drp_we_w[1]),     // input
@@ -433,7 +431,10 @@ wire             RXLPMEN;      // 11 (1'b0) 1 - enable LP, 0 - DXE
         .drp_di        (drp_di),          // input[15:0] 
         .drp_rdy       (drp_rdy_meas),    // output reg 
         .drp_do        (drp_do_meas),     // output[15:0] reg 
-        .other_control (other_control)    // output[15:0] reg
+        .drp_register0 (),                // output[15:0] // reserved for future use 
+        .drp_register1 (),                // output[15:0] // reserved for future use 
+        .drp_register2 (),                // output[15:0] // reserved for future use
+        .drp_register3 (other_control)    // output[15:0] // reserved for future use 
     );
     
     assign RXPHDLYRESET = other_control[ 1]; //  1 (1'b0), 
@@ -448,32 +449,26 @@ wire             RXLPMEN;      // 11 (1'b0) 1 - enable LP, 0 - DXE
     assign RXDDIEN =      other_control[10]; // 10 (1'b1), // Andrey: p.243: "Set high in RX buffer bypass mode"
     assign RXLPMEN =      other_control[11]; // 11 (1'b0) 1 - enable LP, 0 - DXE
 `else
-    reg     [19:0]  rxdata_comma_in_r;
-    assign rxdata_comma_in = rxdata_comma_in_r;
-    always @ (posedge xclk) 
-        rxdata_comma_in_r <= gtx_rx_data20;
     // VDT bug - considered USE_DRP undefined during closure, temporary including unconnected module     
-    sipo_to_xclk_measure #(
-        .DATA_WIDTH        (20),
-        .DRP_ABITS          (8),
-        .DRP_MASK_ADDR      (0),
-        .DRP_MASK_BITS      (3),
-        .DRP_TIMER_ADDR     (8),
-        .DRP_EARLY_ADDR     (9),
-        .DRP_LATE_ADDR      (10),
-        .DRP_OTHERCTRL_ADDR (11)
-    ) sipo_to_xclk_measure_i (
-        .xclk          (),            // input
-        .sipo_di       (),   // input[19:0] 
-        .sipo_do       (), // output[19:0] //sipo_di registered @ (posedge xclk)
-        .drp_clk       (),         // input
-        .drp_en        (),      // input
-        .drp_we        (),     // input
-        .drp_addr      (),   // input[7:0] 
-        .drp_di        (),          // input[15:0] 
-        .drp_rdy       (),    // output reg 
+    drp_other_registers #(
+        .DRP_ABITS     (8),
+        .DRP_REG0      (8),
+        .DRP_REG1      (9),
+        .DRP_REG2      (10),
+        .DRP_REG3      (11)
+    ) drp_other_registers_i (
+        .drp_rst       (1'b0), // input
+        .drp_clk       (1'b0), // input
+        .drp_en        (1'b0), // input
+        .drp_we        (1'b0), // input
+        .drp_addr      (8'b0), // input[7:0] 
+        .drp_di        (16'b0),// input[15:0] 
+        .drp_rdy       (),     // output reg 
         .drp_do        (),     // output[15:0] reg 
-        .other_control ()    // output[15:0] reg
+        .drp_register0 (),     // output[15:0] // reserved for future use 
+        .drp_register1 (),     // output[15:0] // reserved for future use 
+        .drp_register2 (),     // output[15:0] // reserved for future use
+        .drp_register3 ()      // output[15:0] // reserved for future use 
     );
     assign RXPHDLYRESET =     1'b0;; //  1 (1'b0), 
     assign RXPHALIGN =        1'b0;; //  2 (1'b0),
@@ -560,7 +555,6 @@ elastic1632 #(
 ) elastic1632_i (
     .wclk           (xclk),                               // input 150MHz, recovered
     .rclk           (rxusrclk2),                          // input 75 MHz, system
-//        .isaligned_in   (state_aligned && rxdlysresetdone_r), // input
     .isaligned_in   (state_aligned),                      // input Moved clock phase reset/align to OOB module to handle
     .charisk_in     (rxcharisk_dec_out),                  // input[1:0] 
     .notintable_in  (rxnotintable_dec_out),               // input[1:0] 
@@ -587,15 +581,11 @@ elastic1632 #(
 
     reg            [15:0] dbg_data_in_r;
     reg             [1:0] dbg_charisk_in_r;
-//        reg             [1:0] dbg_notintable_in_r;
-//        reg             [1:0] dbg_disperror_in_r;
     reg                   dbg_aligned32_in_r;  // input data is word-aligned and got ALIGNp
     reg                   dbg_msb_in_r;      // input contains MSB
-//        reg                   dbg_inc_waddr;
     reg            [11:0] dbg_data_cntr_r;
     reg             [3:0] got_prims_r;
     reg                   dbg_frun;
-    reg dbg_is_alignp_r;
     reg dbg_is_sof_r;
     reg dbg_is_eof_r;
     reg dbg_is_data_r;
@@ -616,10 +606,7 @@ elastic1632 #(
     always @ (posedge xclk) begin
         dbg_data_in_r <= rxdata_dec_out;
         dbg_charisk_in_r <= rxcharisk_dec_out;
-//            dbg_notintable_in_r <= rxnotintable_dec_out;
-//            dbg_disperror_in_r <= rxdisperr_dec_out;
 
-            dbg_is_alignp_r <=dbg_is_alignp_w;
             dbg_is_sof_r <= dbg_is_sof_w;
             dbg_is_eof_r <= dbg_is_eof_w;
             dbg_is_data_r <=dbg_is_data_w && dbg_msb_in_r;
@@ -633,22 +620,13 @@ elastic1632 #(
             if (!dbg_aligned32_in_r || dbg_is_sof_r)     got_prims_r <= 0;
             else if (dbg_frun)                           got_prims_r <= got_prims_r | {dbg_is_cont_w, dbg_is_hold_w, dbg_is_holda_w, dbg_is_wrtm_w};
             
-            
- //           dbg_inc_waddr <= !dbg_msb_in_r || (dbg_is_alignp_w && !dbg_aligned32_in_r);
-        
-//            if (!dbg_aligned32_in_r || dbg_is_eof_w) dbg_frun <= 0;
-//            else if (dbg_is_sof_w)                   dbg_frun <= 1; 
 
         if (!dbg_aligned32_in_r || dbg_is_eof_r) dbg_frun <= 0;
         else if (dbg_is_sof_r)                   dbg_frun <= 1; 
         
-//            if (!dbg_aligned32_in_r || dbg_is_sof_w)           dbg_data_cntr_r <= 0;
-//            else if (dbg_frun && dbg_is_data_w &&dbg_msb_in_r) dbg_data_cntr_r <=  dbg_data_cntr_r + 1;
-
         if (!dbg_aligned32_in_r || dbg_is_sof_r)           dbg_data_cntr_r <= 0;
         else if (dbg_frun && dbg_is_data_r)                dbg_data_cntr_r <=  dbg_data_cntr_r + 1;
         
-//            if (!dbg_aligned32_in_r || dbg_is_sof_w)         dbg_data_cntr <= dbg_data_cntr_r; // copy previous value
         if (!dbg_aligned32_in_r || dbg_is_sof_r)           dbg_data_cntr <= {got_prims_r, dbg_data_cntr_r}; // copy previous value
     
     end
@@ -945,7 +923,7 @@ gtxe2_channel_wrapper(
         .DRPWE                      (drp_we_w[0]),
 `else
         .DRPADDR                        (9'b0),
-        .DRPCLK                         (drpclk),
+        .DRPCLK                         (1'b0),
         .DRPDI                          (16'b0),
         .DRPDO                          (),
         .DRPEN                          (1'b0),
@@ -1206,55 +1184,6 @@ gtxe2_channel_wrapper(
         );
     
     `endif //  not DATASCOPE_INCOMING_RAW
-/*
-    reg [ADDRESS_BITS - 1:0 ] datascope_post_cntr;
-    reg [ADDRESS_BITS - 1:0 ] datascope_waddr_r;
-    reg                 [2:0] datascope_start_r;
-    wire                      datascope_event;
-    reg                       datascope_event_r;
-    reg                       datascope_run;
-    reg                       datascope_post_run;
-    wire                      datascope_start_w = other_control[DATASCOPE_START_BIT]; // datascope requires USE_DRP to be defined
-    wire                      datascope_stop =  (DATASCOPE_POST_MEAS == 0) ? datascope_event: (datascope_post_cntr == 0);
-    reg                 [2:0] datascope_trig_r;      
-    assign datascope_waddr =  datascope_waddr_r;
-    assign datascope_we =     datascope_run;
-    assign datascope_clk =    xclk;
-    assign datascope_event = (|rxnotintable_dec_out) || (|rxdisperr_dec_out) || realign || (datascope_trig_r[1] && !datascope_trig_r[2]) ;
-    
-    
-    always @ (posedge xclk) begin
-        datascope_trig_r <= {datascope_trig_r[1:0], datascope_trig};
-    
-        datascope_start_r <= {datascope_start_r[1:0],datascope_start_w};
-        
-        datascope_event_r <=datascope_event;
-        
-        if      (!datascope_start_r[1]) datascope_run <= 0;
-        else if (!datascope_start_r[2]) datascope_run <= 1;
-        else if (datascope_stop)        datascope_run <= 0; 
-
-        if      (!datascope_run)        datascope_post_run <= 0;
-        else if (datascope_event_r)     datascope_post_run <= 1;
-        
-        if (!datascope_post_run) datascope_post_cntr <= DATASCOPE_POST_MEAS;
-        else                     datascope_post_cntr <= datascope_post_cntr  - 1;  
-        
-        if (!datascope_start_r[1] && datascope_start_r[0]) datascope_waddr_r <= 0; // for simulator
-        else if (datascope_run)                            datascope_waddr_r <=  datascope_waddr_r + 1;
-        
-        if (datascope_start_r[1]) datascope_di <= {
-                                   6'b0,
-                                   realign,                   // 25  
-                                   comma,                     // 24
-                                   1'b0,                      // 23 
-                                   state_aligned,             // 22   
-                                   rxnotintable_dec_out[1:0], // 21:20
-                                   rxdisperr_dec_out[1:0],    // 19:18
-                                   rxcharisk_dec_out[1:0],    // 17:16
-                                   rxdata_dec_out[15:0]};     // 15: 0
-    end
-*/    
 `endif
 
     always @ (posedge gtrefclk)

@@ -213,7 +213,7 @@ module  axi_ahci_regs#(
     reg             [2:0]  arst_r = ~0;          // previous state of arst
     reg                    wait_first_access = RESET_TO_FIRST_ACCESS;    // keep port reset until first access
     wire                   any_access = bram_wen_r || bram_ren[0];
-    reg                    debug_rd_r;
+    reg                    debug_rd_r = 0;
     reg             [31:0] debug_r;
     
 
@@ -258,15 +258,16 @@ module  axi_ahci_regs#(
         bram_wen_r <= bram_wen;
         
         if (bram_wen) bram_waddr_r <= bram_waddr[ADDRESS_BITS-1:0];
-`ifdef USE_DATASCOPE        
-        if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]) &&
-//                                                  (bram_raddr[3:2] == 0) &&
-                                                  !bram_raddr[ADDRESS_BITS]; // 
-`else
-        if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]); // &&
-//                                                  (bram_raddr[3:2] == 0); // 
-`endif                                                  
-
+`ifndef NO_DEBUG_OUT        
+    `ifdef USE_DATASCOPE        
+            if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]) &&
+    //                                                  (bram_raddr[3:2] == 0) &&
+                                                      !bram_raddr[ADDRESS_BITS]; // 
+    `else
+            if (bram_ren[0])            debug_rd_r <= (&bram_raddr[ADDRESS_BITS-1:4]); // &&
+    //                                                  (bram_raddr[3:2] == 0); // 
+    `endif                                                  
+`endif // `else `ifdef NO_DEBUG_OUT
         if (bram_ren[0])            debug_r <= bram_raddr[1]? (bram_raddr[0] ? debug_in3: debug_in2):
                                                               (bram_raddr[0] ? debug_in1: debug_in0);
         

@@ -119,7 +119,6 @@ wire                              is_align_p_w;               // got ALIGNp prim
 
 //CONTp should pass ALIGNp
 
-
 wire    frame_done;
 // scrambled data
 wire    [DATA_BYTE_WIDTH*8 - 1:0]   scrambler_out;
@@ -183,30 +182,14 @@ wire                     next_will_be_data = !(is_cont_p_w || (rcv_junk && !(is_
 
 reg                      data_txing_r; // if there are still some data to transmit and the transaction wasn't cancelled
 wire                     data_txing = data_txing_r & ~state_send_crc;
-// does not work with ALIGNp pair
-/*
-always @ (posedge clk) begin
-///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val_na & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
-    if (rst ||
-         (data_last_in && data_strobe_out)  ||
-         (dword_val_na && rcvd_dword[CODE_DMATP])) data_txing <= 0;
-    else if (frame_req)                         data_txing <= 1;    
-end   
-*/
-// Trying alternative, as SM sometimes got stuck in state_send_data, last was set 
 // Make it safe
 always @ (posedge clk) begin
-///    data_txing <= rst | (data_last_in & data_strobe_out | dword_val_na & rcvd_dword[CODE_DMATP]) ? 1'b0 : frame_req ? 1'b1 : data_txing;
     if (rst)                                    data_txing_r <= 0;
     else if (frame_req)                         data_txing_r <= 1;    
     else if (state_send_crc)                    data_txing_r <= 0;
 end   
 
 
-
-
- 
-// fsm
 // states and transitions are taken from the doc, "Link Layer State Machine" chapter
 // power mode states are not implemented. TODO insert them as an additional branch of fsm
 
@@ -317,73 +300,44 @@ assign state_idle = ~state_sync_esc
 
 // got an escaping primitive = request to cancel the transmission
 // may be 1 cycle, need to extend over alignes_pair
-//wire    got_escape_w;
-//reg     got_escape_pend;
-//wire    got_escape = got_escape_w || got_escape_pend;
-//assign got_escape_w = dword_val & rcvd_dword[CODE_SYNCP];
 wire got_escape = dword_val & rcvd_dword[CODE_SYNCP]; // can wait over alignes pair
 reg     sync_escape_req_r;  // ahci sends 1 single-clock pulse, it may hit alignes_pair
 always @ (posedge clk) begin
-//    got_escape_pend <= alignes_pair && (got_escape_w || got_escape_pend);
     sync_escape_req_r <= alignes_pair && (sync_escape_req || sync_escape_req_r);
 end
-//sync_escape_req
 
 // escaping is done
 assign  sync_escape_ack = state_sync_esc;
 
 
 reg           alignes_pair;   // pauses every state go give a chance to insert 2 align primitives on a line at least every 256 dwords due to spec
-//wire    alignes_pair_0; // time for 1st align primitive
-//wire    alignes_pair_1; // time for 2nd align primitive
 reg     [8:0] alignes_timer;
 
-///assign  alignes_pair_0 = alignes_timer == 9'd252;
-///assign  alignes_pair_1 = alignes_timer == 9'd253;
-///assign  alignes_pair_0 = alignes_timer == 9'd254;
-///assign  alignes_pair_1 = alignes_timer == 9'd255;
-///always @ (posedge clk)
-///    alignes_timer <= rst | alignes_pair_1 | state_reset ? 9'h0 : alignes_timer + 1'b1;
-
-
-
-//select_prim[CODE_ALIGNP]
-//ALIGNES_PERIOD
 reg    alignes_pair_0; // time for 1st align primitive
-//reg    alignes_pair_1; // time for 2nd align primitive
 
 always @ (posedge clk) begin
-///    if (!link_established_r || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
     if (!phy_ready || select_prim[CODE_ALIGNP]) alignes_timer <= ALIGNES_PERIOD;
     else                                        alignes_timer <= alignes_timer -1;
     alignes_pair_0 <= alignes_timer == 0;
-//    alignes_pair_1 <= alignes_pair_0;
-    
     alignes_pair <= phy_ready && ((alignes_timer == 0) || alignes_pair_0);
     
 end
-///assign  alignes_pair   = link_established_r && (alignes_pair_0 | alignes_pair_1);
-// assign  alignes_pair   = phy_ready && (alignes_pair_0 | alignes_pair_1);
 
 always @ (posedge clk) begin
     link_bad_crc <= state_rcvr_eof & crc_bad;
     
     if      (incom_ack_good)                             incom_ack_good_pend <= 1;
-//    else if (!state_rcvr_goodend && !state_rcvr_goodcrc) incom_ack_good_pend <= 0;
     else if (!state_rcvr_goodcrc)                        incom_ack_good_pend <= 0;
     
     if      (incom_ack_bad)                              incom_ack_bad_pend <= 1;
-//    else if (!state_rcvr_badend && !state_rcvr_goodcrc)  incom_ack_bad_pend <= 0; // didn't like it even with good crc
     else if (!state_rcvr_goodcrc)                        incom_ack_bad_pend <= 0; // didn't like it even with good crc
 end
 
-// Whole transitions table, literally from doc pages 311-328
+// Whole transitions table, literally from doc pages 311-328 (Andrey: now modified, may be not true)
 assign  set_sync_esc        = sync_escape_req || sync_escape_req_r; // extended over alignes_pair
 assign  set_nocommerr       = ~phy_ready & ~state_nocomm & ~state_reset;
 assign  set_nocomm          = state_nocommerr;
-///assign  set_align           = state_reset       & ~link_reset;
-///assign  set_align           = state_reset       & ~link_reset & rcvd_dword[CODE_ALIGNP];
-assign  set_align  = 0; // never, as this state is handled by OOB
+assign  set_align  = 0;   // never, as this state is handled by OOB
 assign  set_reset           = link_reset;
 
 assign  set_send_rdy        = state_idle        & frame_req;
@@ -391,8 +345,6 @@ assign  set_send_rdy        = state_idle        & frame_req;
 assign  set_send_sof        = state_send_rdy    & phy_ready  &                                dword_val      &  rcvd_dword[CODE_RRDYP];
 
 assign  set_send_data       = state_send_sof    & phy_ready 
-//                            | state_send_rhold  & data_txing & ~dec_err &                     dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP] & ~rcvd_dword[CODE_DMATP]
-//                            | state_send_shold  & data_txing &  data_val_in &                 dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP];
                             | state_send_rhold  & data_txing & ~dec_err &                     dword_val_na  & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP] & ~rcvd_dword[CODE_DMATP]
                             | state_send_shold  & data_txing &  data_val_in &                 dword_val_na  & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_SYNCP];
 
@@ -415,9 +367,7 @@ assign  set_rcvr_wait       = state_idle        & dword_val    &  rcvd_dword[COD
 assign  set_rcvr_rdy        = state_rcvr_wait   & dword_val    &  rcvd_dword[CODE_XRDYP]  & ~data_busy_in;
 
 assign  set_rcvr_data       = state_rcvr_rdy    & dword_val    &  rcvd_dword[CODE_SOFP]
-//                            | state_rcvr_rhold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP] & ~data_busy_in
                             | state_rcvr_rhold  & next_will_be_data & ~data_busy_in
-//                            | state_rcvr_shold  & dword_val_na & ~rcvd_dword[CODE_HOLDP] & ~rcvd_dword[CODE_EOFP] & ~rcvd_dword[CODE_SYNCP];
                             | state_rcvr_shold  & next_will_be_data  // So it will not be align
                             | state_rcvr_data   & next_will_be_data; // to skip over single-cycle CODE_HOLDP
 //next_will_be_data                            
@@ -454,15 +404,7 @@ assign  clr_send_shold      = set_nocommerr | set_reset | set_sync_esc | set_sen
 assign  clr_send_crc        = set_nocommerr | set_reset | set_sync_esc | set_send_eof; // | got_escape;
 assign  clr_send_eof        = set_nocommerr | set_reset | set_sync_esc | set_wait; //  | got_escape;
 assign  clr_wait            = set_nocommerr | set_reset | set_sync_esc | frame_done; // | got_escape;
-/* 
-assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rdy | dword_val_na & ~rcvd_dword[CODE_XRDYP];
-assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | dword_val_na & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP];
-assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc | set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof | set_rcvr_badend | got_escape;
-assign  clr_rcvr_rhold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | set_rcvr_shold | got_escape;
-assign  clr_rcvr_shold      = set_nocommerr | set_reset | set_sync_esc | set_rcvr_data | set_rcvr_eof | got_escape;
-assign  clr_rcvr_eof        = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodcrc | set_rcvr_badend;
-assign  clr_rcvr_goodcrc    = set_nocommerr | set_reset | set_sync_esc | set_rcvr_goodend | set_rcvr_badend | got_escape;
-*/
+
 assign  clr_rcvr_wait       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rdy */ | (dword_val_na & ~rcvd_dword[CODE_XRDYP]);
 assign  clr_rcvr_rdy        = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_data */ | (dword_val_na & ~rcvd_dword[CODE_XRDYP] & ~rcvd_dword[CODE_SOFP]);
 assign  clr_rcvr_data       = set_nocommerr | set_reset | set_sync_esc /*| set_rcvr_rhold | set_rcvr_shold | set_rcvr_eof */ | set_rcvr_badend; // | got_escape;
@@ -527,19 +469,6 @@ begin
     state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend                 ) & ~(got_escape |       (clr_rcvr_goodend & ~alignes_pair)) & ~rst;
     
     state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend                  ) & ~(got_escape |       (clr_rcvr_badend & ~alignes_pair))  & ~rst;
-
-/*
-    state_rcvr_wait     <= (state_rcvr_wait    | set_rcvr_wait    & ~alignes_pair) & ~(clr_rcvr_wait & ~alignes_pair)    & ~rst;
-    state_rcvr_rdy      <= (state_rcvr_rdy     | set_rcvr_rdy     & ~alignes_pair) & ~(clr_rcvr_rdy & ~alignes_pair)     & ~rst;
-    state_rcvr_data     <= (state_rcvr_data    | set_rcvr_data    & ~alignes_pair) & ~(clr_rcvr_data & ~alignes_pair)    & ~rst;
-    state_rcvr_rhold    <= (state_rcvr_rhold   | set_rcvr_rhold   & ~alignes_pair) & ~(clr_rcvr_rhold & ~alignes_pair)   & ~rst;
-    state_rcvr_shold    <= (state_rcvr_shold   | set_rcvr_shold   & ~alignes_pair) & ~(clr_rcvr_shold & ~alignes_pair)   & ~rst;
-    state_rcvr_eof      <= (state_rcvr_eof     | set_rcvr_eof     & ~alignes_pair) & ~(clr_rcvr_eof & ~alignes_pair)     & ~rst;
-    state_rcvr_goodcrc  <= (state_rcvr_goodcrc | set_rcvr_goodcrc & ~alignes_pair) & ~(clr_rcvr_goodcrc & ~alignes_pair) & ~rst;
-    state_rcvr_goodend  <= (state_rcvr_goodend | set_rcvr_goodend & ~alignes_pair) & ~(clr_rcvr_goodend & ~alignes_pair) & ~rst;
-    state_rcvr_badend   <= (state_rcvr_badend  | set_rcvr_badend  & ~alignes_pair) & ~(clr_rcvr_badend & ~alignes_pair)  & ~rst;
-
-*/
 
 end
 
@@ -727,15 +656,6 @@ reg         data_val_out_r;
 reg [31:0]  data_out_rr;
 reg         data_val_out_rr;
 // if current == EOF => _r == CRC and _rr == last data piece
-/*
-always @ (posedge clk)
-begin
-    data_out_r      <= scrambler_out;
-    data_out_rr     <= data_out_r;
-    data_val_out_r  <= inc_is_data;
-    data_val_out_rr <= data_val_out_r & ~set_rcvr_eof; // means that @ previous clock cycle the delivered data was crc
-end
-*/
 reg  data_held;   // some data is held in data_out_r over primitives - to be restored if not EOF
 // no need to check for set_rcvr_eof - last dword will be always lost
 always @ (posedge clk) begin
@@ -756,8 +676,6 @@ assign  data_out        = data_out_rr;
 assign  data_mask_out   = 2'b11;//{DATA_BYTE_WIDTH/2{1'b1}};
 assign  data_val_out    = data_val_out_rr;
 assign  data_last_out   = set_rcvr_eof;
-
-
 
 // from TL data
 // gives a strobe everytime data is present and we're at a corresponding state.
@@ -799,11 +717,7 @@ assign  incom_start_w = set_rcvr_wait; //  & ~alignes_pair;
 // ... and processed
 assign  incom_done_w  = set_rcvr_goodcrc; // & ~alignes_pair;
 // or the FIS had errors
-//assign  incom_invalidate = state_rcvr_eof & crc_bad & ~alignes_pair | state_rcvr_data   & dword_val_na &  rcvd_dword[CODE_WTRMP] 
-//                         | (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold | state_rcvr_shold | state_rcvr_eof | state_rcvr_goodcrc) & got_escape;
 // Separating different types of errors, sync_escape from other problems. TODO: route individual errors to set SERR bits
-//assign  incom_invalidate =  (state_rcvr_eof &  crc_bad & ~alignes_pair) | // CRC mismatch
-//                            (state_rcvr_data & dword_val_na &  rcvd_dword[CODE_WTRMP]);
 assign  incom_invalidate_w =  (state_rcvr_eof &  crc_bad) | // CRC mismatch
                               (state_rcvr_data & dword_val &  rcvd_dword[CODE_WTRMP]); // missed EOF?
 assign  incom_sync_escape =   (state_rcvr_wait | state_rcvr_rdy | state_rcvr_data | state_rcvr_rhold |
@@ -814,27 +728,6 @@ assign  incom_sync_escape =   (state_rcvr_wait | state_rcvr_rdy | state_rcvr_dat
 assign  dword_val =    |rcvd_dword & phy_ready;                            // any valid primitive/data
 assign  dword_val_na = |rcvd_dword & phy_ready & ~rcvd_dword[CODE_ALIGNP]; // any valid primitive/data but ALIGNp
 // determine imcoming primitive type
-/*
-// determine imcoming primitive type
-assign  rcvd_dword[CODE_DATA]   = ~|phy_isk_in_r;
-assign  rcvd_dword[CODE_CRC]    = 1'b0;
-assign  rcvd_dword[CODE_SYNCP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SYNCP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_ALIGNP] = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ALIGNP] == phy_data_in_r;
-assign  rcvd_dword[CODE_XRDYP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_XRDYP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_SOFP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_SOFP  ] == phy_data_in_r;
-assign  rcvd_dword[CODE_HOLDAP] = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDAP] == phy_data_in_r;
-assign  rcvd_dword[CODE_HOLDP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_HOLDP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_EOFP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_EOFP  ] == phy_data_in_r;
-assign  rcvd_dword[CODE_WTRMP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_WTRMP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_RRDYP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_RRDYP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_IPP]    = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_IPP   ] == phy_data_in_r;
-assign  rcvd_dword[CODE_DMATP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_DMATP ] == phy_data_in_r;
-assign  rcvd_dword[CODE_OKP]    = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_OKP   ] == phy_data_in_r;
-assign  rcvd_dword[CODE_ERRP]   = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_ERRP  ] == phy_data_in_r;
-// was missing
-assign  rcvd_dword[CODE_CONTP]  = phy_isk_in_r[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP ] == phy_data_in_r;
-
-*/
 assign  rcvd_dword[CODE_DATA]	= ~|phy_isk_in_r;
 assign  rcvd_dword[CODE_CRC]	= 1'b0;
 assign  rcvd_dword[CODE_SYNCP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_SYNCP ] == phy_data_in_r);
@@ -854,14 +747,6 @@ assign  rcvd_dword[CODE_ERRP]	= phy_isk_in_r[0] && !(|phy_isk_in_r[DATA_BYTE_WID
 assign  rcvd_dword[CODE_CONTP]  = phy_isk_in_r[0] && ~(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP ] == phy_data_in_r);
 
 // CONTp (*_r0 is one cycle ahead of *_r)
-//assign is_cont_p_w =     phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] == phy_data_in_r0;
-//assign is_non_cont_non_align_p_w = phy_isk_in_r0[0] == 1'b1 & ~|phy_isk_in_r[DATA_BYTE_WIDTH-1:1] & prim_data[CODE_CONTP  ] != phy_data_in_r0;
-/*
-assign is_cont_p_w =               phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP  ] == phy_data_in_r0);
-assign is_align_p_w =              phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ALIGNP ] == phy_data_in_r0);
-assign is_non_cont_non_align_p_w = phy_isk_in_r0[0] && !(|phy_isk_in_r[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP  ] != phy_data_in_r0)
-                                                                                             && (prim_data[CODE_ALIGNP ] != phy_data_in_r0);
-*/
 // Following is processed one cycle ahead of the others to replace CONTp junk with the replaced repeated primitives
 assign is_cont_p_w =               phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP  ] == phy_data_in_r0);
 assign is_align_p_w =              phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_ALIGNP ] == phy_data_in_r0);
@@ -878,16 +763,6 @@ assign  frame_done_good = state_wait & dword_val & rcvd_dword[CODE_OKP];
 assign  frame_done_bad  = state_wait & dword_val & rcvd_dword[CODE_ERRP];
 
 // Handling 3 non-align primitives - removed, this is (should be) done by OOB
-/*
-always @ (posedge clk) begin
-    if      (!phy_ready || link_reset)           link_established_r <= 0;
-    else if (state_align && !(|non_align_cntr))  link_established_r <= 1;
-    
-    if (!state_align || rcvd_dword[CODE_ALIGNP]) non_align_cntr <= 3;
-    else                                         non_align_cntr <=  non_align_cntr - 1;
-end
-*/
-
 
 // =========== Debug code ===================
 wire [PRIM_NUM - 1:0] rcvd_dword0; // at least oce received after reset
@@ -910,14 +785,6 @@ assign  rcvd_dword0[CODE_ERRP]   = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYT
 assign  rcvd_dword0[CODE_CONTP]  = phy_isk_in_r0[0] && !(|phy_isk_in_r0[DATA_BYTE_WIDTH-1:1]) && (prim_data[CODE_CONTP ] == phy_data_in_r0);
 
 reg [PRIM_NUM - 1:0] debug_rcvd_dword; // at least once received after reset
-//reg [7:0]            debug_alignp_cntr;
-///reg [7:0] debug_unknown_primitives;
-///reg [7:0] debug_notaligned_primitives;
-///reg [7:0] debug_data_primitives;
-///reg  [7:0] debug_alignes;
-///reg  [1:0]  debug_state_reset_r;
-///reg         debug_alignp_r;
-///reg         debug_syncp_r;
 reg         debug_first_error;
 reg         debug_first_alignp;
 reg         debug_first_syncp;
@@ -995,7 +862,6 @@ always @ (posedge clk) begin
     else if (debug_first_nonsyncp && !debug_first_error && is_align_p_w)   debug_num_later_aligns <= debug_num_later_aligns + 1;
 
     if  (rst)                                                              debug_num_other <= 0;
-//    else if (debug_first_nonsyncp && !debug_first_error && other_prim_r)   debug_num_later_aligns <= debug_num_later_aligns + 1;
     else if (debug_first_nonsyncp && !debug_first_error && other_prim_r)   debug_num_other <= debug_num_other + 1;
     
     if      (rst)                                                             debug_unknown_dword <= 0;
@@ -1017,68 +883,9 @@ always @ (posedge clk) begin
                              debug_states_concat[13] |  debug_states_concat[11] | debug_states_concat[ 9] | debug_states_concat[7] |
                              debug_states_concat[ 5] |  debug_states_concat[ 3] | debug_states_concat[ 1]};
     
-/* 
-    if      (rst)          debug_rcvd_dword <= 0;
-    debug_alignp_r <= rcvd_dword[CODE_ALIGNP];
-    debug_syncp_r <=  rcvd_dword[CODE_SYNCP];
-    debug_state_reset_r <= {debug_state_reset_r[0], state_reset};
-    
-    if      (rst)          debug_rcvd_dword <= 0;
-//    if      (rst)       debug_rcvd_dword <= 0;
-    else if (debug_state_reset_r[0])  debug_rcvd_dword <= debug_rcvd_dword | rcvd_dword;
-   
-    if      (state_reset)                           debug_unknown_primitives <= 0;
-    else if ((phy_isk_in_r == 1) && !(|rcvd_dword)) debug_unknown_primitives <= debug_unknown_primitives + 1;
-    
-
-    if      (rst)                                                 debug_data_primitives <= 0;
-    else if ((debug_state_reset_r[0] && debug_syncp_r))  debug_data_primitives <= debug_data_primitives + 1;
-    
-    if      (rst)                                                 debug_alignes <= 0;
-    else if (debug_state_reset_r[0] && debug_alignp_r)   debug_alignes <= debug_alignes + 1;
-    
-    
-    if      (rst)                                   debug_notaligned_primitives <= 0;
-//    else if (phy_isk_in_r[3:1] != 0)                debug_notaligned_primitives <= debug_notaligned_primitives + 1;
-    else if (debug_state_reset_r == 1)              debug_notaligned_primitives <= debug_notaligned_primitives + 1;
-*/    
 end
 
-/*wire    state_idle;
-reg     state_sync_esc;     // SyncEscape
-reg     state_nocommerr;    // NoComErr
-reg     state_nocomm;       // NoComm
-reg     state_align;        // SendAlign - not used, handled by OOB
-reg     state_reset;        // RESET
-// tranmitter branch
-reg     state_send_rdy;     // SendChkRdy
-reg     state_send_sof;     // SendSOF
-reg     state_send_data;    // SendData
-reg     state_send_rhold;   // RcvrHold - hold initiated by current data reciever
-reg     state_send_shold;   // SendHold - hold initiated by current data sender
-reg     state_send_crc;     // SendCVC
-reg     state_send_eof;     // SendEOF
-reg     state_wait;         // Wait
-// receiver branch
-reg     state_rcvr_wait;    // RcvWaitFifo
-reg     state_rcvr_rdy;     // RcvChkRdy
-reg     state_rcvr_data;    // RcvData
-reg     state_rcvr_rhold;   // Hold     - hold initiated by current data reciever
-reg     state_rcvr_shold;   // RcvHold  - hold initiated by current data sender
-reg     state_rcvr_eof;     // RcvEOF
-reg     state_rcvr_goodcrc; // GoodCRC
-reg     state_rcvr_goodend; // GoodEnd
-reg     state_rcvr_badend;  // BadEnd
-*/
 
-
-///assign debug_out[19: 0] =          debug_to_first_err;
-//assign debug_out[23:16] =          debug_num_aligns;
-//assign debug_out[31:20] =          debug_num_syncs[11:0];
-//assign debug_out[31:20] =          debug_num_later_aligns[11:0];
-///assign debug_out[31:20] =          debug_num_other[11:0];
-
-///assign debug_out = debug_unknown_dword; // first unknown dword
 reg [1:0] debug_data_last_in_r;
 reg [1:0] debug_alignes_pair_r;
 reg [1:0] debug_state_send_data_r;

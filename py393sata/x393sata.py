@@ -320,6 +320,7 @@ class x393sata(object):
     '''            
     def bitstream(self,
                   bitfile=None,
+                  ss_off=True,
                   quiet=1):
         """
         Turn FPGA clock OFF, reset ON, load bitfile, turn clock ON and reset OFF
@@ -335,11 +336,14 @@ class x393sata(object):
             print("vcc_sens01 vp33sens01 vcc_sens23 vp33sens23", file = f)
         """
         #Spread Spectrum off on channel 3
-        if quiet < 2:
-            print ("Spread Spectrum off on channel 3")
-        with open (SI5338_PATH+"/spread_spectrum/ss3_values","w") as f:
-            print ("0",file=f)
-            
+        if ss_off:
+            if quiet < 2:
+                print ("Spread Spectrum off on channel 3")
+            with open (SI5338_PATH+"/spread_spectrum/ss3_values","w") as f:
+                print ("0",file=f)
+        else:
+            if quiet < 2:
+                print ("Keeping Spread Spectrum on on channel 3")
         if quiet < 2:
              print ("FPGA clock OFF")
         self.x393_mem.write_mem(FPGA0_THR_CTRL,1)
@@ -1545,7 +1549,7 @@ sata = x393sata.x393sata() # 1,0,"10389B")
 
 sata.reinit_mux()
 
-sata.bitstream()
+sata.bitstream(None, False) # False - keep SS on
 #sata.drp_write (0x20b,0x401) # bypass, clock align
 sata.drp (0x20b,0x221) # bypass, clock align
 

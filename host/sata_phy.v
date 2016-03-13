@@ -210,7 +210,6 @@ oob_ctrl oob_ctrl(
 );
 
 wire    cplllockdetclk; // TODO
-wire    drpclk; // TODO
 wire    cpllreset;
 wire    gtrefclk;
 wire    rxresetdone;
@@ -221,7 +220,7 @@ wire    txuserrdy;
 wire    rxuserrdy;
 wire    txusrclk;
 wire    txusrclk2;
-wire    rxusrclk;
+//wire    rxusrclk;
 wire    rxusrclk2;
 wire    txp;
 wire    txn;
@@ -277,38 +276,17 @@ assign  sata_reset_done = sata_reset_done_r[1];
 assign cplllock_debug = cplllock;
 assign usrpll_locked_debug = usrpll_locked;
 
-// generate internal reset after a clock is established
-// !!!ATTENTION!!!
-// async rst block
-//localparam [7:0] RST_TIMER_LIMIT = 8'b1000;
-/*
-always @ (posedge clk or posedge extrst)
-//    rst_timer <= extrst | ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
-    if      (extrst)                     rst_timer <= 0;
-    else if (~cplllock | ~usrpll_locked) rst_timer <= 0;
-    else if (!sata_reset_done)           rst_timer <= rst_timer + 1;
-//    else        rst_timer <= ~cplllock | ~usrpll_locked ? 8'h0 : sata_reset_done ? rst_timer : rst_timer + 1'b1;
-
-always @ (posedge clk or posedge extrst)
-    if      (extrst)       rst_r <= 1; 
-    else if (~|rst_timer)  rst_r <= 0;
-    else                   rst_r <= !sata_reset_done;
-//    else        rst_r <= ~|rst_timer ? 1'b0 : sata_reset_done ? 1'b0 : 1'b1;
-///assign  sata_reset_done = rst_timer == RST_TIMER_LIMIT;
-*/
 always @ (posedge clk or  posedge sata_areset) begin
     if      (sata_areset)  sata_reset_done_r <= 0;
     else                   sata_reset_done_r <= {sata_reset_done_r[1:0], 1'b1};
 end
 
 reg cplllock_r;
+
 always @ (posedge gtrefclk) begin
     cplllock_r <= cplllock;
     rxreset_f <= ~cplllock_r | ~cplllock | cpllreset | rxreset_oob & gtx_configured;
     txreset_f <= ~cplllock_r | ~cplllock | cpllreset;
-
-///    rxreset_f <= ~cplllock | cpllreset | ~usrpll_locked | ~sata_reset_done | rxreset_oob & gtx_configured;
-///    txreset_f <= ~cplllock | cpllreset | ~usrpll_locked;
 
     txreset_f_r <= txreset_f;
     rxreset_f_r <= rxreset_f;
@@ -331,7 +309,6 @@ assign  gtx_ready = rxuserrdy & txuserrdy & rxresetdone & txresetdone;
 
 // assert gtx_configured. Once gtx_ready -> 1, gtx_configured latches
 always @ (posedge clk or posedge extrst)
-//    gtx_configured <= extrst ? 1'b0 : gtx_ready | gtx_configured;
     if (extrst) gtx_configured <= 0;
     else        gtx_configured <= gtx_ready | gtx_configured;
 
@@ -342,39 +319,23 @@ always @ (posedge clk or posedge extrst)
 
 // issue partial tx reset to restore functionality after oob sequence. Let it lasts 8 clock cycles
 // Not enough or too early (after txelctidle?) txbufstatus shows overflow
-`ifdef OLD_TXPCSRESET
-    reg [3:0]   txpcsreset_cnt;
-    wire        txpcsreset_stop;
+localparam TXPCSRESET_CYCLES = 100;
+reg       txpcsreset_r;
+reg [7:0] txpcsreset_cntr;
+reg       recal_tx_done_r;
+assign    recal_tx_done = recal_tx_done_r;
+assign    txpcsreset = txpcsreset_r;     
+always @ (posedge clk) begin
+    if (rst || (txpcsreset_cntr == 0))     txpcsreset_r <= 0; 
+    else if (txpcsreset_req)               txpcsreset_r <= 1;
     
-    assign  txpcsreset_stop = txpcsreset_cnt[3];
-    assign  txpcsreset = txpcsreset_req & ~txpcsreset_stop & gtx_configured;
-    assign  recal_tx_done = txpcsreset_stop & gtx_ready;
+    if      (rst)                          txpcsreset_cntr <= 0;
+    else if (txpcsreset_req)               txpcsreset_cntr <= TXPCSRESET_CYCLES;
+    else if (txpcsreset_cntr != 0)         txpcsreset_cntr <= txpcsreset_cntr - 1;
     
-    always @ (posedge clk or posedge extrst)
-    //    txpcsreset_cnt <= extrst | rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
-        if (extrst) txpcsreset_cnt <= 1;
-        else        txpcsreset_cnt <= rst | ~txpcsreset_req ? 4'h0 : txpcsreset_stop ? txpcsreset_cnt : txpcsreset_cnt + 1'b1;
-
-`else // OLD_TXPCSRESET
-    localparam TXPCSRESET_CYCLES = 100;
-    reg       txpcsreset_r;
-    reg [7:0] txpcsreset_cntr;
-    reg       recal_tx_done_r;
-    assign    recal_tx_done = recal_tx_done_r;
-    assign    txpcsreset = txpcsreset_r;     
-    always @ (posedge clk) begin
-        if (rst || (txpcsreset_cntr == 0))     txpcsreset_r <= 0; 
-        else if (txpcsreset_req)               txpcsreset_r <= 1;
-        
-        if      (rst)                          txpcsreset_cntr <= 0;
-        else if (txpcsreset_req)               txpcsreset_cntr <= TXPCSRESET_CYCLES;
-        else if (txpcsreset_cntr != 0)         txpcsreset_cntr <= txpcsreset_cntr - 1;
-        
-        if (rst || txelecidle || txpcsreset_r) recal_tx_done_r <= 0;
-        else if (txresetdone)                  recal_tx_done_r <= 1;
-    end
-    
-`endif // OLD_TXPCSRESET    
+    if (rst || txelecidle || txpcsreset_r) recal_tx_done_r <= 0;
+    else if (txresetdone)                  recal_tx_done_r <= 1;
+end
 
 
 // issue rx reset to restore functionality after oob sequence. Let it last 8 clock cycles
@@ -386,7 +347,6 @@ assign  rxreset_oob      = rxreset_req & ~rxreset_oob_stop;
 assign  rxreset_ack      = rxreset_oob_stop & gtx_ready;
 
 always @ (posedge clk or posedge extrst)
-//    rxreset_oob_cnt <= extrst | rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
     if (extrst) rxreset_oob_cnt <= 1; 
     else        rxreset_oob_cnt <= rst | ~rxreset_req ? 4'h0 : rxreset_oob_stop ? rxreset_oob_cnt : rxreset_oob_cnt + 1'b1;
 
@@ -398,79 +358,21 @@ always @ (posedge clk or posedge extrst)
 
 wire usrclk_global;
 wire    usrclk2;
-//`define GTX_USE_PLL
-`ifdef GTX_USE_PLL
-    wire    usrpll_fb_clk;
-    wire    usrclk;
-    select_clk_buf #(
-        .BUFFER_TYPE("BUFG")
-    ) bufg_usrclk (
-        .o          (usrclk_global),  // output
-        .i          (usrclk),         // input
-        .clr        (1'b0)            // input
-    );
-    PLLE2_ADV #(
-        .BANDWIDTH              ("OPTIMIZED"),
-        .CLKFBOUT_MULT          (8),
-        .CLKFBOUT_PHASE         (0.000),
-        .CLKIN1_PERIOD          (6.666),
-        .CLKIN2_PERIOD          (0.000),
-        .CLKOUT0_DIVIDE         (8),
-        .CLKOUT0_DUTY_CYCLE     (0.500),
-        .CLKOUT0_PHASE          (0.000),
-        .CLKOUT1_DIVIDE         (16),
-        .CLKOUT1_DUTY_CYCLE     (0.500),
-        .CLKOUT1_PHASE          (0.000),
-        .COMPENSATION           ("ZHOLD"),
-        .DIVCLK_DIVIDE          (1),
-        .IS_CLKINSEL_INVERTED   (1'b0),
-        .IS_PWRDWN_INVERTED     (1'b0),
-        .IS_RST_INVERTED        (1'b0),
-        .REF_JITTER1            (0.010),
-        .REF_JITTER2            (0.010),
-        .STARTUP_WAIT           ("FALSE")
-    )
-    usrclk_pll(
-      .CLKFBOUT (usrpll_fb_clk),
-      .CLKOUT0  (usrclk),   //150Mhz
-      .CLKOUT1  (usrclk2), // 75MHz
-      .CLKOUT2  (),
-      .CLKOUT3  (),
-      .CLKOUT4  (),
-      .CLKOUT5  (),
-      .DO       (),
-      .DRDY     (),
-      .LOCKED   (usrpll_locked),
-    
-      .CLKFBIN  (usrpll_fb_clk),
-      .CLKIN1   (txoutclk),
-      .CLKIN2   (1'b0),
-      .CLKINSEL (1'b1),
-      .DADDR    (7'h0),
-      .DCLK     (drpclk),
-      .DEN      (1'b0),
-      .DI       (16'h0),
-      .DWE      (1'b0),
-      .PWRDWN   (1'b0),
-      .RST      (~cplllock)
-    );
-`else //  GTX_USE_PLL
-    // divide txoutclk (global) by 2, then make global. Does not need to be phase-aligned - will use FIFO
-    reg usrclk2_r;
-    always @ (posedge txoutclk) begin
-        if (~cplllock) usrclk2_r <= 0;
-        else           usrclk2_r <= ~usrclk2;
-    end
-    assign txusrclk  =     txoutclk; // 150MHz, was already global
-    assign usrclk_global = txoutclk; // 150MHz, was already global
-    assign usrclk2 =       usrclk2_r;
-    assign usrpll_locked = cplllock;
-`endif // else //  GTX_USE_PLL
+// divide txoutclk (global) by 2, then make global. Does not need to be phase-aligned - will use FIFO
+reg usrclk2_r;
+always @ (posedge txoutclk) begin
+    if (~cplllock) usrclk2_r <= 0;
+    else           usrclk2_r <= ~usrclk2;
+end
+assign txusrclk  =     txoutclk; // 150MHz, was already global
+assign usrclk_global = txoutclk; // 150MHz, was already global
+assign usrclk2 =       usrclk2_r;
+assign usrpll_locked = cplllock;
 
-assign  txusrclk  = usrclk_global; // 150MHz
-assign  txusrclk2 = clk;           // usrclk2;
-assign  rxusrclk  = usrclk_global; // 150MHz
-assign  rxusrclk2 = clk;           // usrclk2;
+assign txusrclk  = usrclk_global; // 150MHz
+assign txusrclk2 = clk;           // usrclk2;
+//assign rxusrclk  = usrclk_global; // 150MHz
+assign rxusrclk2 = clk;           // usrclk2;
 
 select_clk_buf #(
     .BUFFER_TYPE("BUFG")
@@ -483,7 +385,9 @@ select_clk_buf #(
 /*
  * Padding for an external input clock @ 150 MHz
  */
+ 
 localparam [1:0] CLKSWING_CFG = 2'b11;
+
 IBUFDS_GTE2 #(
     .CLKRCV_TRST   ("TRUE"),
     .CLKCM_CFG      ("TRUE"),
@@ -521,10 +425,9 @@ gtx_wrap
     .cplllockdetclk     (cplllockdetclk),  // input wire 
     .cpllreset          (cpllreset),       // input wire 
     .gtrefclk           (gtrefclk),        // input wire 
-    .drpclk             (drpclk),          // input wire 
     .rxuserrdy          (rxuserrdy),       // input wire 
     .txuserrdy          (txuserrdy),       // input wire 
-    .rxusrclk           (rxusrclk),        // input wire 
+//    .rxusrclk           (rxusrclk),        // input wire 
     .rxusrclk2          (rxusrclk2),       // input wire 
     .rxp                (rxp),             // input wire 
     .rxn                (rxn),             // input wire 
@@ -558,12 +461,12 @@ gtx_wrap
     .rxcharisk          (rxcharisk),       // output[3:0] wire 
     .rxdisperr          (rxdisperr),       // output[3:0] wire 
     .rxnotintable       (rxnotintable),     // output[3:0] wire
-    .dbg_rxphaligndone    (dbg_rxphaligndone),
-    .dbg_rx_clocks_aligned(dbg_rx_clocks_aligned),
-    .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
-    .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
-    .txbufstatus        (txbufstatus[1:0]),
-    .xclk               (xclk)             // output receive clock, just to measure frequency // global
+    .dbg_rxphaligndone     (dbg_rxphaligndone),
+    .dbg_rx_clocks_aligned (dbg_rx_clocks_aligned),
+    .dbg_rxcdrlock         (dbg_rxcdrlock)    ,
+    .dbg_rxdlysresetdone   (dbg_rxdlysresetdone),
+    .txbufstatus           (txbufstatus[1:0]),
+    .xclk                  (xclk)             // output receive clock, just to measure frequency // global
 `ifdef USE_DATASCOPE
        ,.datascope_clk     (datascope_clk),     // output
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
@@ -594,7 +497,6 @@ gtx_wrap
  * Interfaces
  */
 assign  cplllockdetclk  = reliable_clk; //gtrefclk;
-assign  drpclk          = reliable_clk; //gtrefclk;
 
 assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
@@ -646,12 +548,9 @@ end
 
 reg [15:0] dbg_clk_align_cntr;
 reg        dbg_clk_align_wait;
-//reg        dbg_rxphaligndone_down;
-//reg        dbg_rxphaligndone_second;
 
 reg [11:0] error_count;
 always @ (posedge clk) begin
-//    if (!phy_ready) error_count <= 0;
     if      (rxelecidle)                 error_count <= 0;
     else if (phy_ready && (|ll_err_out)) error_count <= error_count + 1;
     
@@ -662,56 +561,21 @@ always @ (posedge clk) begin
     if      (rxelecidle)                                  dbg_clk_align_cntr <= 0;
     else if (dbg_clk_align_wait)                          dbg_clk_align_cntr <= dbg_clk_align_cntr +1;
 
-/*
-
-    if      (rxelecidle || dbg_rxphaligndone_second)      dbg_clk_align_wait <= 0;
-    else if (clk_phase_align_req)                         dbg_clk_align_wait <= 1;
-
-
-    if      (rxelecidle)                                  dbg_rxphaligndone_down <= 0;
-    else if (dbg_rx_clocks_aligned && !dbg_rxphaligndone) dbg_rxphaligndone_down <= 1;
-    
-    if      (rxelecidle)                                  dbg_rxphaligndone_second <= 0;
-    else if (dbg_rxphaligndone_down && dbg_rxphaligndone) dbg_rxphaligndone_second <= 1;
-*/    
 end
 
-//reg [11:0] dbg_data_cntr_r;
-//always @ (posedge clk) begin
-//    if (datascope_trig) dbg_data_cntr_r <=dbg_data_cntr;
-//end
 
-/*
-assign debug_sata[ 3: 0] = debug_cntr1;
-assign debug_sata[ 7: 4] = debug_cntr2;
-assign debug_sata[11: 8] = debug_cntr3;
-assign debug_sata[12] =    debug_cnt[11];
-assign debug_sata[13] =    cplllock;
-assign debug_sata[14] =    cpllreset;
-assign debug_sata[15] =    rxelecidle;
-assign debug_sata[16] =    usrpll_locked;
-assign debug_sata[17] =    txreset;
-assign debug_sata[18] =    txpcsreset;
-assign debug_sata[19] =    txelecidle;
-assign debug_sata[23:20] = debug_cntr4;
-    .clk_phase_align_req(clk_phase_align_req), // output wire 
-    .clk_phase_align_ack(clk_phase_align_ack), // input wire 
-
-
-*/
-//assign  phy_ready = link_state & gtx_ready & rxbyteisaligned;
-//assign debug_sata = {debug_cntr6,debug_cntr5};
-//assign debug_sata = {8'b0, dbg_clk_align_cntr, 1'b0, dbg_rxdlysresetdone, rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned};
 `ifdef USE_DATASCOPE
-///    assign debug_sata = {txbufstatus[1:0], rxelecidle, dbg_rxcdrlock, rxelsfull, rxelsempty, dbg_rxphaligndone, dbg_rx_clocks_aligned,
-///                         error_count[11:0],
-///                         2'b0,
-///                         datascope_waddr[9:0]};
-    assign debug_sata = {dbg_data_cntr[15:0], // latched at error from previous FIS (@sof) (otherwise overwritten by h2d rfis)
-    
-                         error_count[3:0],
-                         2'b0,
-                         datascope_waddr[9:0]};
+    `ifdef DEBUG_ELASTIC
+        assign debug_sata = {dbg_data_cntr[15:0], // latched at error from previous FIS (@sof) (otherwise overwritten by h2d rfis)
+                             error_count[3:0],
+                             2'b0,
+                             datascope_waddr[9:0]};
+    `else //DEBUG_ELASTIC
+        assign debug_sata = {8'b0,
+                             error_count[11:0],
+                             2'b0,
+                             datascope_waddr[9:0]};
+    `endif //`else DEBUG_ELASTIC
 //dbg_data_cntr                         
                          
 `else
