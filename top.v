@@ -40,7 +40,7 @@
 `include "system_defines.vh" 
 
 module top #(
-//`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
+`include "includes/x393_parameters.vh" // SuppressThisWarning VEditor - partially used
 )
 (
 // sata serial data iface
@@ -149,11 +149,31 @@ always @(posedge comb_rst or posedge axi_aclk0) begin
     else          axi_rst_pre <= 1'b0;
 end
 
-//BUFG bufg_axi_aclk_i  (.O(axi_aclk),.I(/*fclk[0]*/ sclk));
-//assign  axi_aclk = sclk;
-BUFG bufg_axi_aclk0_i  (.O(axi_aclk0),.I(fclk[0]));
-BUFG bufg_axi_rst_i    (.O(axi_rst),.I(axi_rst_pre));
-BUFG bufg_extrst_i     (.O(extrst),.I(axi_rst_pre));
+select_clk_buf #(
+    .BUFFER_TYPE("BUFG")
+) bufg_axi_aclk0_i (
+    .o          (axi_aclk0),    // output
+    .i          (fclk[0]),      // input
+    .clr        (1'b0)          // input
+);
+
+select_clk_buf #(
+    .BUFFER_TYPE("BUFG")
+) bufg_axi_rst_i (
+    .o          (axi_rst),      // output
+    .i          (axi_rst_pre),  // input
+    .clr        (1'b0)          // input
+);
+
+select_clk_buf #(
+    .BUFFER_TYPE("BUFG")
+) bufg_extrst_i (
+    .o          (extrst),       // output
+    .i          (axi_rst_pre),  // input
+    .clr        (1'b0)          // input
+);
+
+
 axi_hp_clk #(
     .CLKIN_PERIOD(20.000),
     .CLKFBOUT_MULT_AXIHP(18),
@@ -164,6 +184,7 @@ axi_hp_clk #(
     .clk_axihp    (hclk), // output
     .locked_axihp () // output // not controlled?
 );
+
 sata_ahci_top sata_top(
     .sata_clk                   (sclk),
     // reliable clock to source drp and cpll lock det circuits

@@ -3,7 +3,7 @@
   `define SYSTEM_DEFINES
   `define USE_DRP
   `define ALIGN_CLOCKS
-  `define STRAIGHT_XCLK
+//  `define STRAIGHT_XCLK
   `define USE_DATASCOPE
 //  `define DATASCOPE_INCOMING_RAW
   `define PRELOAD_BRAMS

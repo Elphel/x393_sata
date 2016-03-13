@@ -227,7 +227,7 @@ wire    txp;
 wire    txn;
 wire    rxp;
 wire    rxn;
-wire    txoutclk;
+wire    txoutclk; // comes out global from gtx_wrap
 wire    txpmareset_done;
 wire    rxeyereset_done;
 
@@ -377,7 +377,7 @@ always @ (posedge clk or posedge extrst)
 `endif // OLD_TXPCSRESET    
 
 
-// issue rx reset to restore functionality after oob sequence. Let it lasts 8 clock lycles
+// issue rx reset to restore functionality after oob sequence. Let it last 8 clock cycles
 reg [3:0]   rxreset_oob_cnt;
 wire        rxreset_oob_stop;
 
@@ -395,73 +395,89 @@ always @ (posedge clk or posedge extrst)
  * USRCLKs generation. USRCLK @ 150MHz, same as TXOUTCLK; USRCLK2 @ 75Mhz -> sata_clk === sclk
  * It's recommended to use MMCM instead of PLL, whatever
  */
-wire    usrpll_fb_clk;
-wire    usrclk;
-wire    usrclk2;
 
 wire usrclk_global;
-BUFG bufg_usrclk (.O(usrclk_global),.I(usrclk));
+wire    usrclk2;
+//`define GTX_USE_PLL
+`ifdef GTX_USE_PLL
+    wire    usrpll_fb_clk;
+    wire    usrclk;
+    select_clk_buf #(
+        .BUFFER_TYPE("BUFG")
+    ) bufg_usrclk (
+        .o          (usrclk_global),  // output
+        .i          (usrclk),         // input
+        .clr        (1'b0)            // input
+    );
+    PLLE2_ADV #(
+        .BANDWIDTH              ("OPTIMIZED"),
+        .CLKFBOUT_MULT          (8),
+        .CLKFBOUT_PHASE         (0.000),
+        .CLKIN1_PERIOD          (6.666),
+        .CLKIN2_PERIOD          (0.000),
+        .CLKOUT0_DIVIDE         (8),
+        .CLKOUT0_DUTY_CYCLE     (0.500),
+        .CLKOUT0_PHASE          (0.000),
+        .CLKOUT1_DIVIDE         (16),
+        .CLKOUT1_DUTY_CYCLE     (0.500),
+        .CLKOUT1_PHASE          (0.000),
+        .COMPENSATION           ("ZHOLD"),
+        .DIVCLK_DIVIDE          (1),
+        .IS_CLKINSEL_INVERTED   (1'b0),
+        .IS_PWRDWN_INVERTED     (1'b0),
+        .IS_RST_INVERTED        (1'b0),
+        .REF_JITTER1            (0.010),
+        .REF_JITTER2            (0.010),
+        .STARTUP_WAIT           ("FALSE")
+    )
+    usrclk_pll(
+      .CLKFBOUT (usrpll_fb_clk),
+      .CLKOUT0  (usrclk),   //150Mhz
+      .CLKOUT1  (usrclk2), // 75MHz
+      .CLKOUT2  (),
+      .CLKOUT3  (),
+      .CLKOUT4  (),
+      .CLKOUT5  (),
+      .DO       (),
+      .DRDY     (),
+      .LOCKED   (usrpll_locked),
+    
+      .CLKFBIN  (usrpll_fb_clk),
+      .CLKIN1   (txoutclk),
+      .CLKIN2   (1'b0),
+      .CLKINSEL (1'b1),
+      .DADDR    (7'h0),
+      .DCLK     (drpclk),
+      .DEN      (1'b0),
+      .DI       (16'h0),
+      .DWE      (1'b0),
+      .PWRDWN   (1'b0),
+      .RST      (~cplllock)
+    );
+`else //  GTX_USE_PLL
+    // divide txoutclk (global) by 2, then make global. Does not need to be phase-aligned - will use FIFO
+    reg usrclk2_r;
+    always @ (posedge txoutclk) begin
+        if (~cplllock) usrclk2_r <= 0;
+        else           usrclk2_r <= ~usrclk2;
+    end
+    assign txusrclk  =     txoutclk; // 150MHz, was already global
+    assign usrclk_global = txoutclk; // 150MHz, was already global
+    assign usrclk2 =       usrclk2_r;
+    assign usrpll_locked = cplllock;
+`endif // else //  GTX_USE_PLL
+
 assign  txusrclk  = usrclk_global; // 150MHz
-assign  txusrclk2 = clk; // usrclk2;       // should not use non-buffered clock!
+assign  txusrclk2 = clk;           // usrclk2;
 assign  rxusrclk  = usrclk_global; // 150MHz
-assign  rxusrclk2 = clk; // usrclk2;       // should not use non-buffered clock!
+assign  rxusrclk2 = clk;           // usrclk2;
 
-PLLE2_ADV #(
-    .BANDWIDTH              ("OPTIMIZED"),
-    .CLKFBOUT_MULT          (8),
-    .CLKFBOUT_PHASE         (0.000),
-    .CLKIN1_PERIOD          (6.666),
-    .CLKIN2_PERIOD          (0.000),
-    .CLKOUT0_DIVIDE         (8),
-    .CLKOUT0_DUTY_CYCLE     (0.500),
-    .CLKOUT0_PHASE          (0.000),
-    .CLKOUT1_DIVIDE         (16),
-    .CLKOUT1_DUTY_CYCLE     (0.500),
-    .CLKOUT1_PHASE          (0.000),
-/*    .CLKOUT2_DIVIDE = 1,
-    .CLKOUT2_DUTY_CYCLE = 0.500,
-    .CLKOUT2_PHASE = 0.000,
-    .CLKOUT3_DIVIDE = 1,
-    .CLKOUT3_DUTY_CYCLE = 0.500,
-    .CLKOUT3_PHASE = 0.000,
-    .CLKOUT4_DIVIDE = 1,
-    .CLKOUT4_DUTY_CYCLE = 0.500,
-    .CLKOUT4_PHASE = 0.000,
-    .CLKOUT5_DIVIDE = 1,
-    .CLKOUT5_DUTY_CYCLE = 0.500,
-    .CLKOUT5_PHASE = 0.000,*/
-    .COMPENSATION           ("ZHOLD"),
-    .DIVCLK_DIVIDE          (1),
-    .IS_CLKINSEL_INVERTED   (1'b0),
-    .IS_PWRDWN_INVERTED     (1'b0),
-    .IS_RST_INVERTED        (1'b0),
-    .REF_JITTER1            (0.010),
-    .REF_JITTER2            (0.010),
-    .STARTUP_WAIT           ("FALSE")
-)
-usrclk_pll(
-  .CLKFBOUT (usrpll_fb_clk),
-  .CLKOUT0  (usrclk),   //150Mhz
-  .CLKOUT1  (usrclk2), // 75MHz
-  .CLKOUT2  (),
-  .CLKOUT3  (),
-  .CLKOUT4  (),
-  .CLKOUT5  (),
-  .DO       (),
-  .DRDY     (),
-  .LOCKED   (usrpll_locked),
-
-  .CLKFBIN  (usrpll_fb_clk),
-  .CLKIN1   (txoutclk),
-  .CLKIN2   (1'b0),
-  .CLKINSEL (1'b1),
-  .DADDR    (7'h0),
-  .DCLK     (drpclk),
-  .DEN      (1'b0),
-  .DI       (16'h0),
-  .DWE      (1'b0),
-  .PWRDWN   (1'b0),
-  .RST      (~cplllock)
+select_clk_buf #(
+    .BUFFER_TYPE("BUFG")
+) bufg_sclk (
+    .o          (clk),  // output
+    .i          (usrclk2),         // input
+    .clr        (1'b0)            // input
 );
 
 /*
@@ -528,7 +544,7 @@ gtx_wrap
     .txelecidle         (txelecidle),      // input wire 
     .txp                (txp),             // output wire
     .txn                (txn),             // output wire
-    .txoutclk           (txoutclk),        // output wire
+    .txoutclk           (txoutclk),        // output wire // made global inside
     .txpcsreset         (txpcsreset),      // input wire 
     .txresetdone        (txresetdone),     // output wire
     .txcominit          (txcominit),       // input wire 
@@ -547,7 +563,7 @@ gtx_wrap
     .dbg_rxcdrlock        (dbg_rxcdrlock)    ,
     .dbg_rxdlysresetdone(dbg_rxdlysresetdone),
     .txbufstatus        (txbufstatus[1:0]),
-    .xclk               (xclk)             // output receive clock, just to measure frequency
+    .xclk               (xclk)             // output receive clock, just to measure frequency // global
 `ifdef USE_DATASCOPE
        ,.datascope_clk     (datascope_clk),     // output
         .datascope_waddr   (datascope_waddr),   // output[9:0] 
@@ -580,8 +596,6 @@ gtx_wrap
 assign  cplllockdetclk  = reliable_clk; //gtrefclk;
 assign  drpclk          = reliable_clk; //gtrefclk;
 
-//assign  clk             = usrclk2;
-BUFG bufg_sclk   (.O(clk),.I(usrclk2));
 assign  rxn             = rxn_in;
 assign  rxp             = rxp_in;
 assign  txn_out         = txn;
