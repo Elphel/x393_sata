@@ -169,7 +169,7 @@ class x393sata(object):
                 dry_mode=True
                 print("Program is forced to run in SIMULATED mode as '/dev/xdevcfg' does not exist (not a camera)")
         self.DRY_MODE=dry_mode
-        self.x393_mem=X393Mem(debug_mode,dry_mode, 1)
+        self.x393_mem=X393Mem(debug_mode,dry_mode, 1) # last parameter - SAXI port #1
         self.vsc3304= x393_vsc3304(debug_mode, dry_mode, pcb_rev)
         self.register_defines = registers.process_data(verbose = False)['field_defines']
         if dry_mode:
@@ -318,7 +318,7 @@ class x393sata(object):
             print ("1",file=f)
         # PAGE_SIZE
     '''            
-    def bitstream(self,
+    def configure(self,
                   bitfile=None,
                   ss_off=True,
                   quiet=1):
@@ -327,8 +327,6 @@ class x393sata(object):
         @param bitfile path to bitfile if provided, otherwise default bitfile will be used
         @param quiet Reduce output
         """
-        if bitfile is None:
-            bitfile=DEFAULT_BITFILE
         """            
         print ("Sensor ports power off")
         POWER393_PATH = '/sys/devices/elphel393-pwr.1'
@@ -344,6 +342,31 @@ class x393sata(object):
         else:
             if quiet < 2:
                 print ("Keeping Spread Spectrum on on channel 3")
+        self.bitstream(bitfile = bitfile,
+                       overwrite = not bitfile is None, #if it is None, keep existing bitstream if laoded
+                       quiet=1)
+             
+        self.set_zynq_ssd()
+        if quiet < 4 :
+            print("Use ' sata.set_zynq_ssd()', 'sata.set_zynq_esata()' or 'sata.set_esata_ssd() to switch SSD connection")
+
+    def bitstream(self,
+                  bitfile = None,
+                  overwrite = False,
+                  quiet = 1):
+        """
+        Turn FPGA clock OFF, reset ON, load bitfile, turn clock ON and reset OFF
+        @param bitfile path to bitfile if provided, otherwise default bitfile will be used
+        @param overwrite - re-load bitstream even if it is already loaded
+        @param quiet Reduce output
+        """
+        if not overwrite:
+            if (self.x393_mem.read_mem(INT_STS) & 4) != 0:
+                if (quiet <2 ):
+                    print ("FPGA bit stream  is already loaded, skipping re-load")
+                    return
+        if not bitfile:
+            bitfile=DEFAULT_BITFILE
         if quiet < 2:
              print ("FPGA clock OFF")
         self.x393_mem.write_mem(FPGA0_THR_CTRL,1)
@@ -366,7 +389,6 @@ class x393sata(object):
                         print("sent %d bytes to FPGA"%l)                            
         if quiet < 4:
             print("Loaded %d bytes to FPGA"%l)                            
-#            call(("cat",bitfile,">"+FPGA_LOAD_BITSTREAM))
         if quiet < 4 :
             print("Wait for DONE")
         if not self.DRY_MODE:
@@ -383,9 +405,6 @@ class x393sata(object):
         if quiet < 4 :
             print ("Reset OFF")
         self.reset(0xa)
-        self.set_zynq_ssd()
-        if quiet < 4 :
-            print("Use ' sata.set_zynq_ssd()', 'sata.set_zynq_esata()' or 'sata.set_esata_ssd() to switch SSD connection")
         
     def set_zynq_ssd(self):    
         self.vsc3304.connect_zynq_ssd()
@@ -1447,7 +1466,7 @@ def init_sata():
                              dry_mode =   0,
                              pcb_rev =    None)
     sata.reinit_mux()
-    sata.bitstream(bitfile=None,
+    sata.configure(bitfile=None,
                    quiet=4) # 4 will be really quiet
 
     sata.drp (0x20b,0x221) # bypass, clock align
@@ -1537,7 +1556,8 @@ reload (x393sata)
 sata = x393sata.x393sata()
     
 #######################################
-cd /mnt/mmc/local/bin
+#cd /mnt/mmc/local/bin
+cd /usr/local/bin
 python    
 from __future__ import print_function
 from __future__ import division
@@ -1549,7 +1569,7 @@ sata = x393sata.x393sata() # 1,0,"10389B")
 
 sata.reinit_mux()
 
-sata.bitstream(None, False) # False - keep SS on
+sata.configure(None, False) # False - keep SS on
 #sata.drp_write (0x20b,0x401) # bypass, clock align
 sata.drp (0x20b,0x221) # bypass, clock align
 
