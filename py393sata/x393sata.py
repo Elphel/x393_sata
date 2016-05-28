@@ -1458,7 +1458,8 @@ class x393sata(object):
         elif mac.endswith(':02'):
             return '10389B'
         else:
-            raise Exception ("Unknown camera MAC address used to get 10389 revision. Only *:01 (10389) and *:02 (10389B) are currently defined")
+            return '10389B'
+#            raise Exception ("Unknown camera MAC address used to get 10389 revision. Only *:01 (10389) and *:02 (10389B) are currently defined")
         
         
 def init_sata():
