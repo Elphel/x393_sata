@@ -12,3 +12,5 @@ x393.prj
 *.old
 *.pyc
 *.pickle
+bitbake-logs                                                                                                                                               
+sysroots  
