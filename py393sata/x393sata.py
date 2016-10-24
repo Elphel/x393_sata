@@ -416,11 +416,16 @@ class x393sata(object):
         if self.DEBUG_MODE:
              self.vsc3304.connection_status()
 
+    def set_zynq_ssata(self):    
+        self.vsc3304.connect_zynq_ssata()
+        if self.DEBUG_MODE:
+             self.vsc3304.connection_status()
+
     def set_esata_ssd(self):    
         self.vsc3304.connect_esata_ssd()
         if self.DEBUG_MODE:
              self.vsc3304.connection_status()
-        
+    
     def set_debug_oscilloscope(self):    
         self.vsc3304.connect_debug()
         if self.DEBUG_MODE:
