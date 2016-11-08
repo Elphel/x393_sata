@@ -19,8 +19,8 @@
 *!  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *! -----------------------------------------------------------------------------**
 */
-require 'i2c.inc';
-include 'show_source.inc';
+// require 'i2c.inc';
+// include 'show_source.inc';
 
 $debug=false;
 $BUS=1; // 1 - 10369, 0 - 10359 (sensor)
@@ -80,20 +80,51 @@ $i2c_SoftwareReset=        0x7a;
 $i2c_SoftwareResetData=    0x10; // to reset, 0 - normal
 $i2c_CurrentPage=          0x7f;
 
+$vsc_sysfs_dir = '/sys/devices/soc0/amba@0/e0004000.ps7-i2c/i2c-0/0-0001';
+
 $connections=array(); // pairs, first index< second
+// $channels=array(
+//                   array('in'=>10,  'out'=> 3, 'name'=>'host1', 'connector'=> 1),
+//                   array('in'=> 3,  'out'=>10, 'name'=>'host2', 'connector'=> 2),
+//                   array('in'=> 0,  'out'=> 5, 'name'=>'host3', 'connector'=> 3),
+//                   array('in'=> 4,  'out'=> 4, 'name'=>'host4', 'connector'=> 4),
+//                   array('in'=> 9,  'out'=> 0, 'name'=>'host5', 'connector'=> 5),
+//                   array('in'=> 7,  'out'=> 9, 'name'=>'host6', 'connector'=> 6),
+//                   array('in'=>11,  'out'=> 1, 'name'=>'ssd1',  'connector'=> 7),
+//                   array('in'=> 8,  'out'=> 6, 'name'=>'ssd2',  'connector'=> 8),
+//                   array('in'=> 5,  'out'=>11, 'name'=>'ssd3',  'connector'=> 9),
+//                   array('in'=> 2,  'out'=> 2, 'name'=>'ssd4',  'connector'=>10),
+//                   array('in'=> 1,  'out'=> 8, 'name'=>'ssd5',  'connector'=>11));
 $channels=array(
-                  array('in'=>10,  'out'=> 3, 'name'=>'host1', 'connector'=> 1),
-                  array('in'=> 3,  'out'=>10, 'name'=>'host2', 'connector'=> 2),
-                  array('in'=> 0,  'out'=> 5, 'name'=>'host3', 'connector'=> 3),
-                  array('in'=> 4,  'out'=> 4, 'name'=>'host4', 'connector'=> 4),
-                  array('in'=> 9,  'out'=> 0, 'name'=>'host5', 'connector'=> 5),
-                  array('in'=> 7,  'out'=> 9, 'name'=>'host6', 'connector'=> 6),
-                  array('in'=>11,  'out'=> 1, 'name'=>'ssd1',  'connector'=> 7),
-                  array('in'=> 8,  'out'=> 6, 'name'=>'ssd2',  'connector'=> 8),
-                  array('in'=> 5,  'out'=>11, 'name'=>'ssd3',  'connector'=> 9),
-                  array('in'=> 2,  'out'=> 2, 'name'=>'ssd4',  'connector'=>10),
-                  array('in'=> 1,  'out'=> 8, 'name'=>'ssd5',  'connector'=>11));
-//echo "<pre>\n";
+		array('in'=> 12, 'out'=> 8,  'name'=>'A', 'connector'=> 1),
+        array('in'=> 13, 'out'=> 9,  'name'=>'B', 'connector'=> 2),
+        array('in'=> 14, 'out'=> 10, 'name'=>'C', 'connector'=> 3),
+        array('in'=> 15, 'out'=> 11, 'name'=>'D', 'connector'=> 4),
+        array('in'=> 8,  'out'=> 12, 'name'=>'E', 'connector'=> 5),
+        array('in'=> 9,  'out'=> 13, 'name'=>'F', 'connector'=> 6),
+        array('in'=> 10, 'out'=> 14, 'name'=>'G', 'connector'=> 7),
+        array('in'=> 11, 'out'=> 15, 'name'=>'H', 'connector'=> 8));
+
+/** Paths to parameters in sysfs */
+$param_paths = array(
+		'input_ISE_short'        => $vsc_sysfs_dir . '/input_ISE_short/',
+		'input_ISE_medium'       => $vsc_sysfs_dir . '/input_ISE_medium/',
+		'input_ISE_long'         => $vsc_sysfs_dir . '/input_ISE_long/',
+		'input_terminate'        => $vsc_sysfs_dir . '/input_terminate_high/',
+		'input_invert'           => $vsc_sysfs_dir . '/input_state_invert/',
+		'input_LOS'              => $vsc_sysfs_dir . '/input_LOS_threshold/',
+		'input_off'              => $vsc_sysfs_dir . '/input_state_off/',
+		
+		'output_PRE_long_decay'  => $vsc_sysfs_dir . '/output_PRE_long_decay/',
+		'output_PRE_long_level'  => $vsc_sysfs_dir . '/output_PRE_long_level/',
+		'output_PRE_short_decay' => $vsc_sysfs_dir . '/output_PRE_short_decay/',
+		'output_PRE_short_level' => $vsc_sysfs_dir . '/output_PRE_short_level/',
+		'output_level'           => $vsc_sysfs_dir . '/output_level/',
+		'output_mode'            => $vsc_sysfs_dir . '/output_mode/',
+		'forward_OOB'            => $vsc_sysfs_dir . '/forward_OOB/',
+		'status'                 => $vsc_sysfs_dir . '/status/',
+		'connections'            => $vsc_sysfs_dir . '/connections/'
+);
 $numHosts=6;
 if (count($_GET)==0){
   showUsage();
@@ -572,8 +603,152 @@ function showUsage(){
 EOT;
 }
 
+/** Read the current state of the switch and place data to global variables */
+function readCurrentState()
+{
+	global $debug, $channels, $param_paths;
+	global $activeInputs, $activeOutputs;
+	global $port_ise, $port_input_state, $port_los, $port_pre_long, $port_pre_short, $port_out_level;
+	global $port_out_state, $port_channel_status, $port_channel_input;
+	
+	// read ISE
+	if ($debug)
+		echo "<!-- read ISE -->\n";
+	$ise_short = read_vals($param_paths['input_ISE_short'] . port_fn());
+	$ise_medium = read_vals($param_paths['input_ISE_medium'] . port_fn());
+	$ise_long = read_vals($param_paths['input_ISE_long'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " . 
+			"short: " . $ise_short[$index] . ", " .
+			"medium: " . $ise_medium[$index] . ", " .
+			"long: " . $ise_long[$index] . " -->\n";
+		$port_index = translate_index($index, 'in');
+		$port_ise[$port_index] = array(
+				'short' => $ise_short[$index],
+				'medium' => $ise_medium[$index],
+				'long' => $ise_long[$index]);
+	}
+	
+	// read InputState
+	if ($debug)
+		echo "<!-- read InputState -->\n";
+	$port_termination = read_vals($param_paths['input_terminate'] . port_fn());
+	$port_invertion = read_vals($param_paths['input_invert'] . port_fn());
+	$input_off = read_vals($param_paths['input_off'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " . 
+			"off: " . $input_off[$index] . ", " .
+			"terminate: " . $port_termination[$index] . ", " .
+			"invert: " . $port_invertion[$index] . " -->\n";
+		$activeInputs[$index] = $input_off[$index] == 0;
+		$port_index = translate_index($index, 'in');
+		$port_input_state[$port_index] = array(
+				'terminate' => $port_termination[$index],
+				'invert' => $port_invertion[$index]);
+	}
 
-function readCurrentState(){
+	// read LOS
+	if ($debug)
+		echo "<!-- read LOS -->\n";
+	$data = read_vals($param_paths['input_LOS'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " .
+			"level: " . $data[$index] . " -->\n";
+		$port_index = translate_index($index, 'in');
+		$port_los[$port_index] = array('level' => $data[$index]);
+	}
+
+	// read pre-emphasis (long)
+	if ($debug)
+		echo "<!-- read pre-emphasis (long) -->\n";
+	$data_level = read_vals($param_paths['output_PRE_long_level'] . port_fn());
+	$data_decay = read_vals($param_paths['output_PRE_long_decay'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " .
+			"level: " . $data_level[$index] . ", " .
+			"decay: " . $data_decay[$index] . " -->\n";
+		$port_index = translate_index($index, 'out');
+		$port_pre_long[$port_index] = array(
+				'level' => $data_level[$index],
+				'decay' => $data_decay[$index]);
+	}
+	
+	// read pre-emphasis (short)
+	if ($debug)
+		echo "<!-- read pre-emphasis (short) -->\n";
+	$data_level = read_vals($param_paths['output_PRE_short_level'] . port_fn());
+	$data_decay = read_vals($param_paths['output_PRE_short_decay'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " .
+			"level: " . $data_level[$index] . ", " .
+			"decay: " . $data_decay[$index] . " -->\n";
+		$port_index = translate_index($index, 'out');
+		$port_pre_short[$port_index] = array(
+				'level' => $data_level[$index],
+				'decay' => $data_decay[$index]);
+	}
+
+	// read output level
+	if ($debug)
+		echo "<!-- read output level -->\n";
+	$data = read_vals($param_paths['output_level'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => " . 
+			"level: " . $data[$index] . " -->\n";
+		$port_index = translate_index($index, 'out');
+		$port_out_level[$port_index] = array('level' => $data[$index]);
+	}
+	
+	// read OutputState
+	if ($debug)
+		echo "<!-- read output state -->\n";
+	$data_mode = read_vals($param_paths['output_mode'] . port_fn());
+	$data_oob = read_vals($param_paths['forward_OOB'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => ".
+			"mode: " . $data_mode[$index] . ", " .
+			"OOB: " .$data_oob[$index] . " -->\n";
+		$port_index = translate_index($index, 'out');
+		$port_out_state[$port_index] = array(
+				'mode' => $data_mode[$index],
+				'oob' => $data_oob[$index]);
+	}
+	
+	// read channel status
+	if ($debug)
+		echo "<!-- read channel status -->\n";
+	$data = read_vals($param_paths['status'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "]" .
+			"status: " . $data[$index] . " -->\n";
+		$port_index = translate_index($index, 'in');
+		$port_channel_status[$port_index] = array('los' => $data[$index]);
+	}
+
+	// read connections
+	if ($debug)
+		echo "<!-- read connections -->\n";
+	$data = read_vals($param_paths['connections'] . port_fn());
+	for ($index = 0; $index < count($channels); $index++) {
+		if ($debug)
+			echo "<!-- [" . $index . "] => ".
+			"connection: " . $data[$index] . " -->\n";
+		$port_index = translate_index($index, 'out');
+		$val = (($data[$index] & 0x10) == 0) ? ($data[$index] & 0x0f) : -1;
+		$port_channel_input[$port_index] = array('input' => $val);
+		$activeOutputs[$index] = ($data[$index] & 0x10) == 0;
+	}
+}
+
+function readCurrentState_old(){
  global $debug, $i2c_InterfaceMode,$i2c_InterfaceModeData,$SA;
  global $i2c_CurrentPage,$activeInputs,$activeOutputs;
  global $port_ise,$port_input_state,$port_los,$port_pre_long,$port_pre_short,$port_out_level;
@@ -1092,5 +1267,49 @@ function exitError($text){
    exit (1);
 }
 
+/** Create port file name from port number */
+function port_fn($port_num = -1)
+{
+	if ($port_num == -1)
+		return "all";
+	else
+		return printf("port_%02d", $port_num);
+}
+
+/** Read one string from sysfs file, split it and return an array of values */
+function read_vals($file_name)
+{
+	$substr = array();
+	$f = fopen($file_name, 'r');
+	if ($f !== false) {
+		if (($data = fgets($f)) !== false) {
+			$data = str_replace("\n", "", $data);
+			$substr = preg_split("/ +/", $data);
+		}		
+		fclose($f);
+	}
+	
+	return $substr;
+}
+
+/** Find port index in the channels list by zero based index given */
+function translate_index($index, $dir)
+{
+	global $channels;
+	$port_index = -1;
+	$offset = 8;                  // VSC3304 port numbering starts from 08, the offset is used to minimize legacy code modifications 
+	$ret = -1;
+	
+	
+	for ($i = 0; $i < count($channels); $i++) {
+		if ($channels[$i][$dir] == ($index + $offset))
+			$port_index = $i;
+	}
+	if ($port_index != -1) {
+		$ret = $channels[$port_index][$dir];
+	}
+	
+	return $ret;
+}
 
 ?> 
