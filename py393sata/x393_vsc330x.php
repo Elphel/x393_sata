@@ -95,15 +95,62 @@ $connections=array(); // pairs, first index< second
 //                   array('in'=> 5,  'out'=>11, 'name'=>'ssd3',  'connector'=> 9),
 //                   array('in'=> 2,  'out'=> 2, 'name'=>'ssd4',  'connector'=>10),
 //                   array('in'=> 1,  'out'=> 8, 'name'=>'ssd5',  'connector'=>11));
-$channels=array(
-		array('in'=> 12, 'out'=> 8,  'name'=>'A', 'connector'=> 1),
-        array('in'=> 13, 'out'=> 9,  'name'=>'B', 'connector'=> 2),
-        array('in'=> 14, 'out'=> 10, 'name'=>'C', 'connector'=> 3),
-        array('in'=> 15, 'out'=> 11, 'name'=>'D', 'connector'=> 4),
-        array('in'=> 8,  'out'=> 12, 'name'=>'E', 'connector'=> 5),
-        array('in'=> 9,  'out'=> 13, 'name'=>'F', 'connector'=> 6),
-        array('in'=> 10, 'out'=> 14, 'name'=>'G', 'connector'=> 7),
-        array('in'=> 11, 'out'=> 15, 'name'=>'H', 'connector'=> 8));
+
+$pcb_connections = array(
+		'ESATA_A' => 'A',
+		'ESATA_B' => 'C',
+		'SSD_A'   => 'E',
+		'SSD_B'   => 'F',
+		'ZYNQ_A'  => 'G',
+		'ZYNQ_B'  => 'H'
+);
+
+// I/O pairs for the same physical port
+$port_num = array(
+		'A' => array('in' => 12, 'out' => 8),
+		'B' => array('in' => 13, 'out' => 9),
+		'C' => array('in' => 14, 'out' => 10),
+		'D' => array('in' => 15, 'out' => 11),
+		'E' => array('in' => 8,  'out' => 12),
+		'F' => array('in' => 9,  'out' => 13),
+		'G' => array('in' => 10, 'out' => 14),
+		'H' => array('in' => 11, 'out' => 15)
+);
+
+$channels = array(
+		array('in' => $port_num[$pcb_connections['ESATA_A']]['in'], 
+			 'out' => $port_num[$pcb_connections['ESATA_B']]['out'],
+			 'name'=>'ESATA', 'connector' => 'ESATA',
+			 'phy_ports' => array('ESATA_A', 'ESATA_B')),
+        array('in' => $port_num[$pcb_connections['SSD_B']]['in'],
+        	 'out' => $port_num[$pcb_connections['SSD_A']]['out'],
+        	 'name'=>'SSD',   'connector' => 'SSD',
+        	 'phy_ports' => array('SSD_A', 'SSD_B')),
+        array('in' => $port_num[$pcb_connections['ZYNQ_A']]['in'],
+        	 'out' => $port_num[$pcb_connections['ZYNQ_B']]['out'],
+        	 'name'=>'ZYNQ',  'connector' => 'ZYNQ',
+        	 'phy_ports' => array('ZYNQ_A', 'ZYNQ_B')));
+
+$vsc3304_connections = array(
+		'ZYNQ<->SSD'   => array(array('FROM' => 'ZYNQ_A', 'TO'  => 'SSD_A'),
+								array('FROM' => 'SSB_B',  'TO'  => 'ZYNQ_B')),
+		'ZYNQ<->ESATA' => array(array('FROM' => 'ZYNQ_A', 'TO'  => 'ESATA_A'),
+								array('FROM' => 'ESATA_B', 'TO' => 'ZYNQ_B')),
+		'ZYNQ<->SSATA' => array(array('FROM' => 'ZYNQ_A', 'TO'  => 'ESATA_B'),
+								array('FROM' => 'ESATA_A', 'TO' => 'ZYNQ_B')),
+		'ESATA<->SSD'  => array(array('FROM' => 'SSD_B', 'TO'   => 'ESATA_B'),
+								array('FROM' => 'ESATA_A', 'TO' => 'SSD_A'))
+);
+
+// $channels=array(
+// 		array('in'=> 12, 'out'=> 8,  'name'=>'A', 'connector'=> 'ESATA_A'),
+//         array('in'=> 13, 'out'=> 9,  'name'=>'B', 'connector'=> ''),
+//         array('in'=> 14, 'out'=> 10, 'name'=>'C', 'connector'=> 'ESATA_B'),
+//         array('in'=> 15, 'out'=> 11, 'name'=>'D', 'connector'=> ''),
+//         array('in'=> 8,  'out'=> 12, 'name'=>'E', 'connector'=> 'SSD_A'),
+//         array('in'=> 9,  'out'=> 13, 'name'=>'F', 'connector'=> 'SSD_B'),
+//         array('in'=> 10, 'out'=> 14, 'name'=>'G', 'connector'=> 'ZYNQ_A'),
+//         array('in'=> 11, 'out'=> 15, 'name'=>'H', 'connector'=> 'ZYNQ_B'));
 
 /** Paths to parameters in sysfs */
 $param_paths = array(
@@ -125,10 +172,21 @@ $param_paths = array(
 		'status'                 => $vsc_sysfs_dir . '/status/',
 		'connections'            => $vsc_sysfs_dir . '/connections/'
 );
-$numHosts=6;
-if (count($_GET)==0){
-  showUsage();
-  exit (0);
+
+$default_out_levels = array(
+		'ESATA_A' => 3,
+		'ESATA_B' => 3,
+		'SSD_B'   => 2,
+		'ZYNQ_A'  => 2
+);
+
+$default_inverted_ports = array(
+		'A', 'E', 'G', 'H'
+);
+
+if (count($_GET) == 0) {
+	showUsage();
+	exit(0);
 }
 
 $debug= isset($_GET['debug']);
@@ -144,19 +202,64 @@ $port_out_level=   array(); //-1=>'','','','','','','','','','','','',''); // -1
 $port_out_state=   array(); //-1=>'','','','','','','','','','','','',''); // -1(all),0..11
 $port_channel_status=array(); // read only - 1 - LOS
 $port_channel_input=  array(); // read current connections (number of input or "-1" - disabled
+// define the types of data in arrays
+$port_ise['type']            = 'in';
+$port_input_state['type']    = 'in';
+$port_los['type']            = 'in';
+$port_pre_long['type']       = 'out';
+$port_pre_short['type']      = 'out';
+$port_out_level['type']      = 'out';
+$port_out_state['type']      = 'out';
+$port_channel_status['type'] = 'in';
+$port_channel_input['type']  = 'out';
 if ($init) {
-  $port_ise[-1]=         array('short'=>0,'medium'=>0,'long'=>0);
-//  $port_input_state[-1]= array('terminate'=>1,'invert'=>0); // change to no termination?
-  $port_input_state[-1]= array('terminate'=>0,'invert'=>0); // change to no termination?
-  $port_los[-1]=         array('level'=>4); // 250 mv
-  $port_pre_long[-1]=    array('level'=>0,'decay'=>0);
-  $port_pre_short[-1]=   array('level'=>0,'decay'=>0);
-  $port_out_level[-1]=   array('level'=>6);
-  $port_out_state[-1]=   array('mode'=>5,'oob'=>1);
+ 	$port_ise[-1]=         array('short'=>0,'medium'=>0,'long'=>0);
+// 	$port_input_state[-1]= array('terminate'=>0,'invert'=>0); // change to no termination?
+	$port_ise[-1]=         array('short'=>0,'medium'=>0,'long'=>0);
+	$port_los[-1]=         array('level'=>4); // 250 mv
+	$port_pre_long[-1]=    array('level'=>0,'decay'=>0);
+	$port_pre_short[-1]=   array('level'=>0,'decay'=>0);
+// 	$port_out_level[-1]=   array('level'=>6);
+// 	$port_out_state[-1]=   array('mode'=>5,'oob'=>1);
+	
+	// set the value that the register has after reset 
+	$vals = array();
+	for ($i = 0; $i < count($port_num); $i++)
+		$vals[index_to_port_num($i)] = 1;
+	// apply default values
+	foreach ($default_out_levels as $phy_port => $level) {
+		$index = $port_num[$pcb_connections[$phy_port]]['out'];
+		$vals[$index] = $level;
+	}
+	$port_out_level[-1] = array('level' => $vals);
+	
+	// set the value that the register has after reset
+	$vals = array();
+	for ($i = 0; $i < count($port_num); $i++)
+		$vals[index_to_port_num($i)] = 0;
+	// apply default values
+	foreach ($default_inverted_ports as $phy_port) {
+		$index = $port_num[$phy_port]['in'];
+		$vals[$index] = 1;
+	}
+	$port_input_state[-1] = array('terminate' => 0, 'invert' => $vals);
+	
+	// set the value that the register has after reset
+	$vals = array();
+	for ($i = 0; $i < count($port_num); $i++)
+		$vals[index_to_port_num($i)] = 5;
+	// apply default values
+	foreach ($default_inverted_ports as $phy_port) {
+		$index = $port_num[$phy_port]['out'];
+		$vals[$index] = 10;
+	}
+	$port_out_state[-1] = array('mode' => $vals, 'oob' => 1);
+
 }
 $SA=$slaveAddrVCS3312<<8;
 
 
+update_chn_from_sysfs();
 foreach ($_GET as $cmdkey=>$value) {
   if (strpos($key,":" )>=0){
     $command=strtok($cmdkey,":");
@@ -173,7 +276,6 @@ foreach ($_GET as $cmdkey=>$value) {
   }
   
   switch (strtoupper($command)) {
-//    case '':
     case 'S':
     case 'STATE':
   echo <<<EOT
@@ -192,12 +294,11 @@ EOT;
     case 'C':
        $pair=array($port,parsePort($value));
        sort($pair);
-//       print_r($pair);
        if (($pair[0]>=0) &&
-           ($pair[0]<$numHosts) &&
-           ($pair[1]>=$numHosts) &&
+           ($pair[0]<count($channels)) &&
+           ($pair[1]>=0) &&
            ($pair[1]<count($channels))) {
-// remove duplicate IO-s
+			// remove duplicate IO-s
            $duplicateIO=false;
            foreach ($connections as $connection) if (($connection[0]==$pair[0]) || ($connection[1]==$pair[1])){
               $duplicateIO=true;
@@ -210,6 +311,7 @@ EOT;
             echo "Current connections:\n";
             print_r($connections);
           }
+          set_channels($key, $value, $GLOBALS['vsc3304_connections'], $GLOBALS['port_num'], $GLOBALS['pcb_connections'], $channels);
        }
        break;
     case 'ISE':
@@ -220,7 +322,7 @@ EOT;
         exit (1);
       }
       $this_ise=array('short'=>$aval[0],'medium'=>$aval[1],'long'=>$aval[2]);
-      if (($inPort>=-1) && ($port<12)) $port_ise[$inPort]=$this_ise;
+      if (($inPort>=-1) && ($inPort <= max_port_num('in'))) $port_ise[$inPort]=$this_ise;
       else {
         echo "Invalid input port index=$inPort\n";
         $error =true;
@@ -237,7 +339,7 @@ EOT;
         exit (1);
       }
       $this_input_state=array('terminate'=>$aval[0],'invert'=>$aval[1]);
-      if (($inPort>=-1) && ($port<12)) $port_input_state[$inPort]=$this_input_state;
+      if (($inPort>=-1) && ($inPort <= max_port_num('in'))) $port_input_state[$inPort]=$this_input_state;
       else {
         echo "Invalid input port index=$inPort\n";
         $error =true;
@@ -253,7 +355,7 @@ EOT;
         $error =true;
         exit (1);
       }
-      if (($inPort>=-1) && ($inPort<12)) $port_los[$inPort]=array('level'=>$aval[0]);
+      if (($inPort>=-1) && ($inPort <= max_port_num('in'))) $port_los[$inPort]=array('level'=>$aval[0]);
       else {
         echo "Invalid input port index=$inPort\n";
         $error =true;
@@ -271,7 +373,7 @@ EOT;
         exit (1);
       }
       $this_pre_long=array('level'=>$aval[0],'decay'=>$aval[1]);
-      if (($outPort>=-1) && ($outPort<12)) $port_pre_long[$outPort]=$this_pre_long;
+      if (($outPort>=-1) && ($outPort <= max_port_num($port_pre_long['type']))) $port_pre_long[$outPort]=$this_pre_long;
       else {
         echo "Invalid output port index=$outPort\n";
         $error =true;
@@ -288,7 +390,7 @@ EOT;
         exit (1);
       }
       $this_pre_short=array('level'=>$aval[0],'decay'=>$aval[1]);
-      if (($outPort>=-1) && ($outPort<12)) $port_pre_short[$outPort]=$this_pre_short;
+      if (($outPort>=-1) && ($outPort <= max_port_num($port_pre_short['type']))) $port_pre_short[$outPort]=$this_pre_short;
       else {
         echo "Invalid output port index=$outPort\n";
         $error =true;
@@ -297,7 +399,6 @@ EOT;
       if ($debug) {
       }
     break;
-//$port_out_level=   array(-1=>array('level'=>6),        '','','','','','','','','','','',''); // -1(all),0..11
     case 'OUT_LEVEL':
       $aval=getMultiVals($value);
       if ((count($aval)!=1) || ($aval[0]<0) || ($aval[0]>15)) {
@@ -306,7 +407,7 @@ EOT;
         exit (1);
       }
       $this_out_level=array('level'=>$aval[0]);
-      if (($outPort>=-1) && ($outPort<12)) $port_out_level[$outPort]=$this_out_level;
+      if (($outPort>=-1) && ($outPort <= max_port_num($port_out_level['type']))) $port_out_level[$outPort]=$this_out_level;
       else {
         echo "Invalid output port index=$outPort\n";
         $error =true;
@@ -324,7 +425,7 @@ EOT;
         exit (1);
       }
       $this_out_state=array('mode'=>$aval[0],'oob'=>$aval[1]);
-      if (($outPort>=-1) && ($outPort<12)) $port_out_state[$outPort]=$this_out_state;
+      if (($outPort>=-1) && ($outPort <= max_port_num($port_out_state['type']))) $port_out_state[$outPort]=$this_out_state;
       else {
         echo "Invalid output port index=$outPort\n";
         $error =true;
@@ -333,180 +434,229 @@ EOT;
       if ($debug) {
       }
     break;
-
-
-/*
-
-*/
-//$port_input_state
-
   }
 }
-//print_r($connections);
-//echo "</pre>\n";
-if (isset($_GET['list']))listSettings();
-$activeOutputs=array(false,false,false,false, false,false,false,false, false,false,false,false);
-$activeInputs= array(false,false,false,false, false,false,false,false, false,false,false,false);
+	
+if (isset($_GET['list']))
+	listSettings();
+// $activeOutputs = array(false, false, false, false, false, false, false, false);
+// $activeOutputs = array(	$port_num['A']['out'] => false,
+// 						$port_num['B']['out'] => false,
+// 						$port_num['C']['out'] => false,
+// 						$port_num['D']['out'] => false,
+// 						$port_num['E']['out'] => false,
+// 						$port_num['F']['out'] => false,
+// 						$port_num['G']['out'] => false,
+// 						$port_num['H']['out'] => false
+// );
+foreach ($port_num as $pn) {
+	$activeOutputs[$pn['out']] = false;
+	$activeInputs[$pn['in']] = false;
+};
+// $activeInputs = array(false, false, false, false, false, false, false, false);
+// $activeInputs = array(	$port_num['A']['in'] => false,
+// 						$port_num['B']['in'] => false,
+// 						$port_num['C']['in'] => false,
+// 						$port_num['D']['in'] => false,
+// 						$port_num['E']['in'] => false,
+// 						$port_num['F']['in'] => false,
+// 						$port_num['G']['in'] => false,
+// 						$port_num['H']['in'] => false
+// );
 
-foreach ($connections as $connection){
-  $activeOutputs[$channels[$connection[0]]['out']]=true;
-  $activeOutputs[$channels[$connection[1]]['out']]=true;
-  $activeInputs [$channels[$connection[0]]['in']]= true;
-  $activeInputs [$channels[$connection[1]]['in']]= true;
+foreach ($connections as $connection) {
+	$activeOutputs[$channels[$connection[0]]['out']] = true;
+	$activeOutputs[$channels[$connection[1]]['out']] = true;
+	$activeInputs[$channels[$connection[0]]['in']] = true;
+	$activeInputs[$channels[$connection[1]]['in']] = true;
 }
 if ($debug) {
-  echo "<!-- activeOutputs:\n";
-  print_r($activeOutputs);
-  echo "\nactiveInputs:\n";
-  print_r($activeInputs);
-  echo "\nISE (input signal equalization):\n";
-  print_r($port_ise);
-
-  echo "\nInput state:\n";
-  print_r($port_input_state);
-  echo "\nLOS (loss of signal thershold):\n";
-  print_r($port_los);
-
-  echo "\nPre-emphasis long:\n";
-  print_r($port_pre_long);
-  echo "\nPre-emphasis short:\n";
-  print_r($port_pre_short);
-  echo "\nOutput level:\n";
-  print_r($port_out_level);
-  echo "\nOutput state:\n";
-  print_r($port_out_state);
-  echo "-->\n";
+	echo "<!-- activeOutputs:\n";
+	print_r($activeOutputs);
+	echo "\nactiveInputs:\n";
+	print_r($activeInputs);
+	echo "\nISE (input signal equalization):\n";
+	print_r($port_ise);
+	
+	echo "\nInput state:\n";
+	print_r($port_input_state);
+	echo "\nLOS (loss of signal thershold):\n";
+	print_r($port_los);
+	
+	echo "\nPre-emphasis long:\n";
+	print_r($port_pre_long);
+	echo "\nPre-emphasis short:\n";
+	print_r($port_pre_short);
+	echo "\nOutput level:\n";
+	print_r($port_out_level);
+	echo "\nOutput state:\n";
+	print_r($port_out_state);
+	echo "-->\n";
 }
 
-//exit (0);
+// program ISE
+if ($debug)
+	echo "<!-- program ISE -->\n";
+if (isGlobalSet($port_ise)) {
+	$all_ise_short = $port_ise[-1]['short'];
+	write_vals($param_paths['input_ISE_short'] . 'all', $all_ise_short);
+	$all_ise_medium = $port_ise[-1]['medium'];
+	write_vals($param_paths['input_ISE_medium'] . 'all', $all_ise_medium);
+	$all_ise_long = $port_ise[-1]['long'];
+	write_vals($param_paths['input_ISE_long'] . 'all', $all_ise_long);
+}
+if (isIndividualSet($port_ise)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_ise['type']];
+		if (isset($port_ise[$port_num])) {
+			write_vals($param_paths['input_ISE_short'] . port_fn($port_num), $port_ise[$port_num]['short']);
+			write_vals($param_paths['input_ISE_medium'] . port_fn($port_num), $port_ise[$port_num]['medium']);
+			write_vals($param_paths['input_ISE_long'] . port_fn($port_num), $port_ise[$port_num]['long']);
+		}
+	}
+}
+	
+// program InputState
+if ($debug)
+	echo "<!-- program InputState -->\n";
+$default_inv = array();
+if (isGlobalSet($port_input_state)) {
+	// default polarity invertion can be specified without init, it will be applied for inputs that 
+	// are programmed anyway
+	$default_inv = data_input_invert(-1);
+}
+// scan all inputs and disable/inable them only in init mode
+for ($index = 0; $index < count($channels); $index++) {
+	$port_num = $channels[$index][$port_input_state['type']];
+	$power_on = $activeInputs[$channels[$index]['in']] || isset($port_input_state[$port_num]); // programming input implies it is on
+	if (!empty($default_inv))
+		$invert_value = $default_inv[$port_num];
+	else
+		$invert_value = 0;
+	if (isset($port_input_state[$port_num])) {
+		$invert_value = data_input_invert($port_num);
+	}
+	if ($init || $power_on) {
+		$power_value = ($power_on) ? 0 : 1;
+		write_vals($param_paths['input_off'] . port_fn($port_num), $power_value);
+		write_vals($param_paths['input_invert'] . port_fn($port_num), $invert_value);
+	}
+}
 
+// program input termination
+if ($debug)
+	echo "<!-- program input termination -->\n";
+if (isGlobalSet($port_input_state)) {
+	$all_terminate = data_input_terminate(-1);
+	write_vals($param_paths['input_terminate'] . 'all', $all_terminate);
+}
+if (isIndividualSet($port_input_state)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_input_state['type']];
+		if (isset($port_input_state[$port_num])) {
+			write_vals($param_paths['input_terminate'] . port_fn($port_num), data_input_terminate($port_num));
+		}
+	}
+}
 
+// program LOS
+if ($debug)
+	echo "<!-- program LOS -->\n";
+if (isGlobalSet($port_los)) {
+	$all_los = data_port_los(-1);
+	write_vals($param_paths['input_LOS'] . 'all', $all_los);
+}
+if (isIndividualSet($port_los)) {
+	for ($index = 0; $index < count($channels); $index ++) {
+		$port_num = $channels[$index][$port_los['type']];
+		if (isset($port_los[$port_num])) {
+			write_vals($param_paths['input_LOS'] . port_fn($port_num), data_port_los($port_num));
+		}
+	}
+}
 
+// program pre-emphasis (long)
+if ($debug)
+	echo "<!-- program pre-emphasis (long) -->\n";
+if (isGlobalSet($port_pre_long)) {
+	$all_pre_long_decay = data_pre_long_decay(-1);
+	$all_pre_long_level = data_pre_long_level(-1);
+	write_vals($param_paths['output_PRE_long_decay'] . 'all', $all_pre_long_decay);
+	write_vals($param_paths['output_PRE_long_level'] . 'all', $all_pre_long_level);
+}
+if (isIndividualSet($port_pre_long)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_pre_long['type']];
+		if (isset($port_pre_long[$port_num])) {
+			write_vals($param_paths['output_PRE_long_decay'] . port_fn($port_num), data_pre_long_decay($port_num));
+			write_vals($param_paths['output_PRE_long_level'] . port_fn($port_num), data_pre_long_level($port_num));
+		}
+	}
+}
 
-    $outputLevel=6; // 520mV
-    if ($debug) echo '<!-- setting i2c mode (writing 0x'.dechex($i2c_InterfaceModeData).' to 0x'.dechex($SA | $i2c_InterfaceMode).' -->'."\n";
-    i2c_send_or_die($i2c_InterfaceMode,$i2c_InterfaceModeData); // set i2c mode
-    // turn off immediate configuration:
-    if ($debug) echo '<!-- freezing updates (writing 0x'.dechex($i2c_CoreConfigurationDataF).' to 0x'.dechex($SA | $i2c_CoreConfiguration).' -->'."\n";
-    i2c_send_or_die($i2c_CoreConfiguration,$i2c_CoreConfigurationDataF); // freeze updates
+// program pre-emphasis (short)
+if ($debug)
+	echo "<!-- program pre-emphasis (short) -->\n";
+if (isGlobalSet($port_pre_short)) {
+	$all_pre_short_decay = data_pre_short_decay(-1);
+	$all_pre_short_level = data_pre_short_level(-1);
+	write_vals($param_paths['output_PRE_short_decay'] . 'all', $all_pre_short_decay);
+	write_vals($param_paths['output_PRE_short_level'] . 'all', $all_pre_short_level);
+}
+if (isIndividualSet($port_pre_short)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_pre_short['type']];
+		if (isset($port_pre_short[$port_num])) {
+			write_vals($param_paths['output_PRE_short_decay'] . port_fn($port_num), data_pre_short_decay($port_num));
+			write_vals($param_paths['output_PRE_short_level'] . port_fn($port_num), data_pre_short_level($port_num));
+		}
+	}
+}
 
-    // program ISE
-    if ($debug) echo "<!-- program ISE -->\n";
-    if (isGlobalSet($port_ise)){
-      i2c_send_or_die( $i2c_GlobalInputISE,data_ise(-1));
-    }
-    if (isIndividualSet($port_ise)) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputISE);
-       for($index=0;$index<12;$index++) if (isset($port_ise[$index])){
-         i2c_send_or_die($index,data_ise($index));
-       }
-    }
+// program output level
+if ($debug)
+	echo "<!-- program output level -->\n";
+if (isGlobalSet($port_out_level)) {
+	$all_out_level = data_out_level(-1);
+	foreach ($all_out_level as $port_num => $level) {		
+		write_vals($param_paths['output_level'] . port_fn($port_num), $level);
+	}
+}
+if (isIndividualSet($port_out_level)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_out_level['type']];
+		if (isset($port_out_level[$port_num])) {
+			write_vals($param_paths['output_level'] . port_fn($port_num), data_out_level($port_num));
+		}
+	}
+}
+	
+// program Output State
+if ($debug)
+	echo "<!-- program output state -->\n";
+if (isGlobalSet($port_out_state)) {
+	$all_out_state = data_out_state(-1);
+	$all_oob_state = data_oob_state(-1);
+	write_vals($param_paths['forward_OOB'] . 'all', $all_oob_state);
+	foreach ($all_out_state as $port_num => $state) {
+		write_vals($param_paths['output_mode'] . port_fn($port_num), $state);
+	}
+}
+if (isIndividualSet($port_out_state)) {
+	for ($index = 0; $index < count($channels); $index++) {
+		$port_num = $channels[$index][$port_out_state['type']];
+		if (isset($port_out_state[$port_num])) {
+			write_vals($param_paths['output_mode'] . port_fn($port_num), data_out_state($port_num));
+			write_vals($param_paths['forward_OOB'] . port_fn($port_num), data_oob_state($port_num));
+		}
+	}
+}
 
-    // program InputState (program termination for inputs 8-11 during programming output
-    if ($debug) echo "<!-- program InputState -->\n";
-    $dflt_is=0;
-    if (isGlobalSet($port_input_state)){
-      $dflt_is=data_input_state(-1); // default may be specified even w/o init - it will apply to polarity and termination,
-                                     // for inputs that will be programmed anyway, not cause write to global register.
-///      if ($init) i2c_send_or_die( $i2c_GlobalInputState,$dflt_is); // will disable all ports - resets current connection
-    }
-    // here we have to scan all inputs, disable/enable only in $init mode
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputState); // select page 0x11  ($i2c_Page_InputState)
-    $shared_input_termination=array();
-    for ($index=0;$index<12;$index++) {
-      $powerOn=$activeInputs[$index] || isset($port_input_state[$index]); // programming input implies it is on
-      $data=$dflt_is;
-      if (isset($port_input_state[$index])) $data=data_input_state($index);
-      $data&=5; // removing poweroff
-      if (!$powerOn) $data |=2; 
-//      if (isGlobalSet($port_input_state) || $powerOn){
-      if ($init || $powerOn){
-         i2c_send_or_die($index, $data);  // do not turn off in non-init mode
-         if ($index>=8) $shared_input_termination[$index]=(($data&4)==0); // true - terminate
-      }
-    }
+if ($debug)
+	echo "<!-- program connections($init) -->\n";
+programConnections($init); // in init mode will disable unused outputs
 
-
-    if ($debug) echo "<!-- program LOS -->\n";
-    // program LOS
-    if (isGlobalSet($port_los)){
-      i2c_send_or_die( $i2c_GlobalInputLOS,data_port_los(-1));
-    }
-    if (isIndividualSet($port_los)) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputLOS);
-       for($index=0;$index<12;$index++) if (isset($port_los[$index])){
-         i2c_send_or_die($index,data_port_los($index));
-       }
-    }
-
-    if ($debug) echo "<!-- program pre-emphasis (long) -->\n";
-    // program pre-emphasis (long)
-    if (isGlobalSet($port_pre_long)){
-      i2c_send_or_die( $i2c_GlobalOutputPreLong,data_pre_long(-1));
-    }
-    if (isIndividualSet($port_pre_long)) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputPreLong);
-       for($index=0;$index<12;$index++) if (isset($port_pre_long[$index])){
-         i2c_send_or_die($index,data_pre_long($index));
-       }
-    }
-
-    if ($debug) echo "<!-- program pre-emphasis (short) -->\n";
-//    if ($debug) {echo '<!-- port_pre_short'; print_r($port_pre_short); echo "-->\n";}
-    // program pre-emphasis (short)
-    if (isGlobalSet($port_pre_short)){
-      i2c_send_or_die( $i2c_GlobalOutputPreShort,data_pre_short(-1));
-    }
-    if (isIndividualSet($port_pre_short)) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputPreShort);
-       for($index=0;$index<12;$index++) if (isset($port_pre_short[$index])){
-         i2c_send_or_die($index,data_pre_short($index));
-       }
-    }
-
-
-    // program output level and shared inputs (8..11) termination
-    if ($debug) echo "<!-- program output level -->\n";
-//    if ($debug) {echo '<!-- port_out_level'; print_r($port_out_level); echo "-->\n";}
-    if (isGlobalSet($port_out_level)){
-      i2c_send_or_die( $i2c_GlobalOutputLevel,data_out_level(-1));
-    }
-    if (isIndividualSet($port_out_level) ||
-               isset($shared_input_termination[ 8]) ||
-               isset($shared_input_termination[ 9]) ||
-               isset($shared_input_termination[10]) ||
-               isset($shared_input_termination[11])) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputLevel);
-       for($index=0;$index<12;$index++) if (isset($port_out_level[$index])){
-         i2c_send_or_die($index,data_out_level($index));
-       }
-       // extra input termination
-    if ($debug) echo "<!-- program shared inputs termination -->\n";
-       for($index=8;$index<12;$index++) if (isset($shared_input_termination[$index])){
-         i2c_send_or_die($index+4,$shared_input_termination[$index]?0x10:0);
-       }
-    }
-    
-    if ($debug) echo "<!-- program output state -->\n";
-    // program Output State
-    if (isGlobalSet($port_out_state)){
-      i2c_send_or_die( $i2c_GlobalOutputState,data_out_state(-1));
-    }
-    if (isIndividualSet($port_out_state)) {
-      i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputState);
-       for($index=0;$index<12;$index++) if (isset($port_out_state[$index])){
-         i2c_send_or_die($index,data_out_state($index));
-       }
-    }
-
-    if ($debug) echo "<!-- program connections($init) -->\n";
-    programConnections($init); // in init mode will disable unused outputs
-
-
-    if ($debug) echo '<!-- re-enabling updates (writing 0x'.dechex($i2c_CoreConfigurationData).' to 0x'.dechex($SA | $i2c_CoreConfiguration).' -->'."\n";
-    i2c_send_or_die( $i2c_CoreConfiguration,$i2c_CoreConfigurationData); // re-enable updates
-
-  exit(0);
+exit(0);
 
 function showUsage(){
   $script_name=trim($_SERVER['SCRIPT_NAME'],'/');
@@ -618,16 +768,16 @@ function readCurrentState()
 	$ise_medium = read_vals($param_paths['input_ISE_medium'] . port_fn());
 	$ise_long = read_vals($param_paths['input_ISE_long'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_ise['type']);
 		if ($debug)
-			echo "<!-- [" . $index . "] => " . 
-			"short: " . $ise_short[$index] . ", " .
-			"medium: " . $ise_medium[$index] . ", " .
-			"long: " . $ise_long[$index] . " -->\n";
-		$port_index = translate_index($index, 'in');
-		$port_ise[$port_index] = array(
-				'short' => $ise_short[$index],
-				'medium' => $ise_medium[$index],
-				'long' => $ise_long[$index]);
+			echo "<!-- [" . $port_index . "] => " . 
+			"short: " . $ise_short[$port_index] . ", " .
+			"medium: " . $ise_medium[$port_index] . ", " .
+			"long: " . $ise_long[$port_index] . " -->\n";
+		$port_ise[$channels[$index][$port_ise['type']]] = array(
+				'short' => $ise_short[$port_index],
+				'medium' => $ise_medium[$port_index],
+				'long' => $ise_long[$port_index]);
 	}
 	
 	// read InputState
@@ -637,16 +787,16 @@ function readCurrentState()
 	$port_invertion = read_vals($param_paths['input_invert'] . port_fn());
 	$input_off = read_vals($param_paths['input_off'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_input_state['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => " . 
-			"off: " . $input_off[$index] . ", " .
-			"terminate: " . $port_termination[$index] . ", " .
-			"invert: " . $port_invertion[$index] . " -->\n";
-		$activeInputs[$index] = $input_off[$index] == 0;
-		$port_index = translate_index($index, 'in');
-		$port_input_state[$port_index] = array(
-				'terminate' => $port_termination[$index],
-				'invert' => $port_invertion[$index]);
+			"off: " . $input_off[$port_index] . ", " .
+			"terminate: " . $port_termination[$port_index] . ", " .
+			"invert: " . $port_invertion[$port_index] . " -->\n";
+		$activeInputs[$channels[$index]['in']] = $input_off[$port_index] == 0;
+		$port_input_state[$channels[$index][$port_input_state['type']]] = array(
+				'terminate' => $port_termination[$port_index],
+				'invert' => $port_invertion[$port_index]);
 	}
 
 	// read LOS
@@ -654,11 +804,11 @@ function readCurrentState()
 		echo "<!-- read LOS -->\n";
 	$data = read_vals($param_paths['input_LOS'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_los['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => " .
-			"level: " . $data[$index] . " -->\n";
-		$port_index = translate_index($index, 'in');
-		$port_los[$port_index] = array('level' => $data[$index]);
+			"level: " . $data[$port_index] . " -->\n";
+		$port_los[$channels[$index][$port_los['type']]] = array('level' => $data[$port_index]);
 	}
 
 	// read pre-emphasis (long)
@@ -667,14 +817,14 @@ function readCurrentState()
 	$data_level = read_vals($param_paths['output_PRE_long_level'] . port_fn());
 	$data_decay = read_vals($param_paths['output_PRE_long_decay'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_pre_long['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => " .
-			"level: " . $data_level[$index] . ", " .
-			"decay: " . $data_decay[$index] . " -->\n";
-		$port_index = translate_index($index, 'out');
-		$port_pre_long[$port_index] = array(
-				'level' => $data_level[$index],
-				'decay' => $data_decay[$index]);
+			"level: " . $data_level[$port_index] . ", " .
+			"decay: " . $data_decay[$port_index] . " -->\n";
+		$port_pre_long[$channels[$index][$port_pre_long['type']]] = array(
+				'level' => $data_level[$port_index],
+				'decay' => $data_decay[$port_index]);
 	}
 	
 	// read pre-emphasis (short)
@@ -683,14 +833,14 @@ function readCurrentState()
 	$data_level = read_vals($param_paths['output_PRE_short_level'] . port_fn());
 	$data_decay = read_vals($param_paths['output_PRE_short_decay'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_pre_short['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => " .
-			"level: " . $data_level[$index] . ", " .
-			"decay: " . $data_decay[$index] . " -->\n";
-		$port_index = translate_index($index, 'out');
-		$port_pre_short[$port_index] = array(
-				'level' => $data_level[$index],
-				'decay' => $data_decay[$index]);
+			"level: " . $data_level[$port_index] . ", " .
+			"decay: " . $data_decay[$port_index] . " -->\n";
+		$port_pre_short[$channels[$index][$port_pre_short['type']]] = array(
+				'level' => $data_level[$port_index],
+				'decay' => $data_decay[$port_index]);
 	}
 
 	// read output level
@@ -698,11 +848,11 @@ function readCurrentState()
 		echo "<!-- read output level -->\n";
 	$data = read_vals($param_paths['output_level'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_out_level['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => " . 
-			"level: " . $data[$index] . " -->\n";
-		$port_index = translate_index($index, 'out');
-		$port_out_level[$port_index] = array('level' => $data[$index]);
+			"level: " . $data[$port_index] . " -->\n";
+		$port_out_level[$channels[$index][$port_out_level['type']]] = array('level' => $data[$port_index]);
 	}
 	
 	// read OutputState
@@ -711,14 +861,14 @@ function readCurrentState()
 	$data_mode = read_vals($param_paths['output_mode'] . port_fn());
 	$data_oob = read_vals($param_paths['forward_OOB'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_out_state['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => ".
-			"mode: " . $data_mode[$index] . ", " .
-			"OOB: " .$data_oob[$index] . " -->\n";
-		$port_index = translate_index($index, 'out');
-		$port_out_state[$port_index] = array(
-				'mode' => $data_mode[$index],
-				'oob' => $data_oob[$index]);
+			"mode: " . $data_mode[$port_index] . ", " .
+			"OOB: " .$data_oob[$port_index] . " -->\n";
+		$port_out_state[$channels[$index][$port_out_state['type']]] = array(
+				'mode' => $data_mode[$port_index],
+				'oob' => $data_oob[$port_index]);
 	}
 	
 	// read channel status
@@ -726,11 +876,11 @@ function readCurrentState()
 		echo "<!-- read channel status -->\n";
 	$data = read_vals($param_paths['status'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_channel_status['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "]" .
-			"status: " . $data[$index] . " -->\n";
-		$port_index = translate_index($index, 'in');
-		$port_channel_status[$port_index] = array('los' => $data[$index]);
+			"status: " . $data[$port_index] . " -->\n";
+		$port_channel_status[$channels[$index][$port_channel_status['type']]] = array('los' => $data[$port_index]);
 	}
 
 	// read connections
@@ -738,13 +888,14 @@ function readCurrentState()
 		echo "<!-- read connections -->\n";
 	$data = read_vals($param_paths['connections'] . port_fn());
 	for ($index = 0; $index < count($channels); $index++) {
+		$port_index = translate_index($index, $port_channel_input['type']);
 		if ($debug)
 			echo "<!-- [" . $index . "] => ".
-			"connection: " . $data[$index] . " -->\n";
-		$port_index = translate_index($index, 'out');
-		$val = (($data[$index] & 0x10) == 0) ? ($data[$index] & 0x0f) : -1;
-		$port_channel_input[$port_index] = array('input' => $val);
-		$activeOutputs[$index] = ($data[$index] & 0x10) == 0;
+			"connection: " . $data[$port_index] . " -->\n";
+		echo "<!-- port_index: " . $port_index . " -->\n";
+		$val = (($data[$port_index] & 0x10) == 0) ? ($data[$port_index] & 0x0f) : -1;
+		$port_channel_input[$channels[$index][$port_channel_input['type']]] = array('input' => $val);
+		$activeOutputs[$channels[$index]['out']] = ($data[$port_index] & 0x10) == 0;
 	}
 }
 
@@ -954,7 +1105,7 @@ function showCurrentStateHTML(){
    echo "<tr>\n";
     echo "<th>Connector</th>";
     echo "<td>J1...J11</td>";
-    for ($index=0;$index<count($channels);$index++) echo '<td>J'.$channels[$index]['connector'].'</td>';
+    for ($index=0;$index<count($channels);$index++) echo '<td>'.$channels[$index]['connector'].'</td>';
    echo "</tr>\n";
    echo "<tr>\n";
     echo "<th>Input</th>";
@@ -1125,9 +1276,9 @@ function data_input_state($index){ // need special treatment for ports 8..11 and
    return (($port_input_state[$index]['terminate'] >0)?0:4) | (($port_input_state[$index]['invert'] >0)?1:0) | ($poweroff? 2:0);
 }
 
-function data_port_los($index){
-   global $port_los;
-   return $port_los[$index]['level'] & 7;
+function data_port_los($index)
+{
+	return $GLOBALS['port_los'][$index]['level'] & 0x07;
 }
 
 function data_pre_long($index){
@@ -1135,31 +1286,83 @@ function data_pre_long($index){
    return (($port_pre_long[$index]['level'] & 0x0f)<<3) | ($port_pre_long[$index]['decay'] & 7);
 }
 
+function data_pre_long_decay($index)
+{
+	return $GLOBALS['port_pre_long'][$index]['decay'] & 0x07;
+}
+function data_pre_long_level($index)
+{
+	return $GLOBALS['port_pre_long'][$index]['level'] & 0x0f;
+}
+
+function data_pre_short_decay($index)
+{
+	return $GLOBALS['port_pre_short'][$index]['decay'] & 0x07;
+}
+function data_pre_short_level($index)
+{
+	return $GLOBALS['port_pre_short'][$index]['level'] & 0x0f;
+}
+
 function data_pre_short($index){
    global $port_pre_short;
    return (($port_pre_short[$index]['level'] & 0x0f)<<3) | ($port_pre_short[$index]['decay'] & 7);
 }
 
-function data_out_level($index){ // combine with inputs 8..11
-   global $port_out_level;
-   return $port_out_level[$index]['level'] & 0x0f;
+function data_out_level($index)
+{
+	if ($index == -1)
+		// return an array of values for each port
+		return $GLOBALS['port_out_level'][$index]['level'];
+	else
+		return $GLOBALS['port_out_level'][$index]['level'] & 0x0f;
 }
 
-function data_out_state($index){ // combine with inputs 8..11
-   global $port_out_state;
-   return (($port_out_state[$index]['mode'] & 0x0f)<<1) | ($port_out_state[$index]['oob']? 1:0);
+function data_input_terminate($index)
+{
+	return $GLOBALS['port_input_state'][$index]['terminate'] & 0x01;
+}
+
+function data_input_invert($index)
+{
+	if ($index == -1)
+		// return an array of values for each port
+		return $GLOBALS['port_input_state'][$index]['invert'];
+	else
+		return $GLOBALS['port_input_state'][$index]['invert'] & 0x01;
+}
+
+function data_out_state($index)
+{
+	if ($index == -1)
+		// return an array of values for each port
+		return $GLOBALS['port_out_state'][$index]['mode'];
+	else
+		return $GLOBALS['port_out_state'][$index]['mode'] & 0x0f;
+}
+function data_oob_state($index)
+{
+	return $GLOBALS['port_out_state'][$index]['oob'] & 0x01;
 }
 
 
 
 
-function isIndividualSet($array){
-  for ($i=0;$i<12;$i++) if (isset($array[$i]) )return true;
-  return false;
+function isIndividualSet($array)
+{
+	for($i = 0; $i < count($GLOBALS["channels"]); $i++) {
+		$port_num = $GLOBALS['channels'][$i][$array['type']];
+		if (isset($array[$port_num]))
+			return true;
+	}
+	return false;
 }
-function isGlobalSet($array){
-  if (isset($array[-1])) return true;
-  return false;
+
+function isGlobalSet($array)
+{
+	if (isset($array[-1]))
+		return true;
+	return false;
 }
 
 function i2c_send_or_die($reg,$data){
@@ -1187,7 +1390,46 @@ function getMultiVals($value){
 }
 
 
-function programConnections($disableUnused){
+function programConnections($disableUnused)
+{
+	global $debug, $channels, $connections, $activeOutputs, $activeInputs; // in init mode all the unused connections will be powered down
+	$disable_in = 0x01;
+	$disable_conn = 0x10;
+
+	// disable all inputs and reset all connections first
+// 	write_vals($GLOBALS['param_paths']['input_off'] . port_fn(), $disable_in);
+// 	write_vals($GLOBALS['param_paths']['connections'] . port_fn(), $disable_conn);
+	foreach ($connections as $connection) {
+		if ($debug) {
+			echo '<!-- connection in[' . $channels[$connection[0]]['in'] . '] -> out[' . $channels[$connection[1]]['out'] . ']-->' . "\n";
+			echo '<!-- connection in[' . $channels[$connection[1]]['in'] . '] -> out[' . $channels[$connection[0]]['out'] . ']-->' . "\n";
+		}
+		// inable inputs
+		write_vals($GLOBALS['param_paths']['input_off'] . port_fn($channels[$connection[0]]['in']), 0);
+		write_vals($GLOBALS['param_paths']['input_off'] . port_fn($channels[$connection[1]]['in']), 0);
+		// set connections
+		write_vals($GLOBALS['param_paths']['connections'] . port_fn($channels[$connection[0]]['out']), $channels[$connection[1]]['in']);
+		write_vals($GLOBALS['param_paths']['connections'] . port_fn($channels[$connection[1]]['out']), $channels[$connection[0]]['in']);
+	}
+	// disable unused outputs and inputs
+	if ($disableUnused) {
+		foreach ($activeOutputs as $port => $value) {
+			if (!$value) {
+				if ($debug)
+					echo '<!-- disabling unused output ' . $port . ' -->' . "\n";
+				write_vals($GLOBALS['param_paths']['connections'] . port_fn($port), $disable_conn);
+			}
+		}
+		foreach ($activeInputs as $port => $value) {
+			if (!$value) {
+				if ($debug)
+					echo '<!-- disabling unused input ' . $port . ' -->' . "\n";
+				write_vals($GLOBALS['param_paths']['input_off'] . port_fn($port), $disable_in);
+			}
+		}
+	}
+}
+function programConnections_old($disableUnused){
   global $debug,$channels,$connections,$activeOutputs,$activeInputs,$BUS,$SA, $i2c_CurrentPage,$i2c_Page_Connection,$i2c_Page_InputState,$i2c_Page_OutputLevel; // in init mode all the unused connections will be powered down
     if ($debug) echo '<!-- selecting Page Connection -->'."\n";
     i2c_send_or_die($i2c_CurrentPage,$i2c_Page_Connection); // select page 0  ($i2c_Page_Connection)
@@ -1215,8 +1457,8 @@ function listSettings(){
   global $debug,$channels,$connections;
     echo "<h4>Connections</h4>\n<ul>";
   foreach ($connections as $connection) {
-    echo '<li>'.$channels[$connection[0]]['name'].' ( J'.$channels[$connection[0]]['connector'].' ) <==> '.
-                $channels[$connection[1]]['name'].' ( J'.$channels[$connection[1]]['connector'].' ):   '."\t".
+    echo '<li>'.$channels[$connection[0]]['name'].' ( '.$channels[$connection[0]]['connector'].' ) <==> '.
+                $channels[$connection[1]]['name'].' ( '.$channels[$connection[1]]['connector'].' ):   '."\t".
                 'in['.$channels[$connection[0]]['in'].'] -> out['.$channels[$connection[1]]['out'].'];   '."\t". 
                 'in['.$channels[$connection[1]]['in'].'] -> out['.$channels[$connection[0]]['out'].'] </li>'."\n";
   }
@@ -1227,7 +1469,7 @@ function parsePort($name){
   if ((strtolower($name)=='global') || (strtolower($name)=='all')) {
     return -1;
   }
-  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==('j'.strtolower($channels[$i]['connector'])))){
+  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==(strtolower($channels[$i]['connector'])))){
      return $i;
   }
   $a=sscanf($name,"%d");
@@ -1239,7 +1481,7 @@ function parseInPort($name){
   if ((strtolower($name)=='global') || (strtolower($name)=='all')) {
     return -1;
   }
-  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==('j'.strtolower($channels[$i]['connector'])))){
+  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==(strtolower($channels[$i]['connector'])))){
      return $channels[$i]['in'];
   }
   $a=sscanf($name,"%d");
@@ -1250,7 +1492,7 @@ function parseOutPort($name){
   if ((strtolower($name)=='global') || (strtolower($name)=='all')) {
     return -1;
   }
-  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==('j'.strtolower($channels[$i]['connector'])))){
+  for ($i=0;$i<count($channels);$i++) if ((strtolower($name)==strtolower($channels[$i]['name'])) || (strtolower($name)==(strtolower($channels[$i]['connector'])))){
      return $channels[$i]['out'];
   }
   $a=sscanf($name,"%d");
@@ -1271,9 +1513,10 @@ function exitError($text){
 function port_fn($port_num = -1)
 {
 	if ($port_num == -1)
-		return "all";
+		$name = "all";
 	else
-		return printf("port_%02d", $port_num);
+		$name = sprintf("port_%02d", $port_num);
+	return $name;
 }
 
 /** Read one string from sysfs file, split it and return an array of values */
@@ -1292,24 +1535,123 @@ function read_vals($file_name)
 	return $substr;
 }
 
+/** Write a parameter or set of parameters to sysfs file. $vals is an array containing 
+ * parameters to set or a single value. If $vals contais more than one parameter then $file_name should be 'all' */
+function write_vals($file_name, $vals)
+{
+	$f = fopen($file_name, 'w');
+	if ($f !== false) {
+		if (is_array($vals))
+			$str = implode(' ', $vals);
+		else 
+			$str = (string)$vals;
+		$num = fwrite($f, $str);
+		fclose($f);
+	}
+}
+
 /** Find port index in the channels list by zero based index given */
 function translate_index($index, $dir)
 {
-	global $channels;
-	$port_index = -1;
 	$offset = 8;                  // VSC3304 port numbering starts from 08, the offset is used to minimize legacy code modifications 
-	$ret = -1;
+
+	return $GLOBALS['channels'][$index][$dir] - $offset;
+}
+
+/** Get maximal port number from the list of all channels. This function is use to check 
+ * port number provided by user. */
+function max_port_num($dir)
+{
+	global $channels;
+	$max_chn = -1;
 	
-	
-	for ($i = 0; $i < count($channels); $i++) {
-		if ($channels[$i][$dir] == ($index + $offset))
-			$port_index = $i;
+	foreach ($channels as $chn) {
+		if ($chn[$dir] > $max_chn)
+			$max_chn = $chn[$dir];
 	}
-	if ($port_index != -1) {
-		$ret = $channels[$port_index][$dir];
+	
+	return $max_chn;
+}
+
+/** Update channels table in accordance with selected signal path */
+function set_channels($port1, $port2, $conn, $port_num, $pcb_conn, &$channels)
+{
+	// check if the port connection (port1 <-> port2) is valid
+	$conn_variant = array();
+	$name_variants = array(strtoupper($port1) . '<->' . strtoupper($port2), strtoupper($port2) . '<->' . strtoupper($port1));
+	if (array_key_exists($name_variants[0], $conn)) {
+		$conn_variant = $conn[$name_variants[0]];
+	} elseif (array_key_exists($name_variants[1], $conn)) {
+		$conn_variant = $conn[$name_variants[1]];
 	}
 	
-	return $ret;
+	// update channels table in accordance with the connection mode
+	if (!empty($conn_variant)) {
+		$pair1 = array($conn_variant[0]['FROM'], $conn_variant[1]['TO']);
+		$pair2 = array($conn_variant[1]['FROM'], $conn_variant[0]['TO']);
+		foreach ($channels as &$chn) {
+			if (empty(array_diff($chn['phy_ports'], $pair1))) {
+				$chn['in'] = $port_num[$pcb_conn[$pair1[0]]]['in'];
+				$chn['out'] = $port_num[$pcb_conn[$pair1[1]]]['out'];
+			} elseif (empty(array_diff($chn['phy_ports'], $pair2))) {
+				$chn['in'] = $port_num[$pcb_conn[$pair2[0]]]['in'];
+				$chn['out'] = $port_num[$pcb_conn[$pair2[1]]]['out'];
+			}
+		}
+	}
+}
+
+/** Convert zero based index to port number */
+function index_to_port_num($index)
+{
+	$offset = 8;                  // VSC3304 port numbering starts from 08, the offset is used to minimize legacy code modifications 
+	return $index + $offset;
+}
+
+/** Read sysfs and update channels table */
+function update_chn_from_sysfs()
+{
+	$paths = $GLOBALS['param_paths'];
+	$out = read_vals($paths['connections'] . 'all');
+	for ($index = 0; $index < count($out); $index++) {
+		if (($out[$index] & 0x10) == 0) {
+			$phy_port_in = pname_from_pnum($out[$index], 'in');
+			$phy_port_out = pname_from_pnum(index_to_port_num($index), 'out');
+			$pcb_conn_in = array_search($phy_port_in, $GLOBALS['pcb_connections']);
+			$pcb_conn_out = array_search($phy_port_out, $GLOBALS['pcb_connections']);
+			foreach ($GLOBALS['channels'] as &$chn) {
+				if (in_array($pcb_conn_in, $chn['phy_ports'])) {
+					$chn['in'] = $out[$index];
+				} elseif (in_array($pcb_conn_out, $chn['phy_ports'])) {
+					$chn['out'] = index_to_port_num($index);
+				}
+			}
+		}
+	}
+}
+
+/** Find port name from its corresponding number and direction */
+function pname_from_pnum($port_num, $port_dir)
+{
+	foreach ($GLOBALS['port_num'] as $phy_name => $pair) {
+		if ($pair[$port_dir] == $port_num)
+			return $phy_name;
+	}
+	return '';
+}
+
+function apply_defaults($param_dir, $data)
+{
+	if (is_array($data)) {
+		for ($index = 0; $index < count($data); $index++) {
+			$fname = $param_dir . port_fn(index_to_port_num($index));
+			if (file_exists($fname)) {
+				write_vals($fname, $data[$index]);
+			}
+		}
+	} else {
+		write_vals($param_dir . 'all', $data);
+	}
 }
 
 ?> 
