@@ -19,82 +19,10 @@
 *!  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *! -----------------------------------------------------------------------------**
 */
-// require 'i2c.inc';
-// include 'show_source.inc';
 
 $debug=false;
-$BUS=1; // 1 - 10369, 0 - 10359 (sensor)
-$slaveAddrVCS3312=     0x2d;
-
-$i2c_Page_Connection=      0x00; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding output (0..0xf) source (input number)
-                                 // bit 4 (+0x10) - turn output off, bits 3:0 - source
-$i2c_Page_InputISE=        0x10; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding input (0..0xf) ISE (equalization):
-                                 // Bits 5:4 ISE short: 0 - off, 1 - minimal, 2 - moderate, 3 - maximal; bits 3:2 ISE medium, bits 1:0 ISE Long time constant
-$i2c_Page_InputState=      0x11; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding input (0..0xf) enable, polarity and termination (default 6)
-                                 // Bit 2 (+4) Terminate to VDD ( 0 - connect,  1 - do not connect) - dedicated (0..7) inputs only
-                                 // Bit 1 (+2) Input power (0 - on, 1 - off)
-                                 // Bit 0 (+1) Invert signal at input 
-///$i2c_InputStateData=       0x04; // terminated,enabled, not inverted
-$i2c_InputStateData=       0x00; // terminated,disabled, not inverted
-$i2c_Page_InputLOS=        0x12; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding input (0..0xf) LOS (loss of signal) threshold
-                                 // Bits 2:0 - level in mV for dedicated(bidirectional) inputs: 0,1,6,7 - unused, 2 - 150(170), 3 - 200(230), 4 - 250(280), 5 - 300(330)
-$i2c_Page_OutputPreLong=   0x20; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding output (0..0xf) long time constant pre-emphasis
-                                 // Bits 6:3 Pre-Emphasis level (0x0 - off, 0x1 - min, 0xf - max - 0..6dB), bits 2:0 - Pre-emphasis decay (0x0 - fastest, 0x7 - slowest) in 500..1500 ps range
-$i2c_Page_OutputPreShort=  0x21; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding output (0..0xf) short time constant pre-emphasis
-                                 // Bits 6:3 Pre-Emphasis level (0x0 - off, 0x1 - min, 0xf - max - 0..6dB), bits 2:0 - Pre-emphasis decay (0x0 - fastest, 0x7 - slowest) in 30..500 ps range
-$i2c_Page_OutputLevel=     0x22; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding output (0..0xf) short time constant pre-emphasis
-                                 // Bits 3:0 - peak-to-peak 0,1,0xe,0xf - unused, 0x2-405mV,0x3-425V,0x4-455mV,0x5-485mV,0x6-520mV,0x7-555mV,0x8-605mV,0x9-655mV,0xa-720mV,0xb-790mV,0xc-890mV,0xd-990mV (+3.3VDC required)
-                                 // bit 4 (+0x10) - for 8-15 used as inputs only: terminate inputs 8..15 to VDDIO-0.7V
-$i2c_Page_OutputState=     0x23; // When written to $i2c_CurrentPage, makes registers 0..0xf control corresponding output (0..0xf) OOB signaling and output polarity
-                                 // bits 4:1 - operation mode: 0xa  - inverted, 0x5 - normal, 0x0 - suppressed
-                                 // bit 0 - OOB control:     1 - enable LOS forwarding, 0 - ignore LOS
-$i2c_Page_ChannelStatus=   0xf0; // When written to $i2c_CurrentPage, makes registers 0..0xf monitor corresponding input (0..0xf) LOS status
-                                 // bit 0 - LOS status: 1 - LOS detected (loss of signal), 0 - signal present (input has to be enabled, otherwise 0 is read)
-                                 // when reading from address 0x10 of this page:
-                                 //  bit 0 - value of STAT0
-                                 //  bit 1 - value of STAT1
-$i2c_Page_Status0Configure=0x80; // When written to $i2c_CurrentPage, makes registers 0..0xf control selected input LOS to be OR-ed to STAT0 output pin (and bit)
-                                 // bit 0 : 1 - OR this input channel LOS status to STAT0
-$i2c_Page_Status1Configure=0x81; // When written to $i2c_CurrentPage, makes registers 0..0xf control selected input LOS to be OR-ed to STAT1 output pin (and bit)
-                                 // bit 0 : 1 - OR this input channel LOS status to STAT1
-
-$i2c_GlobalConnection=     0x50; // Bit 4 (+0x10) - disable all outputs, bits 3:0 - input number to connect to all outputs
-$i2c_GlobalInputISE=       0x51; // Bits 5:4 ISE short: 0 - off, 1 - minimal, 2 - moderate, 3 - maximal; bits 3:2 ISE medium, bits 1:0 ISE Long time constant
-$i2c_GlobalInputState=     0x52; // Bit 2 (+4) - terminate input to VDD (0..7 only) 0-connect, 1 Normal; Bit 1 (+2) Input power off (0 - On, 1 - Off) bit0 (+1): Input polarity: 1 - inverted, 0 - normal 
-$i2c_GlobalInputLOS=       0x53; // Bits 2:0 - level in mV for dedicated(bidirectional) inputs: 0,1,6,7 - unused, 2 - 150(170), 3 - 200(230), 4 - 250(280), 5 - 300(330)
-$i2c_GlobalOutputPreLong=  0x54; // Bits 6:3 Pre-Emphasis level (0x0 - off, 0x1 - min, 0xf - max - 0..6dB), bits 2:0 - Pre-emphasis decay (0x0 - fastest, 0x7 - slowest) in 500..1500 ps range
-$i2c_GlobalOutputPreShort= 0x55; // Bits 6:3 Pre-Emphasis level (0x0 - off, 0x1 - min, 0xf - max - 0..6dB), bits 2:0 - Pre-emphasis decay (0x0 - fastest, 0x7 - slowest) in 30..500 ps range
-$i2c_GlobalOutputLevel=    0x56; // Bits 3:0 - peak-to-peak 0,1,0xe,0xf - unused, 0x2-405mV,0x3-425V,0x4-455mV,0x5-485mV,0x6-520mV,0x7-555mV,0x8-605mV,0x9-655mV,0xa-720mV,0xb-790mV,0xc-890mV,0xd-990mV (+3.3VDC required)
-                                 // bit 4 (+0x10) terminate inputs 8..15 to VDDIO-0.7V
-$i2c_GlobalOutputState=    0x57; // +1 (bit 0) - LOS, +0x15 - inverted, 0xa0 - normal, +0 - "Common mode" ?
-$i2c_GlobalOutputStateData=0x0b; // No inversion, enable OOB forwarding on all channels
-$i2c_Status0=              0x58; // Bit 0 - selected for Status0 chanel LOS on
-$i2c_Status1=              0x59; // Bit 0 - selected for Status1 chanel LOS on // Which channel LOS to show on Status1 output/bit
-$i2c_CoreConfiguration=    0x75;
-$i2c_CoreConfigurationData= 0x18; // default 0x18 - 0x10 - leftEn, 0x8 - rightEn, 0x4 - DNU, 0x2 - BufferForceOn, 0x1 - Config polarity
-$i2c_CoreConfigurationDataF=0x19; // default with inverted Config polarity (freeze update)
-$i2c_SlaveAddress=         0x78; // programmed only, not hardwired
-$i2c_InterfaceMode=        0x79;
-$i2c_InterfaceModeData=    0x02; // i2c (1 - 4-wire)
-$i2c_SoftwareReset=        0x7a;
-$i2c_SoftwareResetData=    0x10; // to reset, 0 - normal
-$i2c_CurrentPage=          0x7f;
-
 $vsc_sysfs_dir = '/sys/devices/soc0/amba@0/e0004000.ps7-i2c/i2c-0/0-0001';
-
 $connections=array(); // pairs, first index< second
-// $channels=array(
-//                   array('in'=>10,  'out'=> 3, 'name'=>'host1', 'connector'=> 1),
-//                   array('in'=> 3,  'out'=>10, 'name'=>'host2', 'connector'=> 2),
-//                   array('in'=> 0,  'out'=> 5, 'name'=>'host3', 'connector'=> 3),
-//                   array('in'=> 4,  'out'=> 4, 'name'=>'host4', 'connector'=> 4),
-//                   array('in'=> 9,  'out'=> 0, 'name'=>'host5', 'connector'=> 5),
-//                   array('in'=> 7,  'out'=> 9, 'name'=>'host6', 'connector'=> 6),
-//                   array('in'=>11,  'out'=> 1, 'name'=>'ssd1',  'connector'=> 7),
-//                   array('in'=> 8,  'out'=> 6, 'name'=>'ssd2',  'connector'=> 8),
-//                   array('in'=> 5,  'out'=>11, 'name'=>'ssd3',  'connector'=> 9),
-//                   array('in'=> 2,  'out'=> 2, 'name'=>'ssd4',  'connector'=>10),
-//                   array('in'=> 1,  'out'=> 8, 'name'=>'ssd5',  'connector'=>11));
 
 $pcb_connections = array(
 		'ESATA_A' => 'A',
@@ -141,16 +69,6 @@ $vsc3304_connections = array(
 		'ESATA<->SSD'  => array(array('FROM' => 'SSD_B', 'TO'   => 'ESATA_B'),
 								array('FROM' => 'ESATA_A', 'TO' => 'SSD_A'))
 );
-
-// $channels=array(
-// 		array('in'=> 12, 'out'=> 8,  'name'=>'A', 'connector'=> 'ESATA_A'),
-//         array('in'=> 13, 'out'=> 9,  'name'=>'B', 'connector'=> ''),
-//         array('in'=> 14, 'out'=> 10, 'name'=>'C', 'connector'=> 'ESATA_B'),
-//         array('in'=> 15, 'out'=> 11, 'name'=>'D', 'connector'=> ''),
-//         array('in'=> 8,  'out'=> 12, 'name'=>'E', 'connector'=> 'SSD_A'),
-//         array('in'=> 9,  'out'=> 13, 'name'=>'F', 'connector'=> 'SSD_B'),
-//         array('in'=> 10, 'out'=> 14, 'name'=>'G', 'connector'=> 'ZYNQ_A'),
-//         array('in'=> 11, 'out'=> 15, 'name'=>'H', 'connector'=> 'ZYNQ_B'));
 
 /** Paths to parameters in sysfs */
 $param_paths = array(
@@ -214,13 +132,10 @@ $port_channel_status['type'] = 'in';
 $port_channel_input['type']  = 'out';
 if ($init) {
  	$port_ise[-1]=         array('short'=>0,'medium'=>0,'long'=>0);
-// 	$port_input_state[-1]= array('terminate'=>0,'invert'=>0); // change to no termination?
 	$port_ise[-1]=         array('short'=>0,'medium'=>0,'long'=>0);
 	$port_los[-1]=         array('level'=>4); // 250 mv
 	$port_pre_long[-1]=    array('level'=>0,'decay'=>0);
 	$port_pre_short[-1]=   array('level'=>0,'decay'=>0);
-// 	$port_out_level[-1]=   array('level'=>6);
-// 	$port_out_state[-1]=   array('mode'=>5,'oob'=>1);
 	
 	// set the value that the register has after reset 
 	$vals = array();
@@ -256,7 +171,6 @@ if ($init) {
 	$port_out_state[-1] = array('mode' => $vals, 'oob' => 1);
 
 }
-$SA=$slaveAddrVCS3312<<8;
 
 
 update_chn_from_sysfs();
@@ -439,31 +353,10 @@ EOT;
 	
 if (isset($_GET['list']))
 	listSettings();
-// $activeOutputs = array(false, false, false, false, false, false, false, false);
-// $activeOutputs = array(	$port_num['A']['out'] => false,
-// 						$port_num['B']['out'] => false,
-// 						$port_num['C']['out'] => false,
-// 						$port_num['D']['out'] => false,
-// 						$port_num['E']['out'] => false,
-// 						$port_num['F']['out'] => false,
-// 						$port_num['G']['out'] => false,
-// 						$port_num['H']['out'] => false
-// );
 foreach ($port_num as $pn) {
 	$activeOutputs[$pn['out']] = false;
 	$activeInputs[$pn['in']] = false;
 };
-// $activeInputs = array(false, false, false, false, false, false, false, false);
-// $activeInputs = array(	$port_num['A']['in'] => false,
-// 						$port_num['B']['in'] => false,
-// 						$port_num['C']['in'] => false,
-// 						$port_num['D']['in'] => false,
-// 						$port_num['E']['in'] => false,
-// 						$port_num['F']['in'] => false,
-// 						$port_num['G']['in'] => false,
-// 						$port_num['H']['in'] => false
-// );
-
 foreach ($connections as $connection) {
 	$activeOutputs[$channels[$connection[0]]['out']] = true;
 	$activeOutputs[$channels[$connection[1]]['out']] = true;
@@ -899,116 +792,6 @@ function readCurrentState()
 	}
 }
 
-function readCurrentState_old(){
- global $debug, $i2c_InterfaceMode,$i2c_InterfaceModeData,$SA;
- global $i2c_CurrentPage,$activeInputs,$activeOutputs;
- global $port_ise,$port_input_state,$port_los,$port_pre_long,$port_pre_short,$port_out_level;
- global $port_out_state,$port_channel_status,$port_channel_input;
- global $i2c_Page_InputISE, $i2c_Page_InputState,$i2c_Page_InputLOS,$i2c_Page_OutputPreLong,$i2c_Page_OutputPreShort;
- global $i2c_Page_OutputLevel, $i2c_Page_OutputState,$i2c_Page_ChannelStatus,$i2c_Page_Connection;
-    if ($debug) echo '<!-- setting i2c mode (writing 0x'.dechex($i2c_InterfaceModeData).' to 0x'.dechex($SA | $i2c_InterfaceMode).' -->'."\n";
-    i2c_send_or_die($i2c_InterfaceMode,$i2c_InterfaceModeData); // set i2c mode
-// Read ISE
-    if ($debug) echo "<!-- reading ISE -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputISE);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_ise[$index]=array(
-       'short'=>($data>>4)&3,
-       'medium'=>($data>>2)&3,
-       'long'=>($data)&3);
-    }
-// Read InputState (program termination for inputs 8-11 during programming output
-    if ($debug) echo "<!-- read InputState -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputState); // select page 0x11  ($i2c_Page_InputState)
-    for ($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $activeInputs[$index]=($data & 2) == 0;
-      $port_input_state[$index]= array(
-        'terminate'=>((($data>>2)&1)==0)?1:0,
-        'invert'=>   ($data   )&1);
-    }
-    // read LOS
-    if ($debug) echo "<!-- read LOS -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_InputLOS);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_los[$index]=   array('level'=>$data);
-    }
-
-    // read pre-emphasis (long)
-    if ($debug) echo "<!-- read pre-emphasis (long) -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputPreLong);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_pre_long[$index]=    array(
-         'level'=>($data>>3)&0x0f,
-         'decay'=> $data & 7);
-    }
-
-    // read pre-emphasis (short)
-    if ($debug) echo "<!-- read pre-emphasis (short) -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputPreShort);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_pre_short[$index]=    array(
-         'level'=>($data>>3)&0x0f,
-         'decay'=> $data & 7);
-    }
-
-    // program output level and shared inputs (8..11) termination
-    if ($debug) echo "<!-- read output level -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputLevel);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_out_level[$index]=    array(
-         'level'=>$data& 0x0f);
-     if ($index>=8){
-      $data=i2c_get_or_die($index+4);
-      if ($debug) echo "<!-- [".($index+4)."] => ".$data." -->\n";
-       $port_input_state[$index]['terminate']=(($data & 0x10)==0)?0:1;
-     }
-
-    }
-
-    // read Output State
-    if ($debug) echo "<!-- read output state -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_OutputState);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_out_state[$index]=    array(
-         'mode'=>($data>>1)& 0x0f,
-         'oob'=> $data & 1);
-    }
-
-    // read Channel Status
-    if ($debug) echo "<!-- read channel status -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_ChannelStatus);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_channel_status[$index]=    array(
-         'los'=> $data & 1);
-    }
-   // Read connections
-    if ($debug) echo "<!-- read connections -->\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_Connection);
-    for($index=0;$index<12;$index++) {
-      $data=i2c_get_or_die($index);
-      if ($debug) echo "<!-- [".$index."] => ".$data." -->\n";
-      $port_channel_input[$index]=    array(
-         'input'=> (($data & 0x10)==0)?($data & 0x0f):-1);
-      $activeOutputs[$index]=($data & 0x10)==0;
-    }
-
-}
 // TODO: add XML version
 function values_los_dedicated($index){
    $values =array(
@@ -1365,24 +1148,6 @@ function isGlobalSet($array)
 	return false;
 }
 
-function i2c_send_or_die($reg,$data){
-   global $BUS,$SA,$debug,$dry;
-   if ($debug) echo '<!--      '.($dry?'Simulating writing':'Writing').' to register 0x'.dechex($SA | $reg).', data=0x'.dechex($data)."-->\n";
-   if ($dry) return;
-   $rslt=i2c_send(8,$BUS,$SA | $reg, $data);
-   if (!($rslt>0)) exitError('i2c write error to register 0x'.dechex($SA | $reg).', data=0x'.dechex($data).', returned '.$rslt.'\n'); // will exit
-}
-function i2c_get_or_die($reg){
-   global $BUS,$SA,$debug,$dry;
-   if ($debug) echo '<!--      '.($dry?'Simulating reading':'Reading').' register 0x'.dechex($SA | $reg)."-->\n";
-   if ($dry) return 0;
-//function i2c_receive($width,$bus,$a,$raw=0) {
-   $rslt=i2c_receive(8,$BUS,$SA | $reg);
-   if (!($rslt>=0)) exitError('i2c read error from register 0x'.dechex($SA | $reg).'\n'); // will exit
-   return $rslt;
-}
-
-
 function getMultiVals($value){
    $aval=explode(':',$value);
    for ($i=0;$i<count($aval);$i++) $aval[$i]+=0;
@@ -1397,8 +1162,6 @@ function programConnections($disableUnused)
 	$disable_conn = 0x10;
 
 	// disable all inputs and reset all connections first
-// 	write_vals($GLOBALS['param_paths']['input_off'] . port_fn(), $disable_in);
-// 	write_vals($GLOBALS['param_paths']['connections'] . port_fn(), $disable_conn);
 	foreach ($connections as $connection) {
 		if ($debug) {
 			echo '<!-- connection in[' . $channels[$connection[0]]['in'] . '] -> out[' . $channels[$connection[1]]['out'] . ']-->' . "\n";
@@ -1429,28 +1192,6 @@ function programConnections($disableUnused)
 		}
 	}
 }
-function programConnections_old($disableUnused){
-  global $debug,$channels,$connections,$activeOutputs,$activeInputs,$BUS,$SA, $i2c_CurrentPage,$i2c_Page_Connection,$i2c_Page_InputState,$i2c_Page_OutputLevel; // in init mode all the unused connections will be powered down
-    if ($debug) echo '<!-- selecting Page Connection -->'."\n";
-    i2c_send_or_die($i2c_CurrentPage,$i2c_Page_Connection); // select page 0  ($i2c_Page_Connection)
-    foreach ($connections as $connection) {
-      if ($debug) {
-        echo '<!-- connection in['.$channels[$connection[0]]['in'].'] -> out['.$channels[$connection[1]]['out'].']-->'."\n";
-        echo '<!-- connection in['.$channels[$connection[1]]['in'].'] -> out['.$channels[$connection[0]]['out'].']-->'."\n";
-      }
-      i2c_send_or_die($channels[$connection[1]]['out'],$channels[$connection[0]]['in']);  // connect out to ssd to in from host
-      i2c_send_or_die($channels[$connection[0]]['out'],$channels[$connection[1]]['in']);  // connect out to host to in from ssd
-    }
-// disable unused outputs
-   if ($disableUnused) {
-    $disabledConnection=0x10;
-     for ($i=0;$i<count($activeOutputs);$i++) if (!$activeOutputs[$i]) {
-       if ($debug) echo '<!-- disabling unused output'.$i.' -->'."\n";
-       i2c_send_or_die($i, $disabledConnection);  // connect out to ssd to in from host
-     }
-   }
-}
-
 
 
 function listSettings(){
