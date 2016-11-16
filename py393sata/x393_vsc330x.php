@@ -109,7 +109,6 @@ if (count($_GET) == 0) {
 
 $debug= isset($_GET['debug']);
 $init= !isset($_GET['noinit']); // default - on
-$dry=   isset($_GET['dry']); // dry run, no actual programming over i2c
 $error=false;
 $port_ise =        array(); //-1=>'','','','','','','','','','','','',''); // -1(all),0..11
 $port_input_state= array(); //-1=>'','','','','','','','','','','','',''); // -1(all),0..11
@@ -564,8 +563,7 @@ function showUsage(){
 <h3>Commands w/o parameters</h3>
 <ul>
  <li><i>list</i> - show settings to be programmed</li>
- <li><i>debug</i> - output all I<sup>2</sup>C commands as HTML comments (visible with "view source")</li>
- <li><i>dry</i> - "dry run" - simulation only, no I<sup>2</sup>C commands are sent to the device</li>
+ <li><i>debug</i> - output additional information, such as the content of arrays, as HTML comments (visible with "view source" menu option in browser)</li>
  <li><i>noinit</i> - update only what is specified, do not disable unused i/o</li>
  <li><i>state</i> - show current programmed state of the multiplexer</li>
  <li><i><a href="$prefix_url?source">source</a></i> - show program source code (no other actions)</li>
@@ -574,44 +572,47 @@ function showUsage(){
 <p>All commands with parameters have format:</p>
 <p><b>command:port=value</b>, where port can be specified in one of the following ways:</p>
 <ul>
- <li><i>numeric</i> - 0..11 specify I/O ports as specified for the VSC3312, "-1" means "all" (apply to all ports, lower precedence than specific ports)</li>
- <li><i>J&lt;number&gt;</i> - using connector reference designators as on 103697A circuit diagram (i.e.J3, J10)</li>
- <li><i>host&lt;number&gt;</i> - where number=1..6, with host1...host5 being 10353 (camera) boards and host6 - extrenal eSATA port</li>
- <li><i>ssd&lt;number&gt;</i> - where number=1..5, with ssd1...ssd4 being SSD directly inserted into the 103697A board and ssd5 - optional extra one connected with a cable</li>
+ <li><i>name</i> - name of a port as given in the "state" table header (i.e. SSD or ESATA)</li>
  <li><i>global</i> or <i>all</i> - apply to all ports (not valid for "connection" command).</ul>
 <br/>
 <h4>connection:port1=port2<br/>c:port1=port2</h4>
-<p>Connect two ports. The order of the ports is arbitrary, but one has be one of the hosts, and the other - one of the SSD. If <i>noinit</i> does not appear in the url, all unused inputs and outputs will be disabled to reduce power consumption.</p>
+<p>Connect two ports. The order of the ports is arbitrary. If <i>noinit</i> does not appear in the url, all unused inputs and outputs will be disabled to 
+ reduce power consumption.</p>
 <br/>
 <h4>ise:port=short_value:medium_value:long_value</h4>
-<p>Configure ISE (input signal equalization) levels for short, medium and long time constants. Each value is in the range 0..3 (0- off, 1 - minimal, 2 - moderate, 3 - maximal)</p>
+<p>Configure ISE (input signal equalization) levels for short, medium and long time constants. Each value is in the range 0..3 (0- off, 1 - minimal, 
+ 2 - moderate, 3 - maximal)</p>
 <br/>
 <h4>in_state:port=terminate:invert</h4>
-<p>Configure input port state. "terminate" (terminate input to VCC) can bne either 0 (off) or 1 (on), "invert" (also 0/1) control inversion of the input siognal polarity</p>
+<p>Configure input port state. "terminate" (terminate input to VCC) can be either 0 (off) or 1 (on), "invert" (also 0/1) control inversion of 
+ the input signal polarity</p>
 <br/>
 <h4>los:port=level</h4>
-<p>Configure input LOS (loss of signal) thershold level</p>
+<p>Configure input LOS (loss of signal) threshold level</p>
 <table border="1">
 <tr><th>level</th><th>threshold</th></tr>
 <tr><td>0</td><td>---</td></tr>
 <tr><td>1</td><td>---</td></tr>
-<tr><td>2</td><td>150 mV</td></tr>
-<tr><td>3</td><td>200 mV</td></tr>
-<tr><td>4</td><td>250 mV</td></tr>
-<tr><td>5</td><td>300 mV</td></tr>
+<tr><td>2</td><td>170 mV</td></tr>
+<tr><td>3</td><td>230 mV</td></tr>
+<tr><td>4</td><td>280 mV</td></tr>
+<tr><td>5</td><td>330 mV</td></tr>
 <tr><td>6</td><td>---</td></tr>
 <tr><td>7</td><td>---</td></tr>
 </table>
 <br/>
 <h4>pre_long:port=level:decay</h4>
-<p>Output pre-emphasis with 0.5ns-1.5ns decay, where. 4-bit level controls pre-emphasis amount from 0 (off) to 15 (6db), and decay - 3-bit decay, 0 corresponds to fastest (0.5ns) and 15 - slowest one (1.5ns).</p>
+<p>Output pre-emphasis with 0.5ns-1.5ns decay, where 4-bit level controls pre-emphasis amount from 0 (off) to 15 (6db), and decay - 3-bit decay, 
+ 0 corresponds to fastest (0.5ns) and 15 - slowest one (1.5ns).</p>
 <br/>
 <h4>pre_short:port=level:decay</h4>
-<p>Output pre-emphasis with 0.03 ns-0.5 ns decay, where. 4-bit level controls pre-emphasis amount from 0 (off) to 15 (6db), and decay - 3-bit decay, 0 corresponds to fastest (0.03ns) and 15 - slowest one (0.5ns).</p>
+<p>Output pre-emphasis with 0.03 ns-0.5 ns decay, where 4-bit level controls pre-emphasis amount from 0 (off) to 15 (6db), and decay - 3-bit decay, 
+ 0 corresponds to fastest (0.03ns) and 15 - slowest one (0.5ns).</p>
 <br/>
 
 <h4>out_level:port=level</h4>
-<p>Programs output power level - peak-to-peak differentioal voltage. These values have to be reduced when pre-emphasis is used as the actual signal adds the levels.</p>
+<p>Programs output power level - peak-to-peak differential voltage. These values have to be reduced when pre-emphasis is used as the actual signal 
+ adds the levels.</p>
 <table border="1">
 <tr><th>level</th><th>output voltage</th></tr>
 <tr><td> 0</td><td>---</td></tr>
@@ -620,20 +621,20 @@ function showUsage(){
 <tr><td> 3</td><td>425 mV</td></tr>
 <tr><td> 4</td><td>455 mV</td></tr>
 <tr><td> 5</td><td>485 mV</td></tr>
-<tr><td> 6</td><td>520 mv</td></tr>
-<tr><td> 7</td><td>555 mv</td></tr>
-<tr><td> 8</td><td>605 mv</td></tr>
-<tr><td> 9</td><td>655 mv</td></tr>
-<tr><td>10</td><td>720 mv</td></tr>
-<tr><td>11</td><td>790 mv</td></tr>
-<tr><td>12</td><td>890 mv</td></tr>
-<tr><td>13</td><td>990 mv (no avail. in 103697A)</td></tr>
+<tr><td> 6</td><td>520 mV</td></tr>
+<tr><td> 7</td><td>555 mV</td></tr>
+<tr><td> 8</td><td>605 mV</td></tr>
+<tr><td> 9</td><td>655 mV</td></tr>
+<tr><td>10</td><td>720 mV</td></tr>
+<tr><td>11</td><td>790 mV</td></tr>
+<tr><td>12</td><td>890 mV</td></tr>
+<tr><td>13</td><td>990 mV (3.3 V supply required)</td></tr>
 <tr><td>14</td><td>---</td></tr>
 <tr><td>15</td><td>---</td></tr>
 </table>
 <br/>
 <h4>out_state:port=mode:oob_forwarding</h4>
-<p>Controls output inversion and OOB forwarding.'oob' of 1 enables, 0 - disables OOB forwarding and 'mode' can be one of</p>
+<p>Controls output inversion and OOB forwarding. 'oob' of 1 enables, 0 - disables OOB forwarding and 'mode' can be one of</p>
 <table border="1">
 <tr><th>mode</th><th>Descrtiption</th></tr>
 <tr><td>0</td><td>disabled</td></tr>
@@ -884,11 +885,6 @@ function showCurrentStateHTML(){
     echo "<th>Name</th>";
     echo "<th>Range</th>";
     for ($index=0;$index<count($channels);$index++) echo '<th>'.$channels[$index]['name'].'</th>';
-   echo "</tr>\n";
-   echo "<tr>\n";
-    echo "<th>Connector</th>";
-    echo "<td>J1...J11</td>";
-    for ($index=0;$index<count($channels);$index++) echo '<td>'.$channels[$index]['connector'].'</td>';
    echo "</tr>\n";
    echo "<tr>\n";
     echo "<th>Input</th>";
