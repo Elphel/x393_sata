@@ -27,7 +27,8 @@ __status__ = "Development"
 #import sys
 
 # All unspecified ranges/fields default to fT:RO, fC:0 (readonly, reset value = 0)
-RID = 0x02   # Revision ID (use for bitstream version)
+#RID = 0x02   # Revision ID (use for bitstream version)
+RID = 0x03   # Revision ID (use for bitstream version)
 VID = 0xfffe # What to use for non-PCI "vendorID"?
 DID = 0x0001
 SSVID = 0xfffe

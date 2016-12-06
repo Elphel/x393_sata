@@ -1,4 +1,4 @@
-VivadoSynthesis_@_ConstraintsFiles=x393.xdc<-@\#\#@->x393_timing.xdc<-@\#\#@->
+VivadoSynthesis_@_ConstraintsFiles=top.xdc<-@\#\#@->ahci_timing.xdc<-@\#\#@->
 VivadoSynthesis_@_MaxMsg=10000
 VivadoSynthesis_@_OtherProblems=Netlist 29-345<-@\#\#@->Board 49-26<-@\#\#@->
 VivadoSynthesis_@_ShowInfo=false
