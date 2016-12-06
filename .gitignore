@@ -1,4 +1,5 @@
 .project
+.pydevproject
 unisims
 debug
 vivado_*
