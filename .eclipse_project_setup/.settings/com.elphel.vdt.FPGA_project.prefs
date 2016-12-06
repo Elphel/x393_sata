@@ -1,8 +1,8 @@
-FPGA_project_0_SimulationTopFile=tb/tb_top.v
-FPGA_project_1_SimulationTopModule=tb
-FPGA_project_2_ImplementationTopFile=top.v
-FPGA_project_3_ImplementationTopModule=top
-FPGA_project_4_part=xc7z030fbg484-1
-FPGA_project_5_part=xc7z030fbg484-1
-com.elphel.store.context.FPGA_project=FPGA_project_2_ImplementationTopFile<-@\#\#@->FPGA_project_4_part<-@\#\#@->FPGA_project_0_SimulationTopFile<-@\#\#@->FPGA_project_1_SimulationTopModule<-@\#\#@->FPGA_project_3_ImplementationTopModule<-@\#\#@->FPGA_project_5_part<-@\#\#@->
+FPGA_project_@_ImplementationTopFile=top.v
+FPGA_project_@_ImplementationTopModule=top
+FPGA_project_@_SimulationTopFile=tb/tb_top.v
+FPGA_project_@_SimulationTopModule=tb
+FPGA_project_@_part=xc7z030fbg484-1
+com.elphel.store.context.FPGA_project=FPGA_project_@_SimulationTopFile<-@\#\#@->FPGA_project_@_SimulationTopModule<-@\#\#@->FPGA_project_@_ImplementationTopFile<-@\#\#@->FPGA_project_@_ImplementationTopModule<-@\#\#@->FPGA_project_@_part<-@\#\#@->
+com.elphel.store.version.FPGA_project=1.0
 eclipse.preferences.version=1
