@@ -14,3 +14,4 @@ x393.prj
 *.pickle
 bitbake-logs                                                                                                                                               
 sysroots  
+attic/*
