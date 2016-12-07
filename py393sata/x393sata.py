@@ -281,14 +281,14 @@ class x393sata(object):
         else:
             for d in data:
                 self.x393_mem.write_mem(FPGA_RST_CTRL,d)
-    def get_mem_buf_args(self, saddr=None, len=None):
+    def get_mem_buf_args(self, saddr=None, length=None):
         #Is it really needed? Or use cache line size (32B), not PAGE_SIZE?
         args=""
-        if (saddr is None) or (len is None):
+        if (saddr is None) or (length is None):
             return ""
         else:
-            eaddr = PAGE_SIZE * ((saddr+len) // PAGE_SIZE)
-            if ((saddr+len) % PAGE_SIZE):
+            eaddr = PAGE_SIZE * ((saddr+length) // PAGE_SIZE)
+            if ((saddr+length) % PAGE_SIZE):
                 eaddr += PAGE_SIZE
             saddr = PAGE_SIZE * (saddr // PAGE_SIZE)
             return "%d %d"%(saddr, eaddr-saddr )    
@@ -299,14 +299,14 @@ class x393sata(object):
             return "_d2h"
         elif direction.upper()[0] in "B":
             return "_bidir"
-    def sync_for_cpu(self, direction, saddr=None, len=None):
+    def sync_for_cpu(self, direction, saddr=None, length=None):
         
         with open (MEM_PATH + BUFFER_FOR_CPU + self._get_dma_dir_suffix(direction),"w") as f:
-            print (self.get_mem_buf_args(saddr, len),file=f)
+            print (self.get_mem_buf_args(saddr, length),file=f)
                     
-    def sync_for_device(self, direction, saddr=None, len=None):
+    def sync_for_device(self, direction, saddr=None, length=None):
         with open (MEM_PATH + BUFFER_FOR_DEVICE + self._get_dma_dir_suffix(direction),"w") as f:
-            print (self.get_mem_buf_args(saddr, len),file=f)
+            print (self.get_mem_buf_args(saddr, length),file=f)
             
     '''            
     def flush_mem(self, saddr=None, len=None):                
@@ -368,13 +368,13 @@ class x393sata(object):
         if not bitfile:
             bitfile=DEFAULT_BITFILE
         if quiet < 2:
-             print ("FPGA clock OFF")
+            print ("FPGA clock OFF")
         self.x393_mem.write_mem(FPGA0_THR_CTRL,1)
         if quiet < 2:
-             print ("Reset ON")
+            print ("Reset ON")
         self.reset(0)
         if quiet < 2:
-             print ("cat %s >%s"%(bitfile,FPGA_LOAD_BITSTREAM))
+            print ("cat %s >%s"%(bitfile,FPGA_LOAD_BITSTREAM))
         if not self.DRY_MODE:
             l=0
             with open(bitfile, 'rb') as src, open(FPGA_LOAD_BITSTREAM, 'wb') as dst:
@@ -414,22 +414,22 @@ class x393sata(object):
     def set_zynq_esata(self):    
         self.vsc3304.connect_zynq_esata()
         if self.DEBUG_MODE:
-             self.vsc3304.connection_status()
+            self.vsc3304.connection_status()
 
     def set_zynq_ssata(self):    
         self.vsc3304.connect_zynq_ssata()
         if self.DEBUG_MODE:
-             self.vsc3304.connection_status()
+            self.vsc3304.connection_status()
 
     def set_esata_ssd(self):    
         self.vsc3304.connect_esata_ssd()
         if self.DEBUG_MODE:
-             self.vsc3304.connection_status()
+            self.vsc3304.connection_status()
     
     def set_debug_oscilloscope(self):    
         self.vsc3304.connect_debug()
         if self.DEBUG_MODE:
-             self.vsc3304.connection_status()
+            self.vsc3304.connection_status()
              
     def reinit_mux(self):
         """
@@ -644,8 +644,8 @@ class x393sata(object):
                                (0x80 << 8) |       # set C = 1
                                (ATA_IDFY << 16) |  # Command = 0xEC (IDFY)
                                ( 0 << 24))         # features = 0 ?
-         # All other 4 DWORDs are 0 for this command
-         # Set PRDT (single item) TODO: later check multiple small ones
+        # All other 4 DWORDs are 0 for this command
+        # Set PRDT (single item) TODO: later check multiple small ones
         self.x393_mem.write_mem(COMMAND_ADDRESS + PRD_OFFSET + (0 << 2), DATAIN_ADDRESS + IDENTIFY_BUF)
         prdt_int = 0
         if prd_irqs:
@@ -700,7 +700,7 @@ class x393sata(object):
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)
         #Wait interrupt
-        for r in range(10):
+        for _ in range(10):
             istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
             if istat:
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
@@ -819,7 +819,7 @@ class x393sata(object):
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
         #Wait interrupt
-        for r in range(10):
+        for _ in range(10):
             istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
             if istat:
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
@@ -944,7 +944,7 @@ class x393sata(object):
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
         #Wait interrupt
-        for r in range(10):
+        for _ in range(10):
             istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
             if istat:
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
@@ -1059,7 +1059,7 @@ class x393sata(object):
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
         #Wait interrupt
-        for r in range(10):
+        for _ in range(10):
             istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
             if istat:
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
@@ -1174,7 +1174,7 @@ class x393sata(object):
         print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
         self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)
         #Wait interrupt
-        for r in range(10):
+        for _ in range(10):
             istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
             if istat:
                 self.parse_register(group_range = ['HBA_PORT__PxIS'],
@@ -1449,7 +1449,7 @@ class x393sata(object):
             if not write_mode is None:
                 mode = ((mode ^ ((write_mode & 0xf) << 4)) & (0xf << 4)) ^ mode
             if not read_mode is None:
-                mode = ((mode ^ ((reade_mode & 0xf) << 0)) & (0xf << 0)) ^ mode
+                mode = ((mode ^ ((read_mode & 0xf) << 0)) & (0xf << 0)) ^ mode
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__AFI_CACHE'), mode)
             
         return {'write':(mode >> 4) & 0xf, 'read':(mode >> 0) & 0xf}    
@@ -1474,6 +1474,7 @@ def init_sata():
     sata.reinit_mux()
     sata.configure(bitfile=None,
                    quiet=4) # 4 will be really quiet
+    print ("PCI_Header__RID = 0x%x"%(sata.x393_mem.read_mem(sata.get_reg_address('PCI_Header__RID'))))
 
     sata.drp (0x20b,0x221) # bypass, clock align
     #hex(sata.drp (0x20b))
@@ -1496,6 +1497,25 @@ if __name__ == "__main__":
 
 
     """
+x393sata.py
+modprobe ahci_elphel &
+sleep 2
+echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module
+
+
+
+
+cd /usr/local/bin; python
+from __future__ import print_function
+from __future__ import division
+import x393sata
+import x393_mem
+mem = x393_mem.X393Mem(1,0,1)
+sata = x393sata.x393sata()
+hex(mem.read_mem(sata.get_reg_address('PCI_Header__RID')))
+    
+    
+    
 def get_MAC():
     with open("/sys/class/net/eth0/address") as sysfile:
         return sysfile.read()
