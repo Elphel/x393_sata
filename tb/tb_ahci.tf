@@ -38,7 +38,7 @@
 `define PRELOAD_BRAMS
 `define CHECKERS_ENABLED
 `define use200Mhz 1
-
+`define SEND_READ_ERROR
 /*
  * using x393_testbench01.tf style, contains a lot of copy-pasted code from there
  */
@@ -1409,12 +1409,29 @@ initial begin //Host
 //    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__PSE__MASK); // allow PS only interrupts (PIO setup)
 //    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIS__PSS__MASK); // clear that interrupt
 
-    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow DHR only interrupts (PIO setup)
-    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // clear that interrupt
+////    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // allow DHR only interrupts (PIO setup)
+////    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK); // clear that interrupt
+    maxigp1_writep       (HBA_PORT__PxIE__PSE__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK | HBA_PORT__PxIE__TFEE__MASK); // allow DHR and TFEE interrupts (PIO setup)
+    maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__DHRE__MASK | HBA_PORT__PxIE__TFEE__MASK); // clear those interrupts
+
     
     maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 3); // Record current time in datascope with a 3-bit tag
     wait (IRQ);
     maxigp1_writep       (HBA_PORT__PunchTime__TAG__ADDR << 2, 4); // Record current time in datascope with a 3-bit tag
+    maxigp1_print        (HBA_PORT__PxIS__PSS__ADDR << 2,"HBA_PORT__PxIS__PSS__ADDR after got d2h");
+    if (registered_rdata & HBA_PORT__PxIE__TFEE__MASK) begin
+        repeat (20)  @(posedge CLK);
+        maxigp1_print        (HBA_PORT__PxCI__CI__ADDR << 2,"HBA_PORT__PxCI__CI__ADDR");
+        // clear command issued
+//        maxigp1_writep       (HBA_PORT__PxCI__CI__ADDR << 2, 0); // 'PxCI' - Clear 'Command issued' for slot 0 (the only one)
+        maxigp1_writep       (HBA_PORT__PxCMD__FRE__ADDR << 2, HBA_PORT__PxCMD__FRE__MASK); //  ST: 1 -> 0
+        
+        repeat (20)  @(posedge CLK);
+        maxigp1_writep       (HBA_PORT__PxIS__PSS__ADDR << 2, HBA_PORT__PxIE__TFEE__MASK); // clear this interrupt
+        maxigp1_writep       (GHC__IS__IPS__ADDR << 2, 1); // clear global interrupts
+        repeat (100)  @(posedge CLK);
+        $finish;
+    end
     
 //    TESTBENCH_TITLE = "Got Identify";
     TESTBENCH_TITLE = "Got D2HRFIS";
@@ -1592,7 +1609,19 @@ initial begin //Device
             dev.send_dma_activate (69,      // input integer id;
                                    status); // output integer status;
         end else if (func_is_dev_read_dma_ext(dev.receive_data[0])) begin
-        
+`ifdef SEND_READ_ERROR
+            dev.send_D2HR(70, // same data as received from bad block read (HDD)
+               1,                                   // irq,
+               8'h25,                               // status
+               8'h40,                               // error
+               8'h08,                               // device
+              24'h8023b1,                           // lba_low
+              24'h000008,                           // lba_high
+              16'h0001,                             // count
+               status);                             // output: result status
+            DEVICE_TITLE =                "Device sent ERROR (bad block)";
+            $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
+`else        
 //            dev.send_incrementing_data(70,      // input integer id;
             dev.send_incrementing_data_pause(70,      // input integer id;
                                              128, // number of dwords to send, later decode count field
@@ -1612,7 +1641,7 @@ initial begin //Device
                status);                             // output: result status
             DEVICE_TITLE =                "Device sent D2H FIS (DMA D2H over)";
             $display("[Dev-TB]:            %s, status = 0x%x @%t", DEVICE_TITLE, status, $time);
-
+`endif
         end else if (func_is_h2d_data(dev.receive_data[0])) begin
             DEVICE_TITLE = "Got H2D data";
             $display("[Dev-TB]:       %s @%t", DEVICE_TITLE, $time);

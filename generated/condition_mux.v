@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Module: condition_mux
- * Date:2016-03-12  
- * Author: auto-generated file, see ahci_fsm_sequence_old.py
+ * Date:2016-12-07  
+ * Author: auto-generated file, see ahci_fsm_sequence.py
  * Description: Select condition
  *******************************************************************************/
 

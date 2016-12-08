@@ -1502,7 +1502,14 @@ modprobe ahci_elphel &
 sleep 2
 echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module
 
+#to remove:
+umount /dev/sda
+rmmod ahci_elphel
 
+142615472
+
+wget -O - "http://localhost/x393_vsc330x.php?c:zynq=esata"
+wget -O - "http://localhost/x393_vsc330x.php?c:zynq=ssd"
 
 
 cd /usr/local/bin; python
@@ -1513,7 +1520,18 @@ import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata()
 hex(mem.read_mem(sata.get_reg_address('PCI_Header__RID')))
-    
+
+sata.dd_read_dma_ext(142615470, 512, 512)
+sata.dd_read_dma_ext(142615472, 512, 512)    
+
+Read write pointer to datascope:
+hex(((mem.read_mem(0x80000ffc) >> 10) & 0xffc) + 0x80001000)
+
+Datascope has a ring buffer of 4K: 0x80001000..0x80001fff
+
+mem.read_mem(0x80000118)
+mem.write_mem(0x80000118,0x10)
+
     
     
 def get_MAC():

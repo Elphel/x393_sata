@@ -318,6 +318,7 @@ module  ahci_fsm
     wire                           clear_pisn32; // additional clear when in P:NotRunning state
     
     assign fsm_next = (fsm_preload || (fsm_actions && !update_busy && !fsm_act_busy) || fsm_transitions[0]) && !async_pend_r[0]; // quiet if received cominit is pending
+
     assign update_all = fsm_jump[0];
 
     assign ssts_ipm_dnp =      phy_ready_chng_r && (phy_ready_prev == 0);  // device not present or communication not established
@@ -389,7 +390,9 @@ module  ahci_fsm
         
         if (fsm_actions && fsm_next)                        was_last_action_r <= fsm_last_act_w;
         
-        if      (hba_rst || pre_jump_w)                                fsm_transitions <= 0;
+////    if      (hba_rst || pre_jump_w)                                fsm_transitions <= 0;
+/// 2016.12.07 jumps were not disabled after async transitions, they came from the previously executed code
+        if      (hba_rst || pre_jump_w || dis_actions)                 fsm_transitions <= 0;
         else if (fsm_transitions_w)                                    fsm_transitions <= 1; 
 //        else if ((fsm_last_act_w && fsm_actions && fsm_next && !fsm_wait_act_w) ||
 //                 (fsm_act_busy && fsm_act_done && was_last_action_r) ) fsm_transitions <= 1;
