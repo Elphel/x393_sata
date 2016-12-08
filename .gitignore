@@ -1,4 +1,6 @@
+.cproject
 .project
+.externalToolBuilders/
 .pydevproject
 unisims
 debug
