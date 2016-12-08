@@ -1,9 +1,10 @@
-/*******************************************************************************
- * Module: action_decoder
- * Date:2016-12-07  
- * Author: auto-generated file, see ahci_fsm_sequence.py
- * Description: Decode sequencer code to 1-hot actions
- *******************************************************************************/
+/*!
+ * <b>Module:</b>action_decoder
+ * @file   action_decoder.v 
+ * @date   2016-12-08  
+ * @author auto-generated file, see ahci_fsm_sequence.py
+ * @brief  Decode sequencer code to 1-hot actions
+ */
 
 `timescale 1ns/1ps
 

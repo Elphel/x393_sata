@@ -490,13 +490,14 @@ def bin_cnk (n,k):
         result.append(d)
     return result        
 
-def condition_mux_verilog(conditions, condition_vals, module_name, fanout, file=None):
-    header_template="""/*******************************************************************************
- * Module: %s
- * Date:%s  
- * Author: auto-generated file, see %s
- * Description: Select condition
- *******************************************************************************/
+def condition_mux_verilog(conditions, condition_vals, module_name, fanout, header_file="", file=None):
+    header_template="""/*!
+ * <b>Module:</b>%s
+ * @file   %s 
+ * @date   %s  
+ * @author auto-generated file, see %s
+ * @brief  Select condition
+ */
 
 `timescale 1ns/1ps
 
@@ -505,6 +506,10 @@ module %s (
     input        ce,  // enable recording all conditions
     input [%2d:0] sel,
     output       condition,"""
+    if header_file:
+        header_file = os.path.basename(header_file)
+    else:
+        header_file=""
     v=max(condition_vals.values())
     num_inputs = 0;
     while v:
@@ -512,7 +517,7 @@ module %s (
         v >>= 1
     maximal_length = max([len(n) for n in conditions])
     numregs = (len(conditions) + fanout) // fanout # one more bit for 'always' (sel == 0)
-    header = header_template%(module_name, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
+    header = header_template%(module_name, header_file, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
     print(header,file=file)
     for input_name in conditions[:len(conditions)-1]:
         print("    input        %s,"%(input_name),            file=file)
@@ -564,13 +569,14 @@ module %s (
     print("endmodule",file=file)
 
 
-def action_decoder_verilog(actions, action_vals, module_name, file=None):
-    header_template="""/*******************************************************************************
- * Module: %s
- * Date:%s  
- * Author: auto-generated file, see %s
- * Description: Decode sequencer code to 1-hot actions
- *******************************************************************************/
+def action_decoder_verilog(actions, action_vals, module_name, header_file="", file=None):
+    header_template="""/*!
+ * <b>Module:</b>%s
+ * @file   %s 
+ * @date   %s  
+ * @author auto-generated file, see %s
+ * @brief  Decode sequencer code to 1-hot actions
+ */
 
 `timescale 1ns/1ps
 
@@ -578,6 +584,10 @@ module %s (
     input        clk,
     input        enable,
     input [%2d:0] data,"""
+    if header_file:
+        header_file = os.path.basename(header_file)
+    else:
+        header_file=""
     v=max(action_vals.values())
     num_inputs = 0;
     while v:
@@ -591,7 +601,7 @@ module %s (
             names.append(a)
     maximal_length = max([len(n) for n in names])
                     
-    header = header_template%(module_name, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
+    header = header_template%(module_name, header_file, datetime.date.today().isoformat(), os.path.basename(__file__), module_name, num_inputs-1)
     print(header,file=file)
     for output_name in names[:len(names)-1]:
         print("    output reg   %s,"%(output_name),file=file)
@@ -862,14 +872,14 @@ if not action_decoder_verilog_path:
     action_decoder_verilog(actions, action_vals, action_decoder_module_name)
 else:
     with open(os.path.abspath(os.path.join(os.path.dirname(__file__), action_decoder_verilog_path)),"w") as out_file:
-        action_decoder_verilog(actions, action_vals, action_decoder_module_name, out_file)
+        action_decoder_verilog(actions, action_vals, action_decoder_module_name, action_decoder_verilog_path, out_file)
     print ("AHCI FSM actions decoder is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), action_decoder_verilog_path))))
     
 if not condition_mux_verilog_path:
     condition_mux_verilog(conditions, condition_vals, condition_mux_module_name, condition_mux_fanout)
 else:
     with open(os.path.abspath(os.path.join(os.path.dirname(__file__), condition_mux_verilog_path)),"w") as out_file:
-        condition_mux_verilog(conditions, condition_vals,condition_mux_module_name, condition_mux_fanout, out_file)
+        condition_mux_verilog(conditions, condition_vals,condition_mux_module_name, condition_mux_fanout, condition_mux_verilog_path, out_file)
     print ("AHCI FSM conditions multiplexer is written to %s"%(os.path.abspath(os.path.join(os.path.dirname(__file__), condition_mux_verilog_path))))
 
 code = code_generator (sequence, action_vals, condition_vals, labels)
