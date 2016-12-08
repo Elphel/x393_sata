@@ -1,11 +1,16 @@
-/*******************************************************************************
- * Module: ahci_ctrl_stat
- * Date:2016-01-12  
- * Author: andrey     
- * Description: Copy of significant register fields, updating them in
+/*!
+ * <b>Module:</b>ahci_ctrl_stat
+ * @file ahci_ctrl_stat.v
+ * @date 2016-01-12  
+ * @author Andrey Filippov     
+ *
+ * @brief Copy of significant register fields, updating them in
  * axi_ahci_regs registers (software accessible)
  *
- * Copyright (c) 2016 Elphel, Inc .
+ * @copyright Copyright (c) 2016 Elphel, Inc .
+ *
+ * <b>License:</b>
+ *
  * ahci_ctrl_stat.v is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -18,7 +23,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/> .
- *******************************************************************************/
+ */
 `timescale 1ns/1ps
 
 module  ahci_ctrl_stat #(
@@ -493,7 +498,7 @@ localparam PxCMD_MASK = HBA_PORT__PxCMD__ICC__MASK |   //  'hf0000000;
         else if (swr_HBA_PORT__PxCI) pxci0_r <= soft_write_data[0];
     end    
 
-    // HBA_PORT__PxCMD register - different behaviors of differtnt fields 
+    // HBA_PORT__PxCMD register - different behaviors of different fields 
     // use PxCMD_MASK to prevent generation of unneeded register bits
     
     always @(posedge mclk) begin

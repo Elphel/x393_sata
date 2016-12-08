@@ -1,0 +1,10 @@
+VivadoSynthesis_@_ConstraintsFiles=x393.xdc<-@\#\#@->x393_timing.xdc<-@\#\#@->
+VivadoSynthesis_@_MaxMsg=10000
+VivadoSynthesis_@_OtherProblems=Netlist 29-345<-@\#\#@->Board 49-26<-@\#\#@->
+VivadoSynthesis_@_ShowInfo=false
+VivadoSynthesis_@_flatten_hierarchy=none
+VivadoSynthesis_@_parser_mode=1
+VivadoSynthesis_@_verbose=true
+com.elphel.store.context.VivadoSynthesis=VivadoSynthesis_@_parser_mode<-@\#\#@->VivadoSynthesis_@_OtherProblems<-@\#\#@->VivadoSynthesis_@_ShowInfo<-@\#\#@->VivadoSynthesis_@_MaxMsg<-@\#\#@->VivadoSynthesis_@_ConstraintsFiles<-@\#\#@->VivadoSynthesis_@_flatten_hierarchy<-@\#\#@->VivadoSynthesis_@_verbose<-@\#\#@->
+com.elphel.store.version.VivadoSynthesis=1.1
+eclipse.preferences.version=1

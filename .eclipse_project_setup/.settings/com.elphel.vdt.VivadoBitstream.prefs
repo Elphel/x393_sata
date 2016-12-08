@@ -1,0 +1,4 @@
+VivadoBitstream_@_PreBitstreamTCL=set_property BITSTREAM.STARTUP.MATCH_CYCLE NoWait [current_design]<-@\#\#@->
+VivadoBitstream_@_force=true
+com.elphel.store.context.VivadoBitstream=<-@\#\#@->VivadoBitstream_@_PreBitstreamTCL<-@\#\#@->VivadoBitstream_@_force<-@\#\#@->
+eclipse.preferences.version=1

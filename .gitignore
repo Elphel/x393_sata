@@ -1,4 +1,7 @@
+.cproject
 .project
+.externalToolBuilders/
+.pydevproject
 unisims
 debug
 vivado_*
@@ -15,3 +18,4 @@ x393.prj
 bitbake-logs                                                                                                                                               
 sysroots  
 attic/*
+image

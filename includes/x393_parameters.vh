@@ -332,7 +332,7 @@
     parameter SENSOR_BASE_INC =           'h040, // increment for sesor channel
     
     parameter HIST_SAXI_ADDR_REL =         'h100, // histograms control addresses (16 locations) relative to SENSOR_GROUP_ADDR
-    parameter HIST_SAXI_MODE_ADDR_REL =    'h110, // histograms mode address (1 locatios) relative to SENSOR_GROUP_ADDR
+    parameter HIST_SAXI_MODE_ADDR_REL =    'h110, // histograms mode address (1 locations) relative to SENSOR_GROUP_ADDR
     
     
     parameter SENSI2C_STATUS_REG_BASE =   'h20,  // 4 locations" x20, x22, x24, x26
