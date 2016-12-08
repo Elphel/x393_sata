@@ -1521,6 +1521,8 @@ mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata()
 hex(mem.read_mem(sata.get_reg_address('PCI_Header__RID')))
 
+sata.setup_pio_read_identify_command()
+
 sata.dd_read_dma_ext(142615470, 512, 512)
 sata.dd_read_dma_ext(142615472, 512, 512)    
 
@@ -1529,10 +1531,16 @@ hex(((mem.read_mem(0x80000ffc) >> 10) & 0xffc) + 0x80001000)
 
 Datascope has a ring buffer of 4K: 0x80001000..0x80001fff
 
-mem.read_mem(0x80000118)
-mem.write_mem(0x80000118,0x10)
+mem.write_mem(0x80000118,0x10) # stop
 
+dd if=/dev/sdj count=1 skip=142615470 of=/dev/null
     
+s=set()
+for i in range(10000):
+    s.add(mem.read_mem (0x80000ffc) & 0x1ff)
+
+s
+hex(mem.read_mem (0x80000ffc))    
     
 def get_MAC():
     with open("/sys/class/net/eth0/address") as sysfile:

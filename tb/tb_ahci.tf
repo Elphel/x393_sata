@@ -38,7 +38,7 @@
 `define PRELOAD_BRAMS
 `define CHECKERS_ENABLED
 `define use200Mhz 1
-`define SEND_READ_ERROR
+//`define SEND_READ_ERROR
 /*
  * using x393_testbench01.tf style, contains a lot of copy-pasted code from there
  */

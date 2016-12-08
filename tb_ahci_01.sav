@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.66 (w)1999-2015 BSI
-[*] Thu Dec  8 01:26:17 2016
+[*] Thu Dec  8 02:35:40 2016
 [*]
-[dumpfile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/simulation/tb_ahci-20161207180004761.fst"
-[dumpfile_mtime] "Thu Dec  8 01:00:23 2016"
-[dumpfile_size] 4762337
+[dumpfile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/simulation/tb_ahci-20161207182625587.fst"
+[dumpfile_mtime] "Thu Dec  8 01:26:45 2016"
+[dumpfile_size] 4764125
 [savefile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/tb_ahci_01.sav"
-[timestart] 33243400
+[timestart] 0
 [size] 1814 1171
 [pos] 1920 0
-*-15.591494 33388300 32882854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-22.591494 33796096 32882854 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.
@@ -1872,9 +1872,9 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.tfd_sts[7:0]
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fis_first_vld
 @22
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.ssts_det[3:0]
-@800200
+@c00201
 -tmp
-@29
+@28
 [color] 7
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.dis_actions
 @8028
@@ -1894,7 +1894,7 @@ tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.fsm_act_done
 tb_ahci.dut.sata_top.ahci_top_i.ahci_fsm_i.was_last_action_r
 @200
 -
-@1000200
+@1401201
 -tmp
 @28
 [color] 3
