@@ -1497,6 +1497,17 @@ if __name__ == "__main__":
 
 
     """
+camogm_test -d /dev/sda2 -b 4194304 -c 30000
+    
+    
+dd if=/dev/sda skip=257142656 count=1 | hexdump -e '"%08_ax: "' -e ' 16/4 "%08x " "\n"'
+cat /sys/devices/soc0/amba@0/80000000.elphel-ahci/lba_current
+cat /sys/devices/soc0/amba@0/80000000.elphel-ahci/lba_start    
+ 
+camogm_test -d /dev/sda2 -b 4194304 -c 10000
+ 
+    
+    
 x393sata.py
 modprobe ahci_elphel &
 sleep 2
@@ -1520,7 +1531,8 @@ import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata()
 hex(mem.read_mem(sata.get_reg_address('PCI_Header__RID')))
-
+hex([((mem.read_mem(0x80000ffc) >> 10) & 0xffc) + 0x80001000,mem.mem_dump (0x80001000, 0x400,4),sata.reg_status()][0])
+ 
 sata.setup_pio_read_identify_command()
 
 sata.dd_read_dma_ext(142615470, 512, 512)

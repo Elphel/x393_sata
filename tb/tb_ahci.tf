@@ -1120,6 +1120,9 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
                                                (ATA_RDMA_EXT << 16) | // Command = 0x25 (READ_DMA_EXT)
                                               ( 0 << 24);        // features = 0 ?
             // All other 4 DWORDs are 0 for this command
+            
+            sysmem[(COMMAND_TABLE >> 2) + 3] = 1; // count
+            
             // Set PRDT (four items)
             // PRDT #1
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted
@@ -1178,6 +1181,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
             sysmem[(COMMAND_TABLE >> 2) + 1] = lba & 'hffffff;    // 24 LSBs of LBA (48-bit require different ATA command)
             sysmem[(COMMAND_TABLE >> 2) + 3] = 1;                 // 1 logical sector (0 means 256)
             // All other DWORDs are 0 for this command
+            sysmem[(COMMAND_TABLE >> 2) + 3] = 1; // count
             // Set PRDT (four items)
             // PRDT #1
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted
@@ -1227,6 +1231,7 @@ localparam ATA_RDMA_EXT = 'h25; // Read DMA devices that support 48-bit Addressi
             sysmem[(COMMAND_TABLE >> 2) + 1] = lba & 'hffffff;    // 24 LSBs of LBA (48-bit require different ATA command)
             sysmem[(COMMAND_TABLE >> 2) + 3] = 1;                 // 1 logical sector (0 means 256)
             // All other DWORDs are 0 for this command
+            sysmem[(COMMAND_TABLE >> 2) + 3] = 1; // count
             // Set PRDT (four items)
             // PRDT #1
             sysmem[((COMMAND_TABLE + PRD_OFFSET) >> 2) +  0] = SYS_MEM_START + IDENTIFY_BUF; // not shifted

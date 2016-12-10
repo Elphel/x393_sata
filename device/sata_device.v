@@ -47,7 +47,8 @@ module sata_device(
 //    reg  [31:0] DEV_DATA;
     integer DEV_DATA;
 //`endif
-
+//`define TERMINATE_DMA_H2D
+//`undef TERMINATE_DMA_H2D
 wire            phy_ready;
 
 wire    [31:0]  phy2dev_data;
@@ -569,6 +570,10 @@ task linkMonitorFIS;
                     cnt = cnt + 1;
                     if (cnt <= 2048)
                         pause = pause + receive_data_pause[cnt];
+`ifdef TERMINATE_DMA_H2D
+        linkSendPrim("DMAT");
+`endif
+                        
                 end    
             end
             @ (posedge clk)
