@@ -1531,7 +1531,7 @@ import x393_mem
 mem = x393_mem.X393Mem(1,0,1)
 sata = x393sata.x393sata()
 hex(mem.read_mem(sata.get_reg_address('PCI_Header__RID')))
-hex([((mem.read_mem(0x80000ffc) >> 10) & 0xffc) + 0x80001000,mem.mem_dump (0x80001000, 0x400,4),sata.reg_status()][0])
+hex([((mem.read_mem(0x80000ffc) >> 10) & 0xffc) + 0x80001000,mem.mem_dump (0x80001000, 0x400,4),sata.reg_status()][0])+" "+hex(mem.read_mem(0x80000ffc))
  
 sata.setup_pio_read_identify_command()
 

@@ -1,15 +1,15 @@
 [*]
 [*] GTKWave Analyzer v3.3.78 (w)1999-2016 BSI
-[*] Sat Dec 10 21:15:47 2016
+[*] Sun Dec 11 04:31:36 2016
 [*]
-[dumpfile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/simulation/tb_ahci-20161210125949381.fst"
-[dumpfile_mtime] "Sat Dec 10 20:00:43 2016"
-[dumpfile_size] 13297893
+[dumpfile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/simulation/tb_ahci-20161210212639118.fst"
+[dumpfile_mtime] "Sun Dec 11 04:27:34 2016"
+[dumpfile_size] 13299181
 [savefile] "/home/eyesis/git/elphel393/fpga-elphel/x393_sata/tb_ahci_01.sav"
-[timestart] 48410000
+[timestart] 0
 [size] 1814 1171
 [pos] 68 0
-*-21.141130 55007308 32882854 55953880 57700372 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+*-24.068264 37475728 32882854 55953880 57700372 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
 [treeopen] tb_ahci.
 [treeopen] tb_ahci.axi_read_addr.
 [treeopen] tb_ahci.dev.
@@ -41,6 +41,7 @@
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.gtx_wrap.gtxe2_channel_wrapper.gtx_gpl.channel.tx.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.
 [treeopen] tb_ahci.dut.sata_top.ahci_sata_layers_i.phy.oob_ctrl.oob.
+[treeopen] tb_ahci.dut.sata_top.ahci_top_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.ahci_ctrl_stat_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.
 [treeopen] tb_ahci.dut.sata_top.ahci_top_i.ahci_dma_i.ahci_dma_rd_fifo_i.ahci_dma_rd_stuff_i.
@@ -3938,9 +3939,7 @@ tb_ahci.dut.sata_top.ahci_sata_layers_i.fifo_h2d_i.ren
 -up
 @28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_ready
-@29
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_valid
-@28
 tb_ahci.dut.sata_top.ahci_sata_layers_i.ll_frame_req
 tb_ahci.dut.sata_top.ahci_sata_layers_i.h2d_fifo_wr
 @200
@@ -5380,6 +5379,17 @@ tb_ahci.dev.linkSendPrim.type[111:0]
 @800200
 -datascope
 @28
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.irq
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.irq_r
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.irq_was
+@29
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.we_irq
+@28
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.we_r
+@22
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.h2d_nready_cntr[7:0]
+@28
+tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.h2d_ready
 tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.was_link_dmatp
 tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.reset_link_count
 tb_ahci.dut.sata_top.ahci_top_i.datascope_timing_i.debug_link_send_data
