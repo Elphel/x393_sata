@@ -83,6 +83,10 @@ def connection_errors():
 
 def reset_device():
   result = False
+  
+  #sata.reset_device()
+  sata.reset_ie()
+  
   for i in range(reset_limit):
     if not connection_errors():
       log_msg("connection error ("+str(i)+"), resetting device",4)
@@ -111,7 +115,7 @@ if   cmd == "set_zynq_ssd":
   sata.set_zynq_ssd()
   reset_device()
 elif cmd == "set_zynq_esata":
-  sata.vsc3304.disconnect_all()  
+  sata.vsc3304.disconnect_all()
   sata.set_zynq_esata()
   reset_device()
 elif cmd == "set_zynq_ssata":
