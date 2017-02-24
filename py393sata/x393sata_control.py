@@ -72,6 +72,7 @@ def connection_errors():
     data = cached_data
     fld_value = (data >> fld['start_bit']) & ((1 << fld['num_bits']) - 1)
     if first_line:
+        log_msg("%s: 0x%08x [%08x]"%(group_range, data, byte_addr))
         first_line = False
     if fld_value or not skip0:
         log_msg("%8x : %s (%s)"%(fld_value, fld['name'], fld['description'] ))
