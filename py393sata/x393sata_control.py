@@ -74,6 +74,7 @@ def connection_errors():
     if first_line:
         first_line = False
     if fld_value or not skip0:
+        log_msg("%8x : %s (%s)"%(fld_value, fld['name'], fld['description'] ))
         # the device is there but fails to establish a correct link
         if fld['name']=="DIAG.B" or fld['name']=="DIAG.S":
           result = False
