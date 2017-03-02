@@ -22,6 +22,9 @@ DRIVER_RELOAD_LIMIT = 5
 DRIVER_WAIT_TIME = 10
 DRIVER_UNLOAD_TRIES = 30
 
+#global
+DEVICE_NOT_CONNECTED = True
+
 def colorize(string, color, bold):
     color=color.upper()
     attr = []
@@ -74,6 +77,9 @@ def shout(cmd):
 
 
 def connection_errors():
+  
+  global DEVICE_NOT_CONNECTED
+  
   result = True
   skip0 = True
   MAXI1_ADDR = 0x80000000
@@ -93,6 +99,8 @@ def connection_errors():
     fld_value = (data >> fld['start_bit']) & ((1 << fld['num_bits']) - 1)
     if first_line:
         log_msg("%s: 0x%08x [%08x]"%(group_range, data, byte_addr))
+        if data!=0:
+          DEVICE_NOT_CONNECTED = False
         first_line = False
     if fld_value or not skip0:
         log_msg("%8x : %s (%s)"%(fld_value, fld['name'], fld['description'] ))
@@ -105,6 +113,8 @@ def connection_errors():
 
 def reset_device():
   result = False
+  
+  sleep(0.5)
   
   for i in range(RESET_LIMIT):
     if not connection_errors():
@@ -143,7 +153,7 @@ def unload_ahci_elphel_driver():
           log_msg("AHCI driver unloading timeout")
         sleep(2)
       else:
-        log_msg("AHCI driver unloaded")
+        log_msg("AHCI driver is not loaded")
         break
     else:
       log_msg("AHCI driver unloaded")
@@ -167,15 +177,18 @@ def load_driver():
 
   for i in range(DRIVER_RELOAD_LIMIT):
     log_msg("Loading SATA driver ("+str(i)+")")
-    result = reload_driver(i)
+    result = reload_driver()
     if result:
       break
     
   if not result:
-    log_msg("SATA failed, SSD was not mounted: reconnect SSD",2)
+    log_msg("SATA failed, SSD was not detected: reconnect SSD",2)
     shout("echo 0 > "+STATEFILE)
   else:
-    log_msg("SATA ok, SSD detected after "+str(i)+" tries")
+    if DEVICE_NOT_CONNECTED:
+      log_msg("SSD was not detected, ahci_elphel driver is loaded",4)
+    else:
+      log_msg("SATA ok, SSD detected after "+str(i)+" tries")
     shout("echo 1 > "+STATEFILE)
   
 
@@ -196,7 +209,7 @@ def check_device():
   
   return result
 
-def reload_driver(i):
+def reload_driver():
 
   unload_ahci_elphel_driver()
   # check once
@@ -208,7 +221,10 @@ def reload_driver(i):
   load_ahci_elphel_driver()
   sleep(DRIVER_WAIT_TIME)
   result = check_device()
-    
+  
+  if DEVICE_NOT_CONNECTED:
+    result = True
+  
   return result
   
 mem = x393_mem.X393Mem(0,0,1)
