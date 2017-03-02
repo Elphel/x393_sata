@@ -17,13 +17,13 @@ LOGFILE = "/var/log/x393sata_eyesis4pi.log"
 STATEFILE = "/var/state/ssd"
 
 # constants
-RESET_LIMIT = 10
+RESET_LIMIT = 3
 DRIVER_RELOAD_LIMIT = 5
 DRIVER_WAIT_TIME = 10
 DRIVER_UNLOAD_TRIES = 30
 
 #global
-DEVICE_NOT_CONNECTED = True
+DEVICE_CONNECTED = False
 
 def colorize(string, color, bold):
     color=color.upper()
@@ -78,7 +78,7 @@ def shout(cmd):
 
 def connection_errors():
   
-  global DEVICE_NOT_CONNECTED
+  global DEVICE_CONNECTED
   
   result = True
   skip0 = True
@@ -100,7 +100,7 @@ def connection_errors():
     if first_line:
         log_msg("%s: 0x%08x [%08x]"%(group_range, data, byte_addr))
         if data!=0:
-          DEVICE_NOT_CONNECTED = False
+          DEVICE_CONNECTED = True
         first_line = False
     if fld_value or not skip0:
         log_msg("%8x : %s (%s)"%(fld_value, fld['name'], fld['description'] ))
@@ -112,12 +112,18 @@ def connection_errors():
 
 
 def reset_device():
+  
+  global DEVICE_CONNECTED
+  
   result = False
   
   sleep(0.5)
   
   for i in range(RESET_LIMIT):
     if not connection_errors():
+      if i==0:
+        DEVICE_CONNECTED = False
+        
       log_msg("connection error ("+str(i)+"), resetting device",4)
       sata.reset_ie()
       sata.reset_device()
@@ -126,9 +132,10 @@ def reset_device():
       if i!=0: 
         log_msg("resetting device: success")
       result = True
-      load_driver()
       break
   
+  # load driver in any case
+  load_driver()
   return result
 
 def load_ahci_elphel_driver():
@@ -185,7 +192,7 @@ def load_driver():
     log_msg("SATA failed, SSD was not detected: reconnect SSD",2)
     shout("echo 0 > "+STATEFILE)
   else:
-    if DEVICE_NOT_CONNECTED:
+    if not DEVICE_CONNECTED:
       log_msg("SSD was not detected, ahci_elphel driver is loaded",4)
     else:
       log_msg("SATA ok, SSD detected after "+str(i)+" tries")
@@ -219,10 +226,17 @@ def reload_driver():
   connection_errors()
   
   load_ahci_elphel_driver()
-  sleep(DRIVER_WAIT_TIME)
-  result = check_device()
   
-  if DEVICE_NOT_CONNECTED:
+  if DEVICE_CONNECTED:
+    sleep(DRIVER_WAIT_TIME)
+    result = check_device()
+    
+    # one more try
+    if not result:
+      log_msg(colorize("SSD was not detected: waiting for another "+str(DRIVER_WAIT_TIME)+" seconds",'YELLOW',True))
+      sleep(DRIVER_WAIT_TIME)  
+      result = check_device()
+  else:
     result = True
   
   return result
