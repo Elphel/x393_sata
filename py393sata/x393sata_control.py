@@ -5,9 +5,12 @@ from __future__ import division
 import x393sata
 import x393_mem
 import sys
-import time
+from time import sleep
 
 LOGFILE = "/var/log/x393sata_control.log"
+
+# constants
+RESET_LIMIT = 10
 
 def colorize(string, color, bold):
     color=color.upper()
@@ -54,6 +57,7 @@ def log_msg(msg, mode=0):
     print (colorize("[%8.2f] %s: "%(t, sys.argv[0].split('/')[-1].split('.')[0]),'CYAN',0)+msg)
 
 def connection_errors():
+
   result = True
   skip0 = True
   MAXI1_ADDR = 0x80000000
@@ -77,28 +81,29 @@ def connection_errors():
     if fld_value or not skip0:
         log_msg("%8x : %s (%s)"%(fld_value, fld['name'], fld['description'] ))
         # the device is there but fails to establish a correct link
-        if fld['name']=="DIAG.B" or fld['name']=="DIAG.S":
+        if fld['name']=="DIAG.B" or fld['name']=="DIAG.S" or fld['name']=="ERR.E":
           result = False
+        
   return result
+
 
 def reset_device():
   result = False
   
-  #sata.reset_device()
-  sata.reset_ie()
-  
   for i in range(reset_limit):
     if not connection_errors():
       log_msg("connection error ("+str(i)+"), resetting device",4)
-      sata.reset_device()
       sata.reset_ie()
+      sata.reset_device()
+      sleep(0.5)
     else:
       if i!=0: 
         log_msg("resetting device: success")
       result = True
       break
-    time.sleep(1)
+  
   return result
+
 
 mem = x393_mem.X393Mem(0,0,1)
 sata = x393sata.x393sata() # 1,0,"10389B")
@@ -108,7 +113,6 @@ if len(sys.argv) > 1:
 else:
   cmd = "donothing"
 
-reset_limit = 10
 
 if   cmd == "set_zynq_ssd":
   sata.vsc3304.disconnect_all()

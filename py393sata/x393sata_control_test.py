@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import os
+import re
 
 from time import sleep
 
@@ -18,6 +19,7 @@ LOGFILE = "/var/log/x393sata_control_test.log"
 RESET_LIMIT = 10
 DRIVER_RELOAD_LIMIT = 5
 DRIVER_WAIT_TIME = 10
+DRIVER_UNLOAD_TRIES = 30
 
 def colorize(string, color, bold):
     color=color.upper()
@@ -125,6 +127,65 @@ def reset_device():
   
   return result
 
+def load_ahci_elphel_driver():
+  
+  shout("modprobe ahci_elphel &")
+  shout("sleep 2")
+  shout("echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module")
+  log_msg("AHCI driver loaded")
+  
+
+def unload_ahci_elphel_driver():
+  
+  for i in range(DRIVER_UNLOAD_TRIES):
+    unmount_partitions()
+    try:
+      output = subprocess.check_output(["rmmod","ahci_elphel"],stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+      output = [x.strip() for x in e.output.split(":")]
+      if output[-1]=="Resource temporarily unavailable":
+        log_msg("Tried to unload driver "+str(i)+": "+output[-1])
+        if i==(DRIVER_UNLOAD_TRIES-1):
+          log_msg("AHCI driver unloading timeout")
+        sleep(2)
+      else:
+        log_msg("AHCI driver unloaded")
+        break
+    else:
+      log_msg("AHCI driver unloaded")
+      break
+
+def unmount_partitions():
+  
+  with open("/proc/mounts") as f:
+    content = f.readlines()
+  
+  content = [x.strip() for x in content]
+  content = [x.split(" ")[0] for x in content]
+  
+  for mounted_device in content:
+    m = re.search(r"\/dev\/sd[a-z][0-9]",mounted_device)
+    if m:
+      log_msg("Unmounting "+m.group(0))
+      shout("umount "+m.group(0))
+
+def check_device():
+  with open("/proc/partitions") as f:
+    content = f.readlines()
+  
+  content = [x.strip() for x in content]
+  content = [x.split(" ")[-1] for x in content]
+  
+  result = False
+  
+  for device in content:
+    m = re.search(r"sd[a-z]",device)
+    if m:
+      result = True
+      break
+  
+  return result
+
 def test1():
   for i in range(100):
     log_msg("TEST1 ("+str(i)+")",2)
@@ -160,7 +221,7 @@ def test2():
 def test3():
   connection_error()
   for i in range(100):
-    log_msg("TEST3 ("+str(i)+")",2)
+    log_msg("TEST3 ("+str(i)+")",3)
     sata.vsc3304.disconnect_all()
     sata.reset_ie()
     
@@ -180,34 +241,37 @@ def test3():
     connection_error()
 
 def run_test4():
-  if os.path.ismount("/mnt/sda1"):
-    shout("umount /mnt/sda1")
-  shout("rmmod ahci_elphel")
+  
+  unload_ahci_elphel_driver()
   
   sata.reset_ie()
   #sata.reset_device()
   sleep(0.1)
   connection_error()
   
-  shout("modprobe ahci_elphel &")
-  shout("sleep 2")
-  shout("echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module")
+  load_ahci_elphel_driver()
   
-  shout("sleep "+str(DRIVER_WAIT_TIME))
+  sleep(DRIVER_WAIT_TIME)
   
-  if os.path.ismount("/mnt/sda1"):
+  result = check_device()
+
+  # one more try
+  if not result:
+    log_msg(colorize("SSD was not detected: waiting for another "+str(DRIVER_WAIT_TIME)+" seconds",'YELLOW',True))
+    sleep(DRIVER_WAIT_TIME)  
+    result = check_device()
+    
+  if result:
     log_msg(colorize("PASS",'GREEN',True))
-    result = True
   else:
     log_msg(colorize("FAIL",'RED',True))
-    result = False
     
   return result
 
 def test4():
   errcounter = 0
   for i in range(100):
-    log_msg("TEST "+str(i)+", failed: "+str(errcounter),2)
+    log_msg("TEST "+str(i)+", failed: "+str(errcounter),3)
     if not run_test4():
       errcounter = errcounter + 1
 

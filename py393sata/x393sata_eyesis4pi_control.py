@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 import os
+import re
 
 from time import sleep
 
@@ -19,6 +20,7 @@ STATEFILE = "/var/state/ssd"
 RESET_LIMIT = 10
 DRIVER_RELOAD_LIMIT = 5
 DRIVER_WAIT_TIME = 10
+DRIVER_UNLOAD_TRIES = 30
 
 def colorize(string, color, bold):
     color=color.upper()
@@ -63,7 +65,7 @@ def log_msg(msg, mode=0):
         print("[%8.2f]  %s"%(t,msg),file=msg_file)
     if bold or color:
         msg = colorize(msg,color,bold)    
-    print (colorize("[%8.2f] %s: "%(t, sys.argv[0].split('/')[-1].split('.')[0]),'CYAN',0)+msg)
+    print (colorize("[%8.2f] %s: "%(t, sys.argv[0].split('/')[-1].split('.')[0]),'GREEN',0)+msg)
 
 
 def shout(cmd):
@@ -119,6 +121,47 @@ def reset_device():
   
   return result
 
+def load_ahci_elphel_driver():
+  
+  shout("modprobe ahci_elphel &")
+  shout("sleep 2")
+  shout("echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module")
+  log_msg("AHCI driver loaded")
+  
+
+def unload_ahci_elphel_driver():
+  
+  for i in range(DRIVER_UNLOAD_TRIES):
+    unmount_partitions()
+    try:
+      output = subprocess.check_output(["rmmod","ahci_elphel"],stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as e:
+      output = [x.strip() for x in e.output.split(":")]
+      if output[-1]=="Resource temporarily unavailable":
+        log_msg("Tried to unload driver "+str(i)+": "+output[-1])
+        if i==(DRIVER_UNLOAD_TRIES-1):
+          log_msg("AHCI driver unloading timeout")
+        sleep(2)
+      else:
+        log_msg("AHCI driver unloaded")
+        break
+    else:
+      log_msg("AHCI driver unloaded")
+      break
+
+def unmount_partitions():
+  
+  with open("/proc/mounts") as f:
+    content = f.readlines()
+  
+  content = [x.strip() for x in content]
+  content = [x.split(" ")[0] for x in content]
+  
+  for mounted_device in content:
+    m = re.search(r"\/dev\/sd[a-z][0-9]",mounted_device)
+    if m:
+      log_msg("Unmounting "+m.group(0))
+      shout("umount "+m.group(0))
 
 def load_driver():
 
@@ -132,35 +175,39 @@ def load_driver():
     log_msg("SATA failed, SSD was not mounted: reconnect SSD",2)
     shout("echo 0 > "+STATEFILE)
   else:
-    log_msg("SATA ok, SSD mounted after "+str(i)+" tries")
+    log_msg("SATA ok, SSD detected after "+str(i)+" tries")
     shout("echo 1 > "+STATEFILE)
   
 
-def reload_driver(i):
-  if i!=0:
-    if os.path.ismount("/mnt/sda1"):
-      # driver was loaded?!
-      shout("umount /mnt/sda1")
-    shout("rmmod ahci_elphel")
+def check_device():
+  with open("/proc/partitions") as f:
+    content = f.readlines()
+  
+  content = [x.strip() for x in content]
+  content = [x.split(" ")[-1] for x in content]
+  
+  result = False
+  
+  for device in content:
+    m = re.search(r"sd[a-z]",device)
+    if m:
+      result = True
+      break
+  
+  return result
 
-    # check once
-    sata.reset_ie()
-    #sata.reset_device()
-    sleep(0.1)
-    connection_errors()
+def reload_driver(i):
+
+  unload_ahci_elphel_driver()
+  # check once
+  sata.reset_ie()
+  #sata.reset_device()
+  sleep(0.1)
+  connection_errors()
   
-  shout("modprobe ahci_elphel &")
-  sleep(2)
-  shout("echo 1 > /sys/devices/soc0/amba@0/80000000.elphel-ahci/load_module")
-  
+  load_ahci_elphel_driver()
   sleep(DRIVER_WAIT_TIME)
-  
-  if os.path.ismount("/mnt/sda1"):
-    log_msg(colorize("OK",'GREEN',True))
-    result = True
-  else:
-    log_msg(colorize("FAIL",'RED',True))
-    result = False
+  result = check_device()
     
   return result
   
