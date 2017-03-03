@@ -240,7 +240,11 @@ def reload_driver():
     result = True
   
   return result
-  
+
+def unmount_unload_disconnect():
+  unload_ahci_elphel_driver()
+  sata.vsc3304.disconnect_all()  
+
 mem = x393_mem.X393Mem(0,0,1)
 sata = x393sata.x393sata() # 1,0,"10389B")
 
@@ -251,19 +255,19 @@ else:
 
 
 if   cmd == "set_zynq_ssd":
-  sata.vsc3304.disconnect_all()
+  unmount_unload_disconnect()
   sata.set_zynq_ssd()
   reset_device()
 elif cmd == "set_zynq_esata":
-  sata.vsc3304.disconnect_all()
+  unmount_unload_disconnect()
   sata.set_zynq_esata()
   reset_device()
 elif cmd == "set_zynq_ssata":
-  sata.vsc3304.disconnect_all()
+  unmount_unload_disconnect()
   sata.set_zynq_ssata()
   reset_device()
 elif cmd == "set_esata_ssd":
-  sata.vsc3304.disconnect_all()
+  unmount_unload_disconnect()
   sata.set_esata_ssd()
   reset_device()
 else:
