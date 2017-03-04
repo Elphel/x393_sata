@@ -2,6 +2,44 @@
 
 from __future__ import print_function
 from __future__ import division
+
+'''
+/**
+# Copyright (C) 2017, Elphel.inc.
+# Description: switch between internal and external SSDs
+# Comments:
+#     reset_device (3x times max) 
+#       does not matter if error or not - reload driver - wait for 10 seconds + 10
+#           if error - reload (repeat up to 5x)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http:#www.gnu.org/licenses/>.
+
+@author:     Oleg K Dzhimiev
+@copyright:  2017 Elphel, Inc.
+@license:    GPLv3.0+
+@contact:    oleg@elphel.com
+@deffield    updated: unknown
+'''
+
+__author__ = "Elphel"
+__copyright__ = "Copyright 2017, Elphel, Inc."
+__license__ = "GPL"
+__version__ = "3.0+"
+__maintainer__ = "Oleg K Dzhimiev"
+__email__ = "oleg@elphel.com"
+__status__ = "Development"
+
 import x393sata
 import x393_mem
 
@@ -120,10 +158,7 @@ def reset_device():
   sleep(0.5)
   
   for i in range(RESET_LIMIT):
-    if not connection_errors():
-      if i==0:
-        DEVICE_CONNECTED = False
-        
+    if not connection_errors():        
       log_msg("connection error ("+str(i)+"), resetting device",4)
       sata.reset_ie()
       sata.reset_device()
@@ -132,6 +167,11 @@ def reset_device():
       if i!=0: 
         log_msg("resetting device: success")
       result = True
+    
+    if i==0:
+      DEVICE_CONNECTED = False
+    
+    if result:
       break
   
   # load driver in any case
@@ -175,10 +215,12 @@ def unmount_partitions():
   content = [x.split(" ")[0] for x in content]
   
   for mounted_device in content:
-    m = re.search(r"\/dev\/sd[a-z][0-9]",mounted_device)
+    m = re.search(r"sd[a-z][0-9]",mounted_device)
     if m:
-      log_msg("Unmounting "+m.group(0))
-      shout("umount "+m.group(0))
+      mountpoint = "/mnt/"+m.group(0)
+      partname = "/dev/"+m.group(0)
+      log_msg("Unmounting "+partname)
+      shout("umount "+mountpoint)
 
 def load_driver():
 
@@ -196,8 +238,30 @@ def load_driver():
       log_msg("SSD was not detected, ahci_elphel driver is loaded",4)
     else:
       log_msg("SATA ok, SSD detected after "+str(i)+" tries")
+      #automount()
     shout("echo 1 > "+STATEFILE)
   
+
+#def automount():
+  #output = subprocess.check_output("blkid")
+  #output = output.split("\n")
+  
+  #for line in output:
+    #pars = line.split(" ")
+    #m = re.search(r"sd[a-z][0-9]",pars[0])
+    #if m:
+      #pname = m.group(0)
+      #m = re.search(r"TYPE=\"ext",pars[2])
+      #if m:
+        #mount_partition(pname)
+
+#def mount_partition(dirname):
+  #mountpoint = "/mnt/"+dirname
+  #partname = "/dev/"+dirname
+  
+  #if not os.path.exists(mountpoint):
+    #shout("mkdir "+mountpoint)
+    #shout("mount "+partname+" "+mountpoint)
 
 def check_device():
   with open("/proc/partitions") as f:
@@ -221,8 +285,8 @@ def reload_driver():
   unload_ahci_elphel_driver()
   # check once
   sata.reset_ie()
-  #sata.reset_device()
-  sleep(0.1)
+  sata.reset_device()
+  sleep(0.5)
   connection_errors()
   
   load_ahci_elphel_driver()
