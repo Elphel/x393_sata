@@ -12,6 +12,15 @@ from __future__ import division
 #       does not matter if error or not - reload driver - wait for 10 seconds + 10
 #           if error - reload (repeat up to 5x)
 #
+# Solved problem:
+#     when using overlays deleting existing in the lower layer dirs can cause error (hopefully it gets fixed someday):
+#       example: 
+#           * /mnt/sda1 exists in lower layer: /tmp/rootfs.ro/tmp
+#           * upper layer is mounted to /
+#       # rmdir /mnt/sda1
+#       # mkdir /mnt/sda1
+#       mkdir: cannot create directory '/mnt/sda1': Operation not supported
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
