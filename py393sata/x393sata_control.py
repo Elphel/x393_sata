@@ -90,7 +90,7 @@ def connection_errors():
 def reset_device():
   result = False
   
-  for i in range(reset_limit):
+  for i in range(RESET_LIMIT):
     if not connection_errors():
       log_msg("connection error ("+str(i)+"), resetting device",4)
       sata.reset_ie()
@@ -115,21 +115,21 @@ else:
 
 
 if   cmd == "set_zynq_ssd":
-  sata.vsc3304.disconnect_all()
+  #sata.vsc3304.disconnect_all()
   sata.set_zynq_ssd()
-  reset_device()
+  #reset_device()
 elif cmd == "set_zynq_esata":
-  sata.vsc3304.disconnect_all()
+  #sata.vsc3304.disconnect_all()
   sata.set_zynq_esata()
-  reset_device()
+  #reset_device()
 elif cmd == "set_zynq_ssata":
-  sata.vsc3304.disconnect_all()
+  #sata.vsc3304.disconnect_all()
   sata.set_zynq_ssata()
-  reset_device()
+  #reset_device()
 elif cmd == "set_esata_ssd":
-  sata.vsc3304.disconnect_all()
+  #sata.vsc3304.disconnect_all()
   sata.set_esata_ssd()
-  reset_device()
+  #reset_device()
 else:
   print("Usage:")
   print("    * camera <-> internal SSD  :            x393sata_control.py set_zynq_ssd")
