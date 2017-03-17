@@ -342,7 +342,7 @@ elif cmd == "set_zynq_ssata":
 elif cmd == "set_esata_ssd":
   unmount_unload_disconnect()
   sata.set_esata_ssd()
-  reset_device()
+  # no reset because PC
 else:
   print("Usage:")
   print("    * camera <-> internal SSD  :            x393sata_eyesis4pi_control.py set_zynq_ssd")
