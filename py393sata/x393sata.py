@@ -150,6 +150,11 @@ ATA_RDMA_EXT = 0x25 # Read DMA devices that support 48-bit Addressing
 ATA_RBUF_PIO = 0xe4 # Read  512 bytes from device buffer in PIO mode
 ATA_RBUF_DMA = 0xe9 # Read  512 bytes from device buffer in DMA mode
 ATA_READ_LOG_EXT = 0x2f
+ATA_SET_FEATURES = 0xef # Set features command
+
+# SET FEATURES command subcommand codes
+APM_ENABLE       = 0x05
+APM_DISABLE      = 0x85
 
 class x393sata(object):
     DRY_MODE= True # True
@@ -1466,6 +1471,157 @@ class x393sata(object):
         else:
             return '10389B'
 #            raise Exception ("Unknown camera MAC address used to get 10389 revision. Only *:01 (10389) and *:02 (10389B) are currently defined")
+    def set_features(self, feature, param = 0, do_not_start = False, prd_irqs = None):
+        """
+        Send SET FEATURES command
+        @param feature - subcommand to be processed (see ATA/ATAPI command set 7.45 for the list of subcommands); 
+            supported commands: 0x05 (enable APM feature set), 0x85 (disable APM feature set)
+        @param param - parameter for the feature
+        @param do_not_start - do not actually launch the command by writing 1 to command_issue (CI) bit in PxCI register
+        @param prd_irqs - None or a tuple/list with per-PRD interrupts
+        """
+        supported_subcmd = [APM_ENABLE, APM_DISABLE]
+        if not feature in supported_subcmd:
+            raise Exception("Subcommand 0x%x is not supported" % (feature))
+            
+        # Clear interrupt register
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxIS'),  0xffffffff)
+        self.sync_for_cpu('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        # clear system memory for the command
+        for a in range(64):
+            self.x393_mem.write_mem(COMMAND_ADDRESS + 4*a, 0)
+        #Setup command table in system memory
+        self.x393_mem.write_mem(COMMAND_ADDRESS + 0,
+                                FIS_H2DR |         # FIS type - H2D register (0x27)
+                               (0x80 << 8) |       # set C = 1
+                               (ATA_SET_FEATURES << 16) |  # Command = 0xEF
+                               ( feature << 24))   # features = subcommand, see ATA/ATAPI command set 7.45 table 104
+        # other DWORDs are subcommand scpecific
+        if feature == APM_ENABLE:
+            count = param & 0xff
+            self.x393_mem.write_mem(COMMAND_ADDRESS + 12, 
+                                    count |        # count field is subcommand specific
+                                    (0x08 << 24))  # control field as set by hdparm
+
+        # Setup command header 
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (0 << 2),
+                                                     (5 <<  0) | # 'CFL' - number of DWORDs in this CFIS
+                                                     (0 <<  5) | # 'A' Not ATAPI
+                                                     (0 <<  6) | # 'W' Not write to device
+#                                                    (1 <<  7) | # 'P' Prefetchable = 1
+                                                     (0 <<  7) | # 'P' Prefetchable = 0
+                                                     (0 <<  8) | # 'R' Not a Reset
+                                                     (0 <<  9) | # 'B' Not a BIST
+#                                                     (1 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+                                                     (0 << 10) | # 'C' Do clear BSY/CI after transmitting this command
+                                                     (0 << 16))  # 'PRDTL' - number of PRDT entries (no data required)
+        self.x393_mem.write_mem(MAXI1_ADDR + COMMAND_HEADER0_OFFS + (2 << 2), (COMMAND_ADDRESS)) # 'CTBA' - Command table base address
+        self.sync_for_device('H2D',COMMAND_ADDRESS, 256) # command and PRD table
+        self.sync_for_device('D2H',DATAIN_ADDRESS, 512)
+
+        # Set PxCMD.ST bit (it may already be set)
+        self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCMD'), 0x11) # .ST and .FRE bits (FRE is readonly 1 anyway)
+        # Set Command Issued
+        if do_not_start:
+            print ('Run the following command to start the comand:')
+            print("mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)")
+        else:
+            self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
+        print("Command table data:")
+        print("_=mem.mem_dump (0x%x, 0x10,4)"%(COMMAND_ADDRESS))
+        self.x393_mem.mem_dump (COMMAND_ADDRESS, 0x20,4)        
+        #Wait interrupt
+        for _ in range(10):
+            istat = self.x393_mem.read_mem(self.get_reg_address('HBA_PORT__PxIS'))
+            if istat:
+                self.parse_register(group_range = ['HBA_PORT__PxIS'],
+                                    skip0 =       True,
+                                    dword =       None)
+                if istat != 1: #DHRS interrupt (for PIO - 2)
+                    print ("\n ======================Got wrong interrupt ============================")    
+                    self.reg_status()
+                    print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+                    self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+                    print("Datascope (debug) data:")    
+                    print("_=mem.mem_dump (0x%x, 0x20,4)"%(DATASCOPE_ADDR))
+                    self.x393_mem.mem_dump (DATASCOPE_ADDR, 0xa0,4)
+                    dd =0
+                    for a in range(0x80001000,0x80001014,4):
+                        dd |= self.x393_mem.read_mem(a)
+                    if dd == 0:
+                        print ("*** Probably got cache/write buffer problem, continuing ***")
+                        break    
+                    raise Exception("Failed to get interrupt")
+                    
+                break
+            sleep(0.1)
+        else:
+            print ("\n ====================== Failed to get interrupt ============================")    
+            self.reg_status()
+            print("_=mem.mem_dump (0x%x, 0x4,4)"%(MAXI1_ADDR + DBG_OFFS))
+            self.x393_mem.mem_dump (MAXI1_ADDR + DBG_OFFS, 0x4,4)        
+            print("Datascope (debug) data:")    
+            print("_=mem.mem_dump (0x%x, 0x100,4)"%(DATASCOPE_ADDR))
+            self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+            raise Exception("Failed to get interrupt")
+            
+        print("Datascope (debug) data:")    
+        print("_=mem.mem_dump (0x%x, 0x200,4)"%(DATASCOPE_ADDR))
+        self.x393_mem.mem_dump (DATASCOPE_ADDR, 0x200,4)
+    
+    def get_features(self):
+        """
+        Send IDENTIFY DEVICE command and (partially) parse its output
+        """
+        self.setup_pio_read_identify_command()
+        # get power management features, see ATA/ATAPI command set 7.45.9
+        # all offsets here are in WORDS as given in IDENTIFY DEVICE data table and should be doubled
+        print("Power management features:")
+        id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 82)
+        if id_word & 0x08:
+            print("Power management feature set is supported (see ATA/ATAPI command set 4.15 for the full list of supported commands)")
+        id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 83)
+        if id_word & 0x08:
+            id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 86)
+            if (id_word & 0x08):
+                is_enabled = "enabled"
+            else:
+                is_enabled = "disabled"
+            print("\tAPM feature set is supported and %s" % (is_enabled))
+        else:
+            print("\tAPM feature set is NOT supported")
+        id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 91) & 0xff
+        if id_word == 0x0:
+            level = "reserved"
+        elif id_word == 0x1:
+            level = "minimum pwr with standby mode"
+        elif id_word > 0x1 and id_word <= 0x7f:
+            level = "intermediate pwr with standby mode"
+        elif id_word == 0x80:
+            level = "minimum pwr without standby mode"
+        elif id_word >= 0x81 and id_word <= 0xfd:
+            level = "intermediate pwr without standby mode"
+        elif id_word == 0xfe:
+            level = "maximun performance"
+        elif id_word == 0xff:
+            level = "reserved"                                
+        print("\tCurrent APM level: 0x%x [%s]" % (id_word, level))
+        # get SATA features related to power management, see ATA/ATAPI command set 7.45.17
+        id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 78)
+        if id_word & 0x08:
+            id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 79)
+            if id_word & 0x08:
+                state = "device initiated power management enabled"
+            else:
+                state = "device initiated power management disabled"
+            print("\tDevice supports initiating power management, %s" % (state))
+        id_word = self.x393_mem.read_mem(DATAIN_ADDRESS + IDENTIFY_BUF + 2 * 76)
+        if id_word & 0x4000:
+            print("\tSupports Device Automatic Partial to Slumber transition")
+        if id_word & 0x2000:
+            print("\tSupports Host Automatic Partial to Slumber transition")
+        if id_word & 0x200:
+            print("\tSupports receipt of host initiated power management requests")
         
         
 def init_sata():

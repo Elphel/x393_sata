@@ -60,7 +60,7 @@ import re
 
 from time import sleep
 
-LOGFILE = "/var/log/x393sata_eyesis4pi.log"
+LOGFILE = "/var/log/x393sata_control.log"
 STATEFILE = "/var/state/ssd"
 
 # constants
