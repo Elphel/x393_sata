@@ -32,7 +32,8 @@ __status__ = "Development"
 **** Modify next value for new file versions, re-run this file  *****
 """
 # Revision ID
-RID =  0x012  # Revision ID: registering irq on/off in datascope, as if tag = 6/7
+RID =  0x013  # Revision ID: tolerating elidle during OOB sequence (when device changes data rate)
+#RID =  0x012  # Revision ID: registering irq on/off in datascope, as if tag = 6/7
 #RID = 0x011  # Revision ID
 VID = 0xfffe # What to use for non-PCI "vendorID"?
 DID = 0x0001

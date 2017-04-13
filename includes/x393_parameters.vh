@@ -537,6 +537,8 @@
     parameter SENS_SS_MODE       =       "CENTER_HIGH",//"CENTER_HIGH","CENTER_LOW","DOWN_HIGH","DOWN_LOW"
     parameter SENS_SS_MOD_PERIOD =       10000,        // integer 4000-40000 - SS modulation period in ns
     
+    parameter CMPRS_CHN_MASK =            4'hf, // specify wich compressor channels to use (disable some/all to make room for processing)
+
     parameter CMPRS_NUM_AFI_CHN =         1, // 2, // 1 - multiplex all 4 compressors to a single AXI_HP, 2 - split between to AXI_HP
     parameter CMPRS_GROUP_ADDR =          'h600, // total of 'h60
     parameter CMPRS_BASE_INC =            'h10,

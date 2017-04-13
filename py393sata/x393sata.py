@@ -694,6 +694,7 @@ class x393sata(object):
         if do_not_start:
             print ('Run the following command to start the comand:')
             print("mem.write_mem(sata.get_reg_address('HBA_PORT__PxCI'), 1)")
+            return
         else:
             self.x393_mem.write_mem(self.get_reg_address('HBA_PORT__PxCI'), 1)
         print("Command table data:")    
