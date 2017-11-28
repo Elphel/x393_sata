@@ -19,3 +19,4 @@ bitbake-logs
 sysroots  
 attic/*
 image
+/scripts
