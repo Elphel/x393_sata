@@ -2,6 +2,7 @@
 /.project
 /.externalToolBuilders/
 /.pydevproject
+/.settings
 unisims
 debug
 vivado_*
