@@ -170,8 +170,9 @@ def reset_device():
     if not connection_errors():        
       log_msg("connection error ("+str(i)+"), resetting device",4)
       sata.reset_ie()
-      sata.reset_device()
       sleep(0.5)
+      sata.reset_device()
+      sleep(1)
     else:
       if i!=0: 
         log_msg("resetting device: success")
@@ -294,8 +295,9 @@ def reload_driver():
   unload_ahci_elphel_driver()
   # check once
   sata.reset_ie()
-  sata.reset_device()
   sleep(0.5)
+  sata.reset_device()
+  sleep(1)
   connection_errors()
   
   load_ahci_elphel_driver()
